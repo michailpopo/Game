@@ -14,23 +14,40 @@ import { mkdirSync, writeFileSync } from "node:fs";
 import { dirname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { checkDeterminism, checkStepSizeIndependence } from "../../src/core/sim-health.js";
-import { generateLevel } from "../../src/game/level-gen.js";
-import { createSim, startRun, step } from "../../src/game/sim.js";
+import { ARENA } from "../../src/config.js";
+import { createSim, makeInput, startRun, step } from "../../src/game/sim.js";
 
 const root = resolve(dirname(fileURLToPath(import.meta.url)), "../..");
 const selftest = process.argv.includes("--selftest");
 
+// The full arena: 12 bots, loose blocks, spawner, AI, contacts, merges.
 const makeState = () => {
-  const s = createSim(generateLevel(7), 12);
+  const s = createSim({ level: 2, seed: "sim-health" });
   startRun(s);
   return s;
 };
-// Continuous scripted input expressed as a RATE (axis), so it is step-size independent itself.
-const scripted = (fn) => (s, dt) => fn(s, dt, { axis: Math.sin(s.t * 2.1) });
-const sample = (s) => [s.x, s.z, s.count];
+// Continuous scripted input expressed as a RATE (key turn axis + boost), so it is step-size independent itself.
+const input = makeInput();
+const scripted = (fn) => (s, dt) => {
+  input.hasDir = false;
+  input.turn = Math.sin(s.t * 2.1);
+  input.boost = s.t > 0.8 && s.t < 1.4;
+  return fn(s, dt, input);
+};
+// Player head (continuous), its heading as a unit vector (no +-PI wrap artefact), its mass (discrete
+// eats - the same blocks in the window at every rate), its tail block (path following), and one bot
+// (its decisions are scheduled in sim seconds, not steps). Positions are measured from the arena's
+// corner (+halfSize): the check divides by |value|, and a position's natural scale is the arena,
+// not its distance from the origin (x = 0.01 vs 0.02 is not a "100% drift").
+const H = ARENA.arena.halfSize;
+const bot = (s) => s.snakes[1];
+const sample = (s) => {
+  const p = s.player;
+  return [p.x + H, p.z + H, Math.cos(p.heading), Math.sin(p.heading), p.mass, p.segX[p.n - 1] + H, p.segZ[p.n - 1] + H, bot(s).x + H, bot(s).z + H];
+};
 
-// Window: the first gate is at z=-34, ~2.6 s in at run speed. Stay before it.
-const WINDOW = { seconds: 2.0 };
+// Window: inside the player's 2 s spawn protection, so no contact can end the run at one rate and not another.
+const WINDOW = { seconds: 1.9 };
 
 function run(label, stepFn) {
   const det = checkDeterminism(makeState, scripted(stepFn), sample, { steps: 1800 });
@@ -41,8 +58,8 @@ function run(label, stepFn) {
 const results = [run("game simulation", step)];
 
 if (selftest) {
-  // Planted bug: an extra per-step smoothing constant (no dt) - the classic refresh-rate bug.
-  const broken = (s, dt, input) => { step(s, dt, input); s.x += (s.targetX - s.x) * 0.2; };
+  // Planted bug: a per-step nudge (no dt) - the classic refresh-rate bug.
+  const broken = (s, dt, inp) => { step(s, dt, inp); s.player.x += Math.cos(s.player.heading) * 0.03; };
   const r = run("planted per-step bug (must FAIL)", broken);
   r.expectedToFail = true;
   r.selftestPassed = !r.ok;

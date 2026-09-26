@@ -1,48 +1,63 @@
 /**
- * Colour themes. One theme = one coherent look (CG quality guideline: the
- * aesthetic must not switch styles). Themes rotate every 5 levels for variety
- * while staying inside the same art direction.
+ * Colours. One theme = one coherent look (CG quality guideline: the aesthetic must not
+ * switch styles). WP-10 ships ONE neutral grey-box arena theme; the designer's twist
+ * replaces it (and VALUE_COLORS) without touching game code.
  *
- * Rules that keep the hypercasual look readable at thumbnail size:
- *  - player colour is the most saturated thing on screen
- *  - good = cool/blue, bad = warm/red, and they differ in brightness too
- *    (readable in greyscale / for colour-blind players)
- *  - world colours are desaturated and fogged so gameplay objects pop
+ * Rules that keep a value-coded arena readable at thumbnail size:
+ *  - every value has its own colour, neighbours on the ladder differ in hue AND brightness
+ *  - the floor and walls are desaturated so blocks pop; the player gets an accent ring
+ *  - UI accents (magenta CTA, gold coins) stay constant across themes
  */
 
 export const THEMES = [
   {
-    name: "frost",
-    skyTop: "#b7bbe9", skyBottom: "#7f86d4", fog: "#8e94dc",
-    track: "#4f4a78", trackStripe: "#5d5889", rail: "#f2f1ff",
-    spire: "#8b93dd", spireCap: "#eef0ff",
-    crowd: "#c44ee6", enemy: "#e8424f",
-    gateGood: "#3fb6ff", gateBad: "#ff4d5e", block: "#f28a3c",
-    saw: "#e23b4a", hemiSky: "#e9ebff", hemiGround: "#6d62ad",
-  },
-  {
-    name: "sunset",
-    skyTop: "#ffcf9e", skyBottom: "#e97b8c", fog: "#f09a96",
-    track: "#5b4063", trackStripe: "#6a4c73", rail: "#fff4ea",
-    spire: "#d98a8f", spireCap: "#fff1e0",
-    crowd: "#3a7bff", enemy: "#e8424f",
-    gateGood: "#29c3a8", gateBad: "#ff4d5e", block: "#8f5bff",
-    saw: "#2c2c3a", hemiSky: "#fff0e0", hemiGround: "#8a5065",
-  },
-  {
-    name: "mint",
-    skyTop: "#c9f3e3", skyBottom: "#6fc7b1", fog: "#86d3bf",
-    track: "#35555a", trackStripe: "#3e6166", rail: "#f4fffb",
-    spire: "#7cc2ad", spireCap: "#f2fff9",
-    crowd: "#ff8a1f", enemy: "#8b3bd9",
-    gateGood: "#3fa0ff", gateBad: "#ff4d5e", block: "#ef5a8b",
-    saw: "#35353f", hemiSky: "#f0fff8", hemiGround: "#3f7a6e",
+    name: "greybox",
+    // stage.js: sky gradient, fog and hemisphere light (the sky only shows at the far edge)
+    skyTop: "#262a3a", skyBottom: "#1b1e2b", fog: "#1f2231",
+    hemiSky: "#f2f4ff", hemiGround: "#4a4f68",
+    // arena
+    floor: "#3b4054", floorLine: "#474d64", floorEdge: "#565d78",
+    outside: "#232636", wall: "#cfd3e2", wallSide: "#9ba2ba",
+    // the player's accent (ring under the head, name tag); a skin replaces it
+    crowd: "#ffffff",
+    enemy: "#ff4d5e",
   },
 ];
 
 export function themeFor(index) {
   return THEMES[((index % THEMES.length) + THEMES.length) % THEMES.length];
 }
+
+/**
+ * One colour per ladder level (level 1 = the smallest value). Our own sequence - not the
+ * reference game's. Levels past the end cycle.
+ */
+export const VALUE_COLORS = [
+  "#8fd3ff", // 2    sky
+  "#5be0a0", // 4    mint
+  "#ffd84a", // 8    yellow
+  "#ff9d4a", // 16   orange
+  "#ff5d6c", // 32   coral
+  "#d46bff", // 64   violet
+  "#4f86ff", // 128  blue
+  "#20c9b4", // 256  teal
+  "#ff6fd2", // 512  pink
+  "#b8e04a", // 1024 lime
+  "#ffb02e", // 2048 amber
+  "#9c7bff", // 4096 lavender
+];
+
+export function valueColor(level) {
+  return VALUE_COLORS[(Math.max(1, level) - 1) % VALUE_COLORS.length];
+}
+
+/** Number labels drawn on the blocks (render/block-mesh.js atlas). */
+export const LABEL_STYLE = {
+  fill: "#ffffff",
+  stroke: "rgba(22, 16, 44, 0.78)",
+  strokeWidth: 0.16,        // x font size
+  fontScale: 0.6,           // x cell size for 1-2 digit numbers; longer numbers shrink to fit
+};
 
 // Enemy colours to fall back on when a player skin sits too close to the theme's enemy hue.
 const ENEMY_FALLBACKS = ["#e8424f", "#8b3bd9", "#ff8a1f"];
@@ -58,9 +73,9 @@ function hueChroma(hex) {
 }
 
 /**
- * The theme with a player skin applied. Friend and foe must never share a hue
- * (palette rule 2), so the enemy colour moves to a fallback when the skin is
- * within 50 degrees of it.
+ * The theme with a player skin applied (the skin is the player's accent colour). Friend and
+ * foe must never share a hue (palette rule 2), so the enemy colour moves to a fallback when
+ * the skin is within 50 degrees of it.
  */
 export function withSkin(theme, skinHex) {
   if (!skinHex) return theme;

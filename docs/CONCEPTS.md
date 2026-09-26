@@ -598,7 +598,7 @@ RESEARCH.md (researcher; this package may only touch CONCEPTS.md).
 ## Round 2 - Cubes 2048.io family (2026-09-26)
 **Why this round:** the owner changed direction on 2026-09-26: "games like Cubes 2048.io that have many likes / are
 very popular and not that hard to make", ready to upload by the end of the session. Skip Legend (C1) is shelved; its
-brief stays in `docs/GAME_BRIEF.md`.
+brief moved to `docs/shelved/SKIP_LEGEND_BRIEF.md`.
 
 **Shared core:** a theme-neutral engine is being built in parallel in `src/game/`. Every concept below sits on top of
 it and names the one core rule it changes. The core:

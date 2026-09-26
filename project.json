@@ -1,7 +1,7 @@
 {
-  "name": "Working Title",
-  "slug": "cg-game",
-  "status": "new project - concept phase",
+  "name": "Comet Chain",
+  "slug": "comet-chain",
+  "status": "Gate 1 passed 2026-09-26 (owner picked R1 Comet Chain); brief written; building the upload-ready v1 on the merge-snake engine",
   "targetStage": "full",
   "orientation": "both",
   "style": "minimal-poly",
@@ -27,14 +27,20 @@
     "iap": false,
     "mobile": true,
     "keyboard": true,
-    "mouse-gesture": false,
+    "mouse-gesture": true,
     "first-person": false,
     "sitelock": false,
     "external-assets": false,
     "collects-personal-data": false
   },
   "notes": {
-    "mouse-gesture": "Steering is hold-and-drag with pointer capture, so releasing outside the frame cannot click the page. If QA treats it as mouse-gesture movement, enable Input({ pointerLock: true }) and set this to true.",
+    "mouse-gesture": "The comet follows mouse gestures in a top view, so CG-QUAL-008 applies: pointer lock + confinement during a round (requested on the PLAY click), a custom cursor ring, unlock on P / Tab / the browser's native Escape (never bound by the game), a pause overlay on unlock, pause and mute reachable by keyboard (P, M). Fallback when the lock is refused: unlocked mouse-follow with pointer capture and the same cursor ring.",
+    "multiplayer": "Single-player 'Offline Arena' against 12 bots. The mode label is shown wherever bot names appear (home, HUD, leaderboard slice, kill feed, podium); bots are never presented as real players. Owner decision 2026-09-26: no per-name BOT tag.",
+    "banners": "None in v1: menus are open under 5 s on average between 90 s rounds, and banners are off in the CrazyGames app and Basic Launch. Re-evaluate for the shop after launch data.",
+    "has-progress": "Coins, upgrades (Start size, Magnet, Boost tank), skins owned/tried, arena tier, best rank, biggest world, offer timestamps, daily gift day/streak and mute, saved via the CrazyGames Data module.",
+    "has-accounts": "No in-game accounts; guests play, and the Data module migrates guest progress on CrazyGames login.",
+    "keyboard": "WASD / arrows (KeyboardEvent.code) steer, Space / ShiftLeft boost, P pause, Tab release pointer, M mute. Escape and Ctrl combos are never bound.",
+    "rewarded": "7 surfaces, each with a cap and a coin or play path: Start bigger, Keep your chain (once per session), Claim x3, shop cash, free upgrade, try a skin, daily gift x2 (docs/GAME_BRIEF.md).",
     "budgets": "Profile M (skill references/threejs/visual-style.md). Enforced by tools/qa/browser-qa.mjs (poly-budget, dead-air) and tools/qa/check-poly.mjs. heroTriangles: at most ONE geometry may exceed trianglesPerGeometry, up to this. Raise a budget only with a written reason in docs/PROJECT_STATUS.md."
   },
   "createdAt": "2026-09-26"

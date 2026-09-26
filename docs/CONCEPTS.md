@@ -823,3 +823,204 @@ Bot labelling chosen by the owner: **"Offline Arena" only** - the mode is named 
 the leaderboard header say so); bot names look like normal names without a per-name BOT tag. The planner's note:
 the "Offline Arena" label must be visible wherever bot names appear (leaderboard slice, kill feed context, result
 podium), so bots are never presented as real players.
+
+## Round 3 - original dopamine games (2026-09-26)
+**Why this round:** the owner played Comet Chain and said: "the game looks shit, now create an original game not copy
+game, but it must be dopamine hitting". Comet Chain is shelved: it read as a Cubes 2048.io copy and looked cheap
+(washed-out pastel, flat outlined polygons, clutter).
+
+**The bar for Round 3:**
+- **Original:** no single game it could be called a copy of.
+- **Satisfying physical transformation at the core:** shatter, snap or light-up chains.
+- **The hypercasual formula:** one verb in 2 s, a number + sound every 0.3-1 s, escalating cascades, a jackpot every
+  15-60 s run, exponential numbers, a collection, upgrades that make the next run visibly bigger.
+- **Premium look:** saturated emissive colour on a deep background, soft light, glow, big particles, bold UI.
+- **Fits profile M and a Chromebook:** "glow" means emissive colours + instanced additive halo sprites, with a
+  half-resolution bloom pass only on the high quality tier.
+- **Buildable in a few hours** on the template (SDK facade, ads/offers, save, ZzFX audio, input, fixed-step sim,
+  particles, shake, DOM UI, QA harness).
+
+**Originality checks (2026-09-26):**
+- CrazyGames search API: "crystal", "shatter", "shards", "shatterfall", "chain lightning", "lightning", "volt",
+  "volt city", "blackout", "power grid", "magnet", "magnet heap", "scrap", "chain reaction", "boomshine". None returns
+  a game with the same core; only name fuzz, plus Shatter Knight, Magnet Balls (a puzzle) and Voltspire (tower
+  defense).
+- Poki EN sitemap (1,502 games): no "shatter", "volt", "magnet", "lightning", "crystal" or "blackout" slug.
+
+### T1 - Volt City (hold to charge, release a lightning strike that chains across a dark city and lights it up)
+- **Pitch:** a night city lies in blackout. Hold anywhere to charge a storm cloud and release to strike. The bolt hits
+  the building under your finger, then **arcs from rooftop to rooftop**, forking as it goes. Every building it touches
+  lights up window by window and pays. Power the whole city for the jackpot.
+- **Verb:** one, *hold and release* (touch / click / Space).
+  - The press position aims (the nearest rooftop antenna). Keyboard: the strike goes to the rooftop under the
+    crosshair, which arrow keys / WASD move.
+  - The hold sets the charge. A pulsing ring fills in ~1.2 s; releasing in the **SUPERCHARGE band (80-95%)** gives
+    full voltage. Holding past 100% "grounds out" into a weak spark (push-your-luck).
+- **Run:** one city = 3 strikes (upgradable to 6), each cascade lasting 2-5 s; a run is 15-30 s. The result is the %
+  of the city powered.
+- **Chain rule (deterministic, seeded):** the bolt carries energy E (Voltage). Each hop goes to the nearest unlit
+  antenna within range R, costs 1 energy, and lights that building. With probability F (Fork) a hop splits into two
+  bolts, so the numbers go exponential: 1 -> 2 -> 4 -> 8 bolts racing across the skyline. A cascade ends when every
+  bolt's energy is spent or no unlit antenna is in range.
+- **3-second clip:** a finger holds, the cloud crackles, release -> a white-cyan bolt slams a rooftop, splits and
+  splits again across the skyline, and a wave of gold windows lights up behind it, with "+8 +8 +16 +32" and
+  "x64 CHAIN".
+- **Reward cadence:**
+
+  | Scale | Interval | What happens |
+  |---|---|---|
+  | micro | 0.08-0.15 s per hop | crackle on a rising pitch ladder, the building's windows fill gold, "+N" (value by building height x chain depth) |
+  | streak | each fork | "FORK x2 / x4 / x8", brighter bolt colour, pitch jumps |
+  | peak | each strike (every 3-8 s) | 60 ms hit-stop on impact, screen flash, camera kick; "CHAIN x64"; "BLOCK POWERED" when a whole district lights |
+  | run end | 15-30 s | % powered -> jackpot plate x2 (60%), x3 (80%), x5 (95%), **x10 FULL POWER (100%)**, the city's final light-up sweep, coin fly-in, **Claim x3** |
+  | meta | every 1-3 runs | an upgrade level visibly adds hops/forks; a new city every 5 levels (Harbour, Desert Towers, Snow Peak, Neon Bay ...) |
+  | collection | - | 12 bolt skins (cyan, magenta, gold, plasma green, rainbow, "void" black-purple ...) as silhouettes |
+
+- **Upgrades** (each makes the next run visibly bigger):
+  - Voltage: +2 hops per bolt.
+  - Fork: fork chance 5% -> 35%.
+  - Strikes: 3 -> 6 per city.
+  - Capacitor: SUPERCHARGE band 15% -> 30% wide.
+  - Gold rods: 1-5 gold antennas per city that pay x10 and always fork.
+- **Art direction + hero frame:**
+  - Deep navy-to-indigo sky with a magenta storm glow on the horizon; a silhouetted skyline of instanced boxes
+    (buildings) with thin rooftop antennas; wet dark street plane with a cheap reflection (a mirrored, darkened copy
+    of the lit windows, no real reflections).
+  - Unlit buildings: charcoal `#1b1f3b`. Lit windows: warm gold `#ffd166` via an unlit window texture tinted per
+    instance. Bolts: white core with a cyan `#4df3ff` / skin-coloured glow (camera-facing ribbons + additive halo
+    sprites at every hop).
+  - Big sparks as instanced particles. UI: bold white numerals with a cyan outer glow, big "%" power meter top centre.
+  - **Hero frame:** half the skyline blazing gold, the other half dark, a forked bolt mid-leap between two towers,
+    "97% POWERED" huge on top. It reads in a 200 px thumbnail as "lightning lights up a city".
+- **Profile M fit:** ~400 buildings (boxes, 12 tris) + antennas + ~250 bolt segments + halos: ~15k tris, ~12 draw
+  calls. Very light for a Chromebook.
+- **Ad surfaces (7):**
+
+  | # | Surface | Moment | Reward | Cap | Coin path |
+  |---|---|---|---|---|---|
+  | 1 | Supercharged start | before a city | +2 strikes this city | hidden in runs 1-2; every 2nd run or 120 s | Strikes upgrade, or buy for coins |
+  | 2 | One more strike (revive analogue) | the run ends with >= 85% powered | 1 extra strike at full charge (5 s ring declines) | once per session | Strikes upgrade |
+  | 3 | Claim x3 | result | x3 coins | every result | Claim |
+  | 4 | Free upgrade | an unaffordable card | one level | 180 s | coins |
+  | 5 | Shop cash | shop, next skin unaffordable | +22% of its price | 180 s timer | coins |
+  | 6 | Try a bolt | shop, locked skin | one city with it | once per skin | unlock |
+  | 7 | Daily gift x2 | first session of the day | double | 1/day | base gift |
+
+  Midgame on "Next city" from level 4 (a break every 15-30 s run, so the SDK's 3-minute cap decides).
+- **Closest games and why not a copy:**
+  - Boomshine (2007 Flash) and chain-reaction clickers share "one trigger -> chain reaction".
+  - "Power the house" wire puzzles share lighting things up, but the verb is rotating tiles.
+  - Tesla-tower defences share chain lightning as a weapon.
+  - None combines a charged strike, forking chain lightning and a city lighting up as the payoff. No such game on
+    CrazyGames or Poki.
+- **Name:** Volt City. No hits on the CrazyGames search API ("volt city") or on Poki.
+- **Build effort:** LOW-MEDIUM (~3-5 h on the template): city generator, hop/fork algorithm, bolt ribbons + halos,
+  window light-up, the charge ring, result jackpot. The meta and offers map onto the existing offers/meta code.
+
+### T2 - Shatterfall (tap to drop a spark into a field of glowing glass crystals; shards shatter their neighbours)
+- **Pitch:** a dark velvet tray holds 1,500 glowing glass crystals. Tap to drop a white-hot spark. The crystal it hits
+  **shatters into shards that fly out and shatter their neighbours**, and the cascade tears across the field in a
+  storm of glitter. You have 3 sparks: clear as much as you can.
+- **Verb:** tap to drop (the position aims).
+- **Run:** 3 sparks (upgradable), each cascade 2-5 s; a run is 15-30 s; the result is the % cleared.
+- **Chain rule:** each shattered crystal emits S shards (upgrade 3 -> 8) with a speed and life; a shard hitting a
+  crystal shatters it. Gold crystals pay x10; bomb crystals blast a radius. A spatial grid keeps the collision checks
+  cheap.
+- **3-second clip:** a spark falls into a field of magenta and cyan crystals; one shatters, then ten, then hundreds
+  in a spreading glittering wave, with "+1 +1 +2 ... x312 COMBO".
+- **Rewards:**
+  - micro: a shatter every 0.02-0.1 s at peak (a glass tink pitch ladder, throttled to 25 voices/s);
+  - streak: the combo counter;
+  - peak: bomb crystals and a gold burst;
+  - run end: % cleared -> x2 / x3 / x5 / x10 at 100%;
+  - collection: 12 spark/crystal palettes.
+- **Upgrades:** Sparks, Shards per crystal, Shard speed, Gold/bomb density.
+- **Art + hero frame:** deep violet-black background; faceted crystals (emissive magenta `#ff3fa4`, cyan `#3fd0ff`,
+  amber `#ffb13f`) with halo sprites; shards as bright instanced tetrahedra with motion trails. **Hero frame:** a
+  crater of white-hot shattering crystals mid-field with glitter everywhere and "x312".
+- **Profile M fit:** 1,500 icosahedra (20 tris) = 30k + 2,000 shards (4 tris) = 8k: ~40k tris, ~10 draw calls. The
+  densest of the three: glitter overdraw and bloom need the low tier to drop halos.
+- **Ad surfaces (7):** the same set as T1: extra sparks start, "one more spark" at >= 85% cleared (once per session),
+  Claim x3, free upgrade, shop cash, try a palette, daily x2. The same caps and coin paths. Midgame on "Next field"
+  from level 4.
+- **Closest and why not a copy:** the Boomshine family (one click -> chain reaction of expanding circles); Peggle
+  (a dropped ball lighting pegs). Ours propagates physically through flying shards in 3D glass, with an incremental
+  meta. It is still the closest to an existing idea of the three.
+- **Name:** Shatterfall. No hits on the CrazyGames search API; Poki has no "shatter" slug.
+- **Build effort:** MEDIUM-LOW (~3-5 h): crystal field generator, shard sim with a grid, glass audio, jackpot.
+  Performance tuning is the risk.
+
+### T3 - Magnet Heap (drag a giant magnet through a scrapyard of clicky metal bits; bank the clump in the furnace)
+- **Pitch:** drag a giant horseshoe magnet over a floor carpeted with thousands of shiny nuts, bolts, coins and gears.
+  They **leap up and snap onto it** with a storm of clicks, and the clump grows into a huge spiky ball. Bank it in the
+  furnace to melt it into gold, or push your luck: the heavier the clump, the bigger the multiplier, but crash into
+  a spinning saw and the clump drops.
+- **Verb:** drag to steer; release over the furnace to bank.
+- **Run:** 30-45 s on a timer.
+- **3-second clip:** a red magnet sweeps a chrome carpet; hundreds of bits fly up and click on into a spiky ball;
+  it drops into a glowing furnace, gold bars pop out, "x5".
+- **Rewards:**
+  - micro: bits every 0.05-0.3 s (clicks on a pitch ladder, "+1");
+  - streak: clump weight tiers (x2/x3/x5 multiplier on the next bank);
+  - peak: the bank (molten splash, gold bars);
+  - run end: total gold -> Claim x3;
+  - collection: 12 magnets.
+- **Upgrades:** Magnet strength (radius), Capacity, Furnace multiplier, Timer.
+- **Art:** a sunset-orange yard, chrome and gold bits, a red magnet with a glowing field ring.
+- **Profile M fit:** 2,500 instanced bits (12-24 tris) = 30-60k: at the limit. Bits must be boxes/low cylinders.
+- **Ad surfaces (7):** bigger magnet start, "save the drop" (keep a dropped clump, once per session), Claim x3, free
+  upgrade, shop cash, try a magnet, daily x2. Midgame on "Next yard" from level 4.
+- **Closest and why not a copy:** Katamari-style rollers (Roll King on CrazyGames) and Holey.io share
+  "absorb and grow". The bank/push-your-luck loop is ours, but the look and verb sit in a crowded family.
+- **Name:** Magnet Heap. No hits on the CrazyGames search API or Poki.
+- **Build effort:** MEDIUM (~5-7 h): thousands of flying bits sticking into a clump shape is the hardest part to
+  make look good.
+
+### Round 3 scores (1-5)
+Weighted x2: originality, hook density, thumbnail identity, production simplicity (the owner's priorities). One reason
+per row covering the three.
+
+| Dimension | T1 Volt City | T2 Shatterfall | T3 Magnet Heap | Reason |
+|---|---|---|---|---|
+| Core-loop strength | 4 | 4 | 4 | each gives a huge payoff from one simple verb; the feel is unproven for all three (prototype) |
+| Clarity in 5 s | 4 | 5 | 4 | the shatter is instant to read; the lightning needs the charge ring; the magnet needs the bank rule |
+| First session | 5 | 5 | 5 | a payoff within 2 s in all three |
+| Replayability | 4 | 4 | 3 | generated cities and fields; yards feel alike |
+| Skill headroom | 4 | 3 | 4 | T1: charge timing + where to strike; T3: route + when to bank; T2: drop position only |
+| **Originality (x2)** | 5 | 4 | 3 | T1 has no precedent found; T2 is Boomshine-adjacent; T3 is katamari/hole-adjacent |
+| **Thumbnail identity (x2)** | 5 | 5 | 4 | a lightning-lit skyline and a glitter explosion are both striking; the magnet reads less at 200 px |
+| **Hook density (x2)** | 5 | 5 | 5 | hops, shards or clicks many times per second plus a jackpot per run |
+| 3-second clip | 5 | 5 | 4 | T1 and T2 explain themselves without sound |
+| **Production simplicity (x2)** | 4 | 4 | 3 | T1/T2: one chain algorithm + effects; T3: thousands of flying, sticking bits |
+| Performance risk (5 = safe) | 5 | 3 | 3 | T1 ~15k tris; T2 ~40k with glitter overdraw; T3 up to 60k |
+| Poly fit, profile M | 5 | 4 | 3 | boxes vs dense crystals vs thousands of bits |
+| Mobile/touch fit | 5 | 5 | 4 | hold/tap anywhere vs drag |
+| Content scalability | 5 | 5 | 5 | all procedural |
+| Time to gameplay | 5 | 5 | 5 | one tap |
+| Ad-break fit | 5 | 5 | 5 | runs of 15-45 s |
+| Retention hooks | 4 | 4 | 4 | upgrades, new cities/fields/yards, skins, daily |
+| Monetization fit | 5 | 5 | 5 | strikes/sparks/magnet boosts are wanted |
+| Ad-surface count | 5 | 5 | 5 | 7 each, capped, with coin paths |
+| Market gap evidence | 2 | 2 | 3 | HYPOTHESIS for T1/T2 (no CrazyGames game to measure); T3's absorb family is MEASURED but crowded (Holey.io 28,748 plays/day) |
+| **Total (of 100)** | **91** | **87** | **81** | |
+| **Weighted total (with the x2 rows counted twice)** | **110** | **105** | **96** | |
+
+### Round 3 decision
+**Recommended: T1 Volt City.**
+- It is the most original: no game found with a charged strike, forking chain lightning and a city lighting up.
+- It has the strongest premium look for the lowest render cost: dark skyline, gold windows, white-cyan bolts, and
+  about a quarter of T2's triangles.
+- Its dopamine curve escalates naturally: forks double the bolts (1 -> 2 -> 4 -> 8), the city fills with light, and
+  "FULL POWER x10" is a clear jackpot.
+- The hold-and-release adds a push-your-luck moment to every strike.
+- It is buildable in a few hours as one algorithm plus effects on the template.
+
+**T2 Shatterfall** is the close runner-up: the purest ASMR and the clearest clip, but Boomshine-adjacent and the
+heaviest to render. **T3 Magnet Heap** is the most expensive to make look good.
+
+**Smallest prototype for T1:** one grey-box city, one strike with forks, windows lighting up, and the plink/crackle
+ladder. Does a first-timer laugh or say "whoa" at the first fork, and hold again within 2 s?
+
+**NEEDS USER:**
+- Pick T1, T2 or T3.
+- Approve the name.

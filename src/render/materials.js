@@ -103,9 +103,13 @@ vec3 fcWindows() {
   vec2 aa = max( fwidth( g ) * 1.1, vec2( 0.001 ) );
   vec2 lo = smoothstep( fcMargin - aa, fcMargin + aa, f );
   vec2 hi = 1.0 - smoothstep( 1.0 - fcMargin - aa, 1.0 - fcMargin + aa, f );
-  float m = lo.x * lo.y * hi.x * hi.y;
   float storeys = floor( vFcScale.y / fcCell.y );
+#ifdef FC_STREAK
+  float m = lo.x * hi.x * step( cell.y, storeys - 1.5 );           // reflections: vertical light streaks
+#else
+  float m = lo.x * lo.y * hi.x * hi.y;
   m *= step( 0.5, cell.y ) * step( cell.y, storeys - 1.5 );       // no ground floor, no parapet storey
+#endif
   vec2 key = cell + vec2( vFcSeed * 97.0 + vFcNormal.x * 13.0, vFcNormal.z * 7.0 );
   float h = fcHash( key );
   float lit = step( h, vFcLit * 1.0001 );
@@ -150,8 +154,8 @@ function facadeUniforms({ litColor, litIntensity, glass, cell, margin, dim, spil
  * (window grid in world units), margin [x, y], dim (share of faintly lit windows in dark buildings),
  * spill (warm wash on the walls of lit buildings), rim (edge light strength).
  */
-function facade({ litColor = "#ffd166", litIntensity = 2.2, glass = "#0b1030", cell = [0.46, 0.56], margin = [0.2, 0.22], dim = 0.05, spill = 0.06, rim = 0.35, roughness = 0.62, metalness = 0.15 } = {}) {
-  const m = new MeshStandardMaterial({ color: 0xffffff, roughness, metalness });
+function facade({ litColor = "#ffd166", litIntensity = 1.8, glass = "#0b1030", cell = [0.5, 0.62], margin = [0.2, 0.22], dim = 0.05, spill = 0.06, rim = 0.18, roughness = 0.78, metalness = 0.1, envMapIntensity = 0.35 } = {}) {
+  const m = new MeshStandardMaterial({ color: 0xffffff, roughness, metalness, envMapIntensity });
   const u = facadeUniforms({ litColor, litIntensity, glass, cell, margin, dim, spill });
   m.userData.facade = u;
   m.onBeforeCompile = (shader) => {
@@ -172,13 +176,15 @@ function facade({ litColor = "#ffd166", litIntensity = 2.2, glass = "#0b1030", c
         totalEmissiveRadiance += fcLit * fcSpill * vFcLit * ( 1.0 - fcW.x ) * ( 1.0 - fcRoof );`);
   };
   m.customProgramCacheKey = () => "gs-facade";
-  if (rim > 0) enhance(m, { rim, rimPower: 3.5, rimColor: "#ff4fc4", rimTint: 0.15 });
+  if (rim > 0) enhance(m, { rim, rimPower: 3.5, rimColor: "#ff4fc4", rimTint: 0.1 });
   return m;
 }
 
 /**
  * The facade's windows mirrored below the street (use on an InstancedMesh that shares the city's
- * geometry, instanceMatrix and instanceColor, with `mesh.scale.y = -1`). Unlit; fades with depth.
+ * geometry, instanceMatrix and instanceColor, with `mesh.scale.y = -0.55`: squashing the mirror puts
+ * more storeys into the thin strip of street a raised camera sees). Unlit, windows become vertical
+ * streaks (wet asphalt), fades with depth.
  */
 function facadeReflection(facadeMaterial, { strength = 0.55, depthFade = 0.35, body = "#04040c" } = {}) {
   const u = facadeMaterial.userData.facade;
@@ -228,6 +234,7 @@ function facadeReflection(facadeMaterial, { strength = 0.55, depthFade = 0.35, b
         #include <fog_fragment>
       }`,
     fog: true,
+    defines: { FC_STREAK: "" },
   });
 }
 
@@ -270,17 +277,18 @@ export const MATERIALS = {
     return enhance(new MeshStandardMaterial({ color, metalness: 1, roughness }), { rim, rimPower: 3, rimColor: "#ffffff", rimTint: 0.8 });
   },
 
-  gold({ roughness = 0.2, rim = 0.35 } = {}) {
-    return enhance(new MeshStandardMaterial({ color: "#ffc83d", metalness: 1, roughness, emissive: "#3a2000" }),
+  /** Stylised gold: stays gold under any backdrop (a warm emissive floor under the metal reflections). */
+  gold({ roughness = 0.24, rim = 0.4 } = {}) {
+    return enhance(new MeshStandardMaterial({ color: "#ffd84a", metalness: 0.6, roughness, emissive: "#ff9a00", emissiveIntensity: 0.32 }),
       { rim, rimPower: 2.5, rimColor: "#fff2b0", rimTint: 0.2 });
   },
 
   /** Unlit HDR neon; additive = true for halo-like overlapping strokes. */
   neon(color = "#ff2d95", intensity = 3, { additive = false, doubleSided = false } = {}) {
-    return new MeshBasicMaterial({
-      color: hdr(color, intensity), blending: additive ? AdditiveBlending : undefined, transparent: additive,
-      depthWrite: !additive, side: doubleSided ? DoubleSide : undefined,
-    });
+    const m = new MeshBasicMaterial({ color: hdr(color, intensity), transparent: additive, depthWrite: !additive });
+    if (additive) m.blending = AdditiveBlending;
+    if (doubleSided) m.side = DoubleSide;
+    return m;
   },
 
   facade,
@@ -288,7 +296,7 @@ export const MATERIALS = {
   facadeReflection(facadeMaterial, opts) { return linkFacadeUniforms(facadeReflection(facadeMaterial, opts), facadeMaterial); },
 
   /** Dark glossy street. Transparent so a mirrored reflection mesh below it shows through. */
-  wetStreet({ color = "#0b0d22", roughness = 0.3, metalness = 0.25, opacity = 0.8 } = {}) {
-    return new MeshStandardMaterial({ color, roughness, metalness, transparent: opacity < 1, opacity, depthWrite: true });
+  wetStreet({ color = "#0b0d22", roughness = 0.3, metalness = 0.25, opacity = 0.8, envMapIntensity = 0.6 } = {}) {
+    return new MeshStandardMaterial({ color, roughness, metalness, transparent: opacity < 1, opacity, depthWrite: true, envMapIntensity });
   },
 };

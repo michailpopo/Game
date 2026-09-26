@@ -1,11 +1,9 @@
 /**
- * QA / capture autopilot for Volt City. Deterministic (no randomness): it aims at the unlit
+ * QA / capture autopilot for Storm Grid. Deterministic (no randomness): it aims at the unlit
  * building with the most unlit neighbours in range (the densest dark area), holds until the
- * charge sits inside the SUPERCHARGE band, releases, and waits for the cascade to finish before
- * the next strike - so dead-air and long-run checks measure real play.
+ * charge sits in the middle of the SUPERCHARGE band, releases, and waits for the cascade to
+ * finish before the next strike - so dead-air and long-run checks measure real play.
  */
-
-import { VOLT as V } from "../config.js";
 
 /** Best strike target: the unlit building with the most unlit neighbours (ties: lower id). */
 export function densestUnlit(s) {
@@ -30,7 +28,6 @@ export function autopilot(s, out) {
     out.hold = out.aim >= 0;
     return out;
   }
-  const mid = (V.strike.superLo + V.strike.superHi) / 2;
-  out.hold = s.charge < mid;
+  out.hold = s.charge < (s.params.bandLo + s.params.bandHi) / 2;
   return out;
 }

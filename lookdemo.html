@@ -1,0 +1,30 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover" />
+    <title>Storm Grid - look demo</title>
+    <link rel="icon" href="data:," />
+    <!-- WP-20 look kit demo (not part of the game build): `npx vite --port 5174` then
+         http://127.0.0.1:5174/lookdemo.html            Storm Grid hero frame (3D city, bolts, pops, meter)
+         http://127.0.0.1:5174/lookdemo.html?scene=kit  material + FX swatch (candy, crystal, glass, gold, metal, neon)
+         options: ?quality=low|medium|high|ultra  ?still=1  ?stats=1  ?hud=0  ?panel=1  ?backdrop=storm|space|sunset|candy|ocean -->
+    <style>
+      html, body { margin: 0; height: 100%; overflow: hidden; background: #070a24; }
+      body { -webkit-user-select: none; user-select: none; -webkit-tap-highlight-color: transparent; }
+      #app { position: fixed; inset: 0; overflow: hidden; }
+      #game { position: absolute; inset: 0; width: 100%; height: 100%; display: block; outline: none; }
+      #stats { position: absolute; left: 8px; bottom: 8px; z-index: 99; font: 12px/1.3 monospace; color: #bff; background: #0008; padding: 4px 6px; border-radius: 4px; white-space: pre; pointer-events: none; }
+    </style>
+  </head>
+  <body>
+    <div id="app">
+      <canvas id="game" tabindex="-1"></canvas>
+      <div id="ui"></div>
+    </div>
+    <script type="module">
+      const kit = new URLSearchParams(location.search).get("scene") === "kit";
+      import(kit ? "/src/render/look-kit-demo.js" : "/src/render/look-demo.js");
+    </script>
+  </body>
+</html>

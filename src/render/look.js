@@ -11,10 +11,13 @@
  *   // per frame, unchanged: stage.resize(); ...; quality.update(loop.frameMs, dt); stage.render();
  *
  * What it does (all verified against three r186):
- *  - tone mapping (ACES by default; "agx" | "neutral" | "aces") + sRGB output, exposure
+ *  - tone mapping ("neutral" by default; "aces" | "agx") + sRGB output, exposure. Measured on the WP-20
+ *    hero frame (qa/wp20/tonemap-*.png): Neutral keeps #4df3ff cyan and #ffd166 gold saturated; ACES
+ *    bleaches bright cyan/gold toward white; AgX greys the whole frame (the "washed out" failure)
  *  - backdrop: an analytic full-screen gradient (vertical gradient, horizon band, two radial glows,
  *    stars, vignette, dithering) drawn behind everything - tone-mapped exactly like the scene on every
- *    tier, no texture, no banding; fog in the backdrop's horizon colour for depth
+ *    tier, no texture, no banding; the band follows the camera's real horizon (alignHorizon) and the fog
+ *    fades the ground into it, so there is never a visible "table edge"
  *  - light rig: hemisphere (sky/ground from the palette) + key directional with soft PCF shadows
  *    (shadow.radius Vogel-disk filter in r186; PCFSoftShadowMap is removed in r186 - not used) + a
  *    coloured rim light from behind
@@ -129,7 +132,7 @@ function buildEnvScene(b) {
     { color: b.envPanels[1], k: 4.5, pos: [22, 6, -28], size: [14, 10] },
   ];
   for (const bx of boxes) {
-    const m = new Mesh(panel, new MeshBasicMaterial({ color: new Color(bx.color).multiplyScalar(bx.k), side: BackSide }));
+    const m = new Mesh(panel, new MeshBasicMaterial({ color: new Color(bx.color).multiplyScalar(bx.k * (b.envPanelIntensity ?? 1)), side: BackSide }));
     m.position.set(...bx.pos);
     m.scale.set(bx.size[0], bx.size[1], 1);
     m.lookAt(0, 0, 0);
@@ -146,7 +149,7 @@ function disposeScene(scene) {
 /**
  * @param {ReturnType<import("./stage.js").createStage>} stage
  * @param {{
- *   backdrop?: string|object, toneMapping?: "aces"|"agx"|"neutral", exposure?: number,
+ *   backdrop?: string|object, toneMapping?: "neutral"|"aces"|"agx", exposure?: number,
  *   bloom?: false|{ strength?: number, radius?: number, threshold?: number },
  *   shadows?: boolean, shadowArea?: number, shadowsStatic?: boolean,
  *   keyDir?: [number, number, number], rimDir?: [number, number, number],
@@ -158,12 +161,12 @@ function disposeScene(scene) {
 export function applyLook(stage, opts = {}) {
   const { renderer, scene, camera, size } = stage;
   const o = {
-    backdrop: "storm", toneMapping: "aces", exposure: 1, shadows: true, shadowArea: 20, shadowsStatic: false,
-    keyDir: [-0.55, 1, 0.45], rimDir: [0.35, 0.45, -1], ground: false, env: "palette", fog: true, ...opts,
+    backdrop: "storm", toneMapping: "neutral", exposure: 1, shadows: true, shadowArea: 20, shadowsStatic: false,
+    keyDir: [-0.55, 1, 0.45], rimDir: [0.35, 0.45, -1], ground: false, env: "palette", fog: true, alignHorizon: true, ...opts,
     bloom: opts.bloom === false ? false : { strength: 0.85, radius: 0.55, threshold: 0.9, ...(opts.bloom || {}) },
   };
 
-  renderer.toneMapping = TONE[o.toneMapping] ?? ACESFilmicToneMapping;
+  renderer.toneMapping = TONE[o.toneMapping] ?? NeutralToneMapping;
   renderer.toneMappingExposure = o.exposure;
   renderer.shadowMap.enabled = true;
   renderer.shadowMap.type = PCFShadowMap;
@@ -323,8 +326,25 @@ export function applyLook(stage, opts = {}) {
     backdrop.material.uniforms.uAspect.value = size.aspect || 1;
     return changed;
   }
+  // Keep the backdrop's horizon band (and its glows, relative to it) on the real horizon of the
+  // ground plane, so fogged ground meets the glow wherever the camera looks.
+  const _fwd = new Vector3(), _far = new Vector3();
+  function alignHorizon() {
+    if (!o.alignHorizon || !current) return;
+    camera.getWorldDirection(_fwd);
+    _fwd.y = 0;
+    if (_fwd.lengthSq() < 1e-6) return;
+    _fwd.normalize();
+    _far.copy(camera.position).addScaledVector(_fwd, 1e4).setY(0).project(camera);
+    const h = Math.min(1.2, Math.max(-0.2, _far.y * 0.5 + 0.5));
+    const u = backdrop.material.uniforms, b = current;
+    u.uHorizonAt.value = h;
+    u.uGlowAt.value.y = h + (b.glowAt[1] - b.horizonAt);
+    u.uGlow2At.value.y = h + ((b.glow2At ?? b.glowAt)[1] - b.horizonAt);
+  }
   function render() {
     renderer.info.reset();
+    alignHorizon();
     if (useComposer) {
       syncComposer();
       composer.render();

@@ -5,28 +5,29 @@
  * `now` (ms) and `available` (ads.rewardedAvailability.ok), so this runs in Node.
  *
  * The rules each offer follows (docs.crazygames.com/requirements/ads, register ids):
- *   CG-ADS-009  never on an active gameplay screen - callers only ask on ready/result/shop
+ *   CG-ADS-009  never on an active gameplay screen - callers only ask on the city intro (before
+ *               the first strike), after the last cascade, on the result and in the shop
  *   CG-ADS-011  not too often: every offer has a cap or a cooldown
  *   CG-ADS-012  a non-ad path exists: coins buy everything an ad accelerates
- *   CG-ADS-014  revive not on every death: once per session, only past reviveMinProgress
+ *   CG-ADS-014  revive not on every run: once per session, only at 85-99% powered
  */
 
 import { OFFERS } from "../config.js";
-import { skinUnlockCost, startMass, upgradeCost } from "./meta.js";
+import { skinUnlockCost, upgradeCost } from "./meta.js";
 
 const left = (lastAt, cooldownSec, now) => Math.max(0, Math.ceil((lastAt + cooldownSec * 1000 - now) / 1000));
 const nice = (n) => (n >= 100 ? Math.round(n / 10) * 10 : Math.max(5, Math.round(n / 5) * 5));
 
-/** Death screen: offer a revive? */
+/** After the last cascade: offer "One more strike"? (progress = share powered, never at 100%) */
 export function reviveOffer({ available, revivesUsed, progress }) {
-  return available && revivesUsed < OFFERS.revivesPerSession && progress >= OFFERS.reviveMinProgress;
+  return available && revivesUsed < OFFERS.revivesPerSession && progress >= OFFERS.reviveMinProgress && progress < 1;
 }
 
-/** Ready screen: "Start xN" for one round (the round starts with N x the start mass). */
+/** City intro: "Supercharged start" = +boostStrikes strikes for this city. */
 export function boostOffer(save, { available, now, boostedThisRun }) {
   const cooldown = left(save.lastBoostAt, OFFERS.boostCooldownSec, now);
   const visible = available && !boostedThisRun && save.runs >= OFFERS.boostAfterRuns && cooldown === 0;
-  return { visible, factor: OFFERS.boostFactor, mass: startMass(save) * OFFERS.boostFactor, cooldown };
+  return { visible, strikes: OFFERS.boostStrikes, cooldown };
 }
 
 /** Upgrade card: "FREE" instead of coins, only when the upgrade is out of reach. */

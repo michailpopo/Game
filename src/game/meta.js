@@ -1,64 +1,74 @@
 /**
- * Meta progression: persistent save shape, upgrade costs, rewards.
- * Pure functions over the save object, so balance can be tested in Node.
+ * Meta progression: persistent save shape, upgrades, skins, completion. Pure functions over the
+ * save object, so balance can be tested in Node. Numbers: docs/GAME_BRIEF.md "Economy".
  *
- * Design intent (see skill references/design/dopamine-and-retention.md):
- *  - coins always go up after a level, win or lose -> every run feels useful
- *  - upgrades are affordable every 1-3 levels early, then slow -> a reason to return
+ * Design intent (skill references/design/dopamine-and-retention.md):
+ *  - coins always go up after a city, cleared or not -> every run feels useful
+ *  - upgrades visibly change the storm (more hops, forks, strikes, a wider band, gold rods)
  *  - rewarded ads accelerate, never gate: everything is reachable with coins
- *  - a visible collection (skins grid, locked ones as silhouettes) is a goal between upgrades
+ *  - a visible collection (bolt skins, locked ones as silhouettes) is a goal between upgrades
+ * (WP-32 adds try-skin, the daily gift and the per-city best plates on top of this shape.)
  */
 
-import { ARENA } from "../config.js";
+import { STORM } from "../config.js";
 
 // New fields need no migration: SaveService merges saved data over these defaults.
 export const DEFAULT_SAVE = {
-  level: 1,          // round number (the next round to play)
-  bestLevel: 1,
-  tier: 1,           // arena tier 1-20: bot difficulty, adapts to results (GAME_BRIEF "Bot AI difficulty ramp")
-  bestTier: 1,
-  bestRank: 0,       // 0 = no finished round yet
-  bestScore: 0,
-  bestWorld: 0,      // highest ladder level ever reached ("NEW WORLD" cards)
-  swallows: 0,
-  firstWin: false,   // first #1 finish (happytime, once)
-  lastSeenAt: 0,
+  level: 1,          // the city to play next
+  bestLevel: 1,      // the furthest city reached (completion %)
   coins: 0,
-  upStart: 0,
-  upIncome: 0,
+  upVoltage: 0,
+  upFork: 0,
+  upStrikes: 0,
+  upCapacitor: 0,
+  upGold: 0,
   runs: 0,
-  wins: 0,
+  wins: 0,           // cities cleared
+  fullPowers: 0,
+  bestShare: 0,
+  bestChain: 0,
+  plates: {},        // city -> best plate multiplier
   userMuted: false,
   lastFreeUpgradeAt: 0,
   lastBoostAt: 0,
   lastCashAt: 0,
-  skin: "classic",
-  owned: ["classic"],
+  lastSeenAt: 0,
+  skin: "cyan",
+  owned: ["cyan"],
 };
 
-/** Comet trail skins. `classic` keeps the theme's accent; the rest override it. (12 named trails: next package.) */
+/** v1 (Comet Chain) -> v2 (Storm Grid): a different game; keep the coins and the mute choice only. */
+export const MIGRATIONS = {
+  2: (d) => ({ coins: Math.max(0, d.coins | 0), userMuted: !!d.userMuted }),
+};
+
+/** 12 bolt skins (cosmetic only). */
 export const SKINS = [
-  { id: "classic", color: null },
-  { id: "blue", color: "#3a7bff" },
-  { id: "orange", color: "#ff8a1f" },
-  { id: "teal", color: "#12c4a2" },
-  { id: "lemon", color: "#f2e23a" },
-  { id: "lime", color: "#74d12a" },
-  { id: "sky", color: "#46d2ff" },
-  { id: "snow", color: "#f4f4ff" },
-  { id: "pink", color: "#ff5ad9" },
+  { id: "cyan", color: "#4df3ff" },
+  { id: "magenta", color: "#ff3fd8" },
+  { id: "solar", color: "#ffd23f" },
+  { id: "plasma", color: "#6dff7a" },
+  { id: "ember", color: "#ff7a2f" },
+  { id: "frost", color: "#bfe8ff" },
+  { id: "violet", color: "#a66bff" },
+  { id: "ruby", color: "#ff3355" },
+  { id: "rainbow", color: "#ff9ad5" },
+  { id: "void", color: "#7a5cff" },
+  { id: "aurora", color: "#5dffc8" },
+  { id: "legend", color: "#fff1b0" },
 ];
 
 export function skinColor(save) {
-  return SKINS.find((s) => s.id === save.skin)?.color ?? null;
+  return SKINS.find((s) => s.id === save.skin)?.color ?? SKINS[0].color;
 }
 
-/** Price of the next "unlock random": rises with every skin owned. null = all owned. */
+const round5 = (n) => (n >= 1000 ? Math.round(n / 50) * 50 : Math.round(n / 5) * 5);
+
+/** Price of the next "unlock random": 250 x 1.45^(owned-1). null = all owned. */
 export function skinUnlockCost(save) {
   const n = save.owned.length;
   if (n >= SKINS.length) return null;
-  const raw = 250 * 1.5 ** (n - 1);
-  return raw >= 100 ? Math.round(raw / 10) * 10 : Math.round(raw / 5) * 5;
+  return round5(250 * 1.45 ** (n - 1));
 }
 
 /** Always a skin the player does not own yet - "random" never means a duplicate. */
@@ -67,51 +77,28 @@ export function pickRandomSkin(save, rand) {
   return locked.length ? locked[Math.min(locked.length - 1, Math.floor(rand() * locked.length))].id : null;
 }
 
+/** The 5 upgrades (GAME_BRIEF "Upgrades"): price = round5(base x growth^level). */
 export const UPGRADES = {
-  start: { key: "upStart", max: 10, base: 50, growth: 1.45 },
-  income: { key: "upIncome", max: 30, base: 70, growth: 1.38 },
+  voltage: { key: "upVoltage", max: 15, base: 60, growth: 1.45 },
+  fork: { key: "upFork", max: 10, base: 100, growth: 1.55 },
+  strikes: { key: "upStrikes", max: STORM.strike.maxStrikeLevels, base: 600, growth: 3 },
+  capacitor: { key: "upCapacitor", max: 5, base: 150, growth: 1.9 },
+  gold: { key: "upGold", max: 5, base: 300, growth: 2.1 },
 };
-
-/** "Start size" levels (GAME_BRIEF "Economy"): the chain mass a round starts with. */
-const START_MASS = [6, 10, 14, 22, 30, 46, 62, 94, 126, 190, 254];
-
-export function startMass(save) {
-  return START_MASS[Math.min(START_MASS.length - 1, save.upStart)] ?? ARENA.snake.startMass;
-}
-
-export function incomeFactor(save) {
-  return 1 + save.upIncome * 0.12;
-}
 
 export function upgradeCost(kind, save) {
   const u = UPGRADES[kind];
   const lvl = save[u.key];
   if (lvl >= u.max) return null;
-  return Math.round((u.base * u.growth ** lvl) / 5) * 5;
+  return round5(u.base * u.growth ** lvl);
 }
 
-/** Rank crate (skill-based, never random): #1 x5, #2-3 x3, #4-6 x2, #7-13 x1. */
-export function crateFor(rank) {
-  for (const [upTo, x] of ARENA.rewards.rankCrates) if (rank <= upTo) return x;
-  return 1;
+/** Upgrade levels for the simulation (sim.js deriveParams). */
+export function upgradeLevels(save) {
+  return { voltage: save.upVoltage, fork: save.upFork, strikes: save.upStrikes, capacitor: save.upCapacitor, gold: save.upGold };
 }
 
-/** Coins for a finished round: (chain total / massPerCoin + coinsPerSwallow x swallows) x crate x income. */
-export function roundReward(mass, swallows, rank, save) {
-  const r = ARENA.rewards;
-  const base = mass / r.massPerCoin + r.coinsPerSwallow * swallows;
-  return Math.max(r.minCoins, Math.round(base * crateFor(rank) * incomeFactor(save)));
-}
-
-/** Arena tier after a finished round: +1 after a top-3 finish, -1 after rank 8 or worse (floor 1). */
-export function nextTier(tier, rank) {
-  const max = ARENA.bots.maxTier;
-  if (rank <= 3) return Math.min(max, tier + 1);
-  if (rank >= 8) return Math.max(1, tier - 1);
-  return tier;
-}
-
-/** reportGameCompletedPercentage: the best arena tier reached, forward only. */
-export function completionPercent(bestTier) {
-  return Math.min(100, Math.round((Math.max(1, bestTier) / ARENA.bots.maxTier) * 100));
+/** reportGameCompletedPercentage: min(1, (bestCity - 1) / 40), forward only (planner, 2026-09-26). */
+export function completionPercent(bestLevel) {
+  return Math.min(100, Math.round((Math.max(1, bestLevel) - 1) / STORM.city.rampCities * 100));
 }

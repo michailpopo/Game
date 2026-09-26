@@ -19,7 +19,8 @@ import { createSim, makeInput, startRun, step } from "../../src/game/sim.js";
 const root = resolve(dirname(fileURLToPath(import.meta.url)), "../..");
 const selftest = process.argv.includes("--selftest");
 
-// Volt City, level 3: charge a strike, release it, let the cascade (hops + forks) play out.
+// Storm Grid, city 3: three strikes - a SUPERCHARGE, a WEAK tap and a hold past full that auto-fires a
+// FIZZLE - and their cascades (hops, forks, grounding, BLOCK POWERED).
 let aim = 0;
 const makeState = () => {
   const s = createSim({ level: 3, seed: "sim-health" });
@@ -27,11 +28,12 @@ const makeState = () => {
   startRun(s);
   return s;
 };
-// Scripted input: hold from t = 0 until 1.0 s (charge 0.83: inside the SUPERCHARGE band), then a second, short
-// tap at 2.2-2.5 s. The release times are multiples of every tested step (1/30 ... 1/240 s), and the
-// cascade runs on exact event times, so the same chain must happen at every step size.
+// Scripted input: hold from t = 0 until 1.0 s (charge 0.83: inside the SUPERCHARGE band), a short tap at
+// 2.2-2.5 s, then a hold from 3.0 s that runs 0.35 s past full (the FIZZLE fires by itself at 4.55 s).
+// The press/release times are multiples of every tested step (1/30 ... 1/240 s), the charge is a function
+// of sim time and the cascade runs on exact event times, so the same chain must happen at every step size.
 const input = makeInput();
-const HOLD = [[0, 1.0], [2.2, 2.5]];
+const HOLD = [[0, 1.0], [2.2, 2.5], [3.0, 5.0]];
 const scripted = (fn) => (s, dt) => {
   input.hold = HOLD.some(([a, b]) => s.t >= a - 1e-6 && s.t < b - 1e-6);
   input.aim = aim;
@@ -41,8 +43,8 @@ const scripted = (fn) => (s, dt) => {
 // points, strikes left): all must match across step sizes.
 const sample = (s) => [s.charge, s.lastRelease ? s.lastRelease.charge : 0, s.lastRelease ? s.lastRelease.energy : 0, s.litCount, s.score, s.strikesLeft];
 
-// Window: both strikes and their cascades (~2 s each).
-const WINDOW = { seconds: 4.5 };
+// Window: all three strikes and their cascades.
+const WINDOW = { seconds: 6.5 };
 
 function run(label, stepFn) {
   const det = checkDeterminism(makeState, scripted(stepFn), sample, { steps: 600 });
@@ -53,8 +55,9 @@ function run(label, stepFn) {
 const results = [run("game simulation", step)];
 
 if (selftest) {
-  // Planted bug: charge grows per step instead of per second - the classic refresh-rate bug.
-  const broken = (s, dt, inp) => { step(s, dt, inp); if (s.holding) s.charge += 0.004; };
+  // Planted bug: charge grows per step instead of per second - the classic refresh-rate bug
+  // (moving the press time back by 0.4% of the fill per step = +0.004 charge per step).
+  const broken = (s, dt, inp) => { step(s, dt, inp); if (s.holding) s.holdT -= 0.004 * s.params.fillSec; };
   const r = run("planted per-step bug (must FAIL)", broken);
   r.expectedToFail = true;
   r.selftestPassed = !r.ok;

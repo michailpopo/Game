@@ -537,7 +537,8 @@ await scenario("ad-ui", async () => {
   await page.waitForFunction(() => window.__GS_QA__.state.phase === "ready" && !window.__GS_QA__.state.pause.length, null, { timeout: 10000 });
   await startRun(page);
   await sleep(300);
-  await page.evaluate(() => window.__GS_QA__.forceFail(0.5));
+  // The revive-type offer needs a near-miss: __GS_QA__.reviveAt (Storm Grid: 85-99% powered).
+  await page.evaluate(() => window.__GS_QA__.forceFail(window.__GS_QA__.reviveAt ?? 0.5));
   await page.waitForSelector('.modal:not([hidden]) button[data-id="revive"]', { timeout: 8000 });
   moments.fail = await auditOffers(page);
   await sleep(450);
@@ -560,25 +561,35 @@ await scenario("ad-ui", async () => {
 });
 
 await scenario("revive-offer", async () => {
-  // Adapter (Comet Chain, timed rounds): a death is not the end of the round. Without an allowed
-  // revive offer the player respawns by itself after 2 s (no dialog); with one, the dialog shows
-  // "Respawn" (data-id "retry", the decline) next to "Keep chain" (the video offer).
+  // Adapter (Storm Grid): the revive analogue is "One more strike", offered once per session when the
+  // last cascade ends at __GS_QA__.reviveAt (85-99%) of the city powered. Its dialog shows "Finish"
+  // (data-id "finish", the decline) next to the video offer; a run ending lower goes straight to the
+  // city result (Retry / Claim), and the harness clicks through it to the next run.
   const { ctx, page, errors } = await openGame("");
   const problems = [];
-  const noDialogThenRespawn = async (label) => {
+  const reviveAt = await page.evaluate(() => window.__GS_QA__.reviveAt ?? 0.5);
+  const noOfferThenNextRun = async (label) => {
     const dialog = await page.waitForSelector('.modal:not([hidden]) button[data-id="revive"]', { timeout: 1500 }).then(() => true).catch(() => false);
     if (dialog) problems.push(`revive offered for ${label}`);
-    await page.waitForFunction(() => window.__GS_QA__.state.phase === "run" && !window.__GS_QA__.state.pause.length, null, { timeout: 5000 })
-      .catch(() => problems.push(`no automatic respawn after ${label}`));
+    await throughResult(label);
   };
-  // 1. an early death gets no revive (not every death: CG-ADS-014) - the free 2 s respawn instead
+  // The city result (Retry or Claim) -> the next city intro -> a new run.
+  const throughResult = async (label) => {
+    const btn = await page.waitForSelector('.modal:not([hidden]) button[data-id="retry"], .modal:not([hidden]) button[data-id="claim"]', { timeout: 8000 }).catch(() => null);
+    if (!btn) { problems.push(`no city result after ${label}`); return; }
+    await btn.click();
+    await page.waitForFunction(() => window.__GS_QA__.state.phase === "ready" && !window.__GS_QA__.state.pause.length, null, { timeout: 10000 })
+      .catch(() => problems.push(`no next city intro after ${label}`));
+    await startRun(page);
+  };
+  // 1. a weak run gets no revive (not every run: CG-ADS-014) - the result with Retry instead
   await startRun(page);
   await sleep(300);
   await page.evaluate(() => window.__GS_QA__.forceFail(0.05));
-  await noDialogThenRespawn("a death at 5% of the round");
+  await noOfferThenNextRun("a run ending at 5% powered");
   // 2. the countdown removes the offer at 0 and never requests an ad
   await sleep(300);
-  await page.evaluate(() => window.__GS_QA__.forceFail(0.5));
+  await page.evaluate((a) => window.__GS_QA__.forceFail(a), reviveAt);
   await page.waitForSelector('.modal:not([hidden]) button[data-id="revive"]', { timeout: 8000 });
   const ring1 = await page.textContent(".dialog .ring b");
   await sleep(1300);
@@ -588,23 +599,23 @@ await scenario("revive-offer", async () => {
   let s = await state(page);
   if (s.adsLog.some((e) => e.type === "rewarded" && e.context === "fail-revive")) problems.push("an ad was requested when the countdown ran out");
   if (!s.adsLog.some((e) => e.type === "offer" && e.context === "fail-revive" && e.outcome === "expired")) problems.push("expiry not logged in the offer funnel");
-  if (!(await page.$('.modal:not([hidden]) button[data-id="retry"]'))) problems.push("the Respawn path vanished with the offer");
-  await page.click('button[data-id="retry"]');
-  await page.waitForFunction(() => window.__GS_QA__.state.phase === "run" && !window.__GS_QA__.state.pause.length, null, { timeout: 10000 });
-  // 3. watch one revive, then the next death of the session gets none (once per session)
+  if (!(await page.$('.modal:not([hidden]) button[data-id="finish"]'))) problems.push("the Finish path vanished with the offer");
+  await page.click('button[data-id="finish"]');
+  await throughResult("Finish");
+  // 3. watch one revive, then the next near-miss of the session gets none (once per session)
   await sleep(300);
-  await page.evaluate(() => window.__GS_QA__.forceFail(0.5));
+  await page.evaluate((a) => window.__GS_QA__.forceFail(a), reviveAt);
   await page.waitForSelector('.modal:not([hidden]) button[data-id="revive"]', { timeout: 8000 });
   await page.click('button[data-id="revive"]');
   await page.waitForFunction(() => window.__GS_QA__.state.phase === "run", null, { timeout: 8000 }).catch(() => problems.push("revive did not continue the run"));
   await sleep(300);
-  await page.evaluate(() => window.__GS_QA__.forceFail(0.6));
-  await noDialogThenRespawn("a second death in the same session");
+  await page.evaluate((a) => window.__GS_QA__.forceFail(a), reviveAt);
+  await noOfferThenNextRun("a second near-miss in the same session");
   s = await state(page);
   const funnel = s.adsLog.filter((e) => e.context === "fail-revive").map((e) => `${e.type}:${e.outcome}`);
   allErrors.push(...errors);
   record({ id: "revive-offer", requirements: ["CG-ADS-014"], status: problems.length ? "FAIL" : "PASS",
-    summary: problems.length ? problems.join("; ") : `no revive at 5% of the round (auto respawn); ring ${ring1} -> ${ring2} then the offer expired without an ad request; one revive watched, none offered after; funnel ${funnel.join(" > ")}`,
+    summary: problems.length ? problems.join("; ") : `no revive at 5% powered (result + retry); ring ${ring1} -> ${ring2} then the offer expired without an ad request; one revive watched, none offered after; funnel ${funnel.join(" > ")}`,
     evidence: { funnel } });
   await ctx.close();
 });

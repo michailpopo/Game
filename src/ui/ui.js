@@ -1,21 +1,22 @@
 /**
- * DOM UI layer: round HUD (clock ring, chain total, leaderboard slice, kill feed, boost meter),
- * the home overlay (wordmark, "Offline Arena", PLAY), onboarding pills, the death/respawn
- * message, the pause overlay, touch joystick + boost button, upgrade cards, start boost, skins
- * shop, result dialog (with the podium and the revive countdown ring), toasts, floating
- * numbers, coin fly-ins, name tags, and the ad-request blocker.
+ * DOM UI layer - Storm Grid: the run HUD (% powered + plate ticks, strikes left, city panel), the
+ * city intro (wordmark, city + theme, the pulsing "hold" hint), the charge ring around the target,
+ * onboarding pill, BLOCK POWERED card, pause overlay, upgrade cards, the Supercharged-start offer,
+ * the bolt shop, the result dialog (plate ladder, One-more-strike countdown ring), toasts, floating
+ * numbers, coin fly-ins and the ad-request blocker.
  *
  * Why DOM and not in-canvas UI: crisp at every devicePixelRatio, legible at the CG-GAME-002
  * minimum iframe sizes, accessible, and it costs no draw calls.
  *
- * Honesty (GAME_BRIEF "Round rules"): bots are never called players. "OFFLINE ARENA" is shown
- * on the home, the round HUD, the leaderboard header, the kill feed and the podium.
+ * Styles: src/ui/styles.css (shared classes: .hud .score .meter .ranks .home .hint .pill .world-card
+ * .btn .card .dialog .pod ...). Storm-Grid-only pieces carry inline styles and these class names for
+ * the look pass: .charge (ring: .charge-track .charge-band .charge-fill), .powered-label,
+ * .meter-tick, .strike-pips (.pip, .pip.used), .plate-ladder.
  *
- * Rewarded-ad UI rules baked in (CG-ADS-007/008, CG-QUAL-004): an offer and its
- * decline/alternative use the SAME button class - same size, font and colour -
- * and appear in the same frame; the offer carries a video icon (`data-video`).
- * The revive countdown only ever removes the offer. Do not "improve" any of that
- * by styling, sizing, delaying or animating one of the two differently:
+ * Rewarded-ad UI rules baked in (CG-ADS-007/008, CG-QUAL-004): an offer and its decline/alternative
+ * use the SAME button class - same size, font and colour - and appear in the same frame; the offer
+ * carries a video icon (`data-video`). The countdown ring only ever removes the offer. Do not
+ * "improve" any of that by styling, sizing, delaying or animating one of the two differently:
  * tools/qa/browser-qa.mjs (ad-ui) fails the build when they differ.
  */
 
@@ -29,46 +30,52 @@ const ICON = {
   pause: `<svg viewBox="0 0 24 24" aria-hidden="true"><rect x="6" y="5" width="4" height="14" rx="1.2"/><rect x="14" y="5" width="4" height="14" rx="1.2"/></svg>`,
   mouse: `<svg viewBox="0 0 24 24" aria-hidden="true"><rect x="6" y="3" width="12" height="18" rx="6" fill="none" stroke="#fff" stroke-width="2"/><path d="M12 7v4" stroke="#fff" stroke-width="2" stroke-linecap="round"/></svg>`,
   finger: `<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M9 11V5.5a1.5 1.5 0 0 1 3 0V10l5 1.2c1 .3 1.6 1.2 1.5 2.2L18 18c-.2 1.7-1.6 3-3.3 3h-3.2c-1 0-1.9-.5-2.5-1.3L5.7 15.6a1.4 1.4 0 0 1 2.1-1.8L9 15z" fill="#fff"/></svg>`,
-  person: `<svg viewBox="0 0 48 48" aria-hidden="true"><circle cx="24" cy="24" r="12" fill="#ffc27a"/><circle cx="24" cy="24" r="18" fill="none" stroke="#fff" stroke-width="3" stroke-dasharray="4 5"/></svg>`,
-  coins: `<svg viewBox="0 0 48 48" aria-hidden="true"><circle cx="30" cy="30" r="12" fill="#fff" opacity=".55"/><circle cx="20" cy="20" r="13" fill="#fff"/><text x="20" y="26" font-size="16" text-anchor="middle" fill="#8f96e0" font-family="Arial Black, sans-serif">$</text></svg>`,
-  shirt: `<svg viewBox="0 0 48 48" aria-hidden="true"><circle cx="30" cy="18" r="8" fill="#fff"/><path d="M26 24 8 40" stroke="#fff" stroke-width="5" stroke-linecap="round" opacity=".7"/><path d="M30 26 16 42" stroke="#fff" stroke-width="3" stroke-linecap="round" opacity=".45"/></svg>`,
+  keys: `<svg viewBox="0 0 24 24" aria-hidden="true"><rect x="2" y="8" width="20" height="9" rx="2" fill="none" stroke="#fff" stroke-width="2"/><path d="M6 12.5h12" stroke="#fff" stroke-width="2" stroke-linecap="round"/></svg>`,
+  bolt: `<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M13 2 4 14h6l-1 8 9-12h-6z" fill="#fff"/></svg>`,
+  voltage: `<svg viewBox="0 0 48 48" aria-hidden="true"><circle cx="24" cy="24" r="17" fill="#4df3ff" opacity=".25"/><path d="M27 6 13 27h9l-2 15 15-22h-9z" fill="#fff"/></svg>`,
+  fork: `<svg viewBox="0 0 48 48" aria-hidden="true"><path d="M24 4 18 20l6 3-4 21" fill="none" stroke="#fff" stroke-width="4" stroke-linejoin="round" stroke-linecap="round"/><path d="m24 23 10 8-3 13" fill="none" stroke="#bff8ff" stroke-width="3.5" stroke-linejoin="round" stroke-linecap="round"/></svg>`,
+  capacitor: `<svg viewBox="0 0 48 48" aria-hidden="true"><rect x="12" y="10" width="24" height="32" rx="5" fill="none" stroke="#fff" stroke-width="4"/><rect x="19" y="5" width="10" height="6" rx="2" fill="#fff"/><rect x="17" y="24" width="14" height="13" rx="2" fill="#ffe066"/></svg>`,
+  strikes: `<svg viewBox="0 0 48 48" aria-hidden="true"><path d="M16 6 8 24h7l-2 16 11-20h-7z" fill="#fff"/><path d="M34 6l-8 18h7l-2 16 11-20h-7z" fill="#bff8ff"/></svg>`,
+  gold: `<svg viewBox="0 0 48 48" aria-hidden="true"><path d="M24 4v30" stroke="#ffcc33" stroke-width="5" stroke-linecap="round"/><circle cx="24" cy="8" r="6" fill="#ffe066"/><rect x="14" y="34" width="20" height="8" rx="2" fill="#fff"/></svg>`,
+  shop: `<svg viewBox="0 0 48 48" aria-hidden="true"><path d="M27 4 12 27h10l-3 17 17-25H26z" fill="#fff"/><circle cx="36" cy="12" r="6" fill="#ff3fd8"/></svg>`,
   close: `<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 6l12 12M18 6 6 18" stroke="#fff" stroke-width="3" stroke-linecap="round"/></svg>`,
-  boost: `<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M13 2 4 14h6l-1 8 9-12h-6z" fill="#fff"/></svg>`,
 };
-/** A comet trail swatch: coloured when owned, a dark silhouette while locked. */
-const swatch = (fill) => `<svg viewBox="0 0 48 48" aria-hidden="true"><path d="M8 40 30 18" stroke="${fill}" stroke-width="7" stroke-linecap="round" opacity=".55"/><circle cx="32" cy="16" r="9" fill="${fill}"/></svg>`;
+/** A bolt skin swatch: coloured when owned, a dark silhouette while locked. */
+const swatch = (fill) => `<svg viewBox="0 0 48 48" aria-hidden="true"><path d="M28 4 12 27h10l-3 17 17-25H26z" fill="${fill}"/></svg>`;
+const PLATE_COLORS = { 2: "#4df3ff", 3: "#7cff7a", 5: "#ffcc33", 10: "#ff3fa4" };
 
-export function createUI(root, { onSound, onPause, onResume, onBuy, onFree, onBoost, onShop, onShopClose, onSkin, onUnlock, onCash, onTouchBoost, onPlay }) {
+export function createUI(root, { onSound, onPause, onResume, onBuy, onFree, onBoost, onShop, onShopClose, onSkin, onUnlock, onCash }) {
   root.innerHTML = `
     <div class="hud">
       <div class="hud-left"><div class="coins"><b>0</b><span class="coin">${ICON.coin}</span></div></div>
       <div class="hud-center">
-        <div class="clock"><svg viewBox="0 0 44 44" aria-hidden="true"><circle class="track" cx="22" cy="22" r="19"/><circle class="fill" cx="22" cy="22" r="19" pathLength="100"/></svg><b class="stroke">1:30</b></div>
-        <div class="score stroke"><b>0</b></div>
-        <div class="meter"><i></i></div>
+        <div class="score stroke glow-cyan" style="text-align:center"><b>0%</b><span class="powered-label" style="display:block;font-size:max(12px,0.36em);letter-spacing:0.16em;margin-top:0.1em">${t("powered")}</span></div>
+        <div class="meter" style="position:relative;width:9em;overflow:visible"><i></i></div>
+        <div class="strike-pips" style="display:flex;gap:0.15em;margin-top:0.2em"></div>
       </div>
       <div class="hud-right">
         <div class="btns"><button class="icon-btn pause" type="button">${ICON.pause}</button><button class="icon-btn sound" type="button"></button></div>
         <div class="ranks"><p class="ranks-title"></p><ol></ol></div>
       </div>
     </div>
-    <div class="feed"><p class="feed-title"></p><div class="feed-lines"></div></div>
-    <div class="bubbles"></div>
+    <div class="charge" style="position:absolute;left:0;top:0;width:6em;height:6em;pointer-events:none;display:none;z-index:4">
+      <svg viewBox="0 0 60 60" aria-hidden="true" style="width:100%;height:100%;display:block;transform:rotate(-90deg);overflow:visible">
+        <circle class="charge-track" cx="30" cy="30" r="24" fill="none" stroke="rgba(8,6,32,0.6)" stroke-width="8"/>
+        <circle class="charge-band" cx="30" cy="30" r="24" fill="none" stroke="#ffe066" stroke-width="8" pathLength="100" opacity="0.6"/>
+        <circle class="charge-fill" cx="30" cy="30" r="24" fill="none" stroke="#fff" stroke-width="5" pathLength="100" stroke-linecap="round" stroke-dasharray="0 100"/>
+      </svg>
+    </div>
     <div class="floats"></div>
     <div class="home">
       <h1 class="logo stroke"></h1>
       <p class="mode stroke"></p>
-      <button class="btn play" type="button"></button>
       <div class="hint"><p class="stroke main"></p><p class="stroke sub"></p></div>
     </div>
     <div class="pill hidden"><span class="pill-icon"></span><span class="pill-text stroke"></span></div>
-    <div class="death hidden"><p class="stroke"></p><div class="respawn-ring"><svg viewBox="0 0 40 40" aria-hidden="true"><circle class="track" cx="20" cy="20" r="17"/><circle class="fill" cx="20" cy="20" r="17" pathLength="100"/></svg></div></div>
     <div class="world-card hidden"><p class="stroke small"></p><p class="stroke big"></p></div>
-    <div class="stick hidden"><i></i></div>
-    <button class="boost-touch hidden" type="button" aria-label="boost">${ICON.boost}</button>
     <div class="upgrades hidden"></div>
     <button class="btn boost hidden" type="button" data-video="1">${ICON.video}<span class="boost-label"></span></button>
-    <button class="icon-btn shop-btn hidden" type="button">${ICON.shirt}</button>
+    <button class="icon-btn shop-btn hidden" type="button" aria-label="shop">${ICON.shop}</button>
     <div class="paused" hidden><div class="paused-card"><h2 class="stroke"></h2><p class="stroke sub"></p><p class="keys"></p></div></div>
     <div class="shop-modal" hidden><div class="shop">
       <button class="icon-btn close" type="button">${ICON.close}</button>
@@ -77,7 +84,7 @@ export function createUI(root, { onSound, onPause, onResume, onBuy, onFree, onBo
       <div class="row"></div>
       <p class="note stroke"></p>
     </div></div>
-    <div class="modal" hidden><div class="dialog"><p class="dialog-mode"></p><h2 class="stroke"></h2><div class="podium"></div><div class="stats"></div><div class="amount stroke"><span class="coin">${ICON.coin}</span><b>0</b><span class="crate"></span></div><div class="ring" hidden><svg viewBox="0 0 40 40" aria-hidden="true"><circle class="track" cx="20" cy="20" r="17"/><circle class="fill" cx="20" cy="20" r="17" pathLength="100"/></svg><b class="stroke"></b></div><div class="row"></div><p class="note stroke"></p></div></div>
+    <div class="modal" hidden><div class="dialog"><p class="dialog-mode"></p><h2 class="stroke"></h2><div class="podium plate-ladder"></div><div class="stats"></div><div class="amount stroke"><span class="coin">${ICON.coin}</span><b>0</b><span class="crate"></span></div><div class="ring" hidden><svg viewBox="0 0 40 40" aria-hidden="true"><circle class="track" cx="20" cy="20" r="17"/><circle class="fill" cx="20" cy="20" r="17" pathLength="100"/></svg><b class="stroke"></b></div><div class="row"></div><p class="note stroke"></p></div></div>
     <div class="toast"></div>
     <div class="ad-block" hidden><div class="spinner"></div></div>`;
 
@@ -86,7 +93,6 @@ export function createUI(root, { onSound, onPause, onResume, onBuy, onFree, onBo
   const pauseBtn = $(".pause");
   const coinsEl = $(".coins b");
   const coinsPill = $(".coins");
-  const bubbles = $(".bubbles");
   const floats = $(".floats");
   const hint = $(".hint");
   const home = $(".home");
@@ -99,32 +105,29 @@ export function createUI(root, { onSound, onPause, onResume, onBuy, onFree, onBo
   const shopBtn = $(".shop-btn");
   const shopModal = $(".shop-modal");
   const ring = dialog.querySelector(".ring");
-  const clockEl = $(".clock");
-  const clockText = $(".clock b");
-  const clockFill = $(".clock .fill");
   const scoreEl = $(".score b");
   const scoreBox = $(".score");
   const meter = $(".meter");
   const meterFill = $(".meter i");
+  const pips = $(".strike-pips");
+  const ranksTitle = $(".ranks-title");
+  const ranksBox = $(".ranks");
+  const portraitQuery = matchMedia("(max-aspect-ratio: 1/1)");
   const ranksList = $(".ranks ol");
-  const feedLines = $(".feed-lines");
-  const feedBox = $(".feed");
   const pill = $(".pill");
-  const death = $(".death");
-  const deathFill = $(".death .fill");
   const worldCard = $(".world-card");
-  const stick = $(".stick");
-  const stickKnob = $(".stick i");
-  const boostTouch = $(".boost-touch");
   const paused = $(".paused");
+  const charge = $(".charge");
+  const chargeBand = $(".charge-band");
+  const chargeFill = $(".charge-fill");
 
-  $(".ranks-title").textContent = t("offline_arena");
-  $(".feed-title").textContent = t("offline_arena");
+  // Plate thresholds on the % meter (x2 60%, x3 80%, x5 95%).
+  meter.insertAdjacentHTML("beforeend", [[0.6, 2], [0.8, 3], [0.95, 5]].map(([at, m]) =>
+    `<span class="meter-tick" style="position:absolute;left:${at * 100}%;top:-0.2em;bottom:-0.2em;width:0.14em;margin-left:-0.07em;border-radius:0.1em;background:${PLATE_COLORS[m]}"></span>`).join(""));
 
   soundBtn.addEventListener("click", () => onSound?.());
   pauseBtn.addEventListener("click", () => onPause?.());
   paused.addEventListener("click", () => onResume?.());
-  $(".play").addEventListener("click", (e) => onPlay?.(e));
   boostBtn.addEventListener("click", () => onBoost?.());
   shopBtn.addEventListener("click", () => onShop?.());
   shopModal.querySelector(".close").addEventListener("click", () => onShopClose?.());
@@ -135,9 +138,6 @@ export function createUI(root, { onSound, onPause, onResume, onBuy, onFree, onBo
     else if (b.dataset.act === "unlock") onUnlock?.(b);
     else if (b.dataset.act === "cash") onCash?.(b);
   });
-  const tb = (on) => (e) => { e.preventDefault(); onTouchBoost?.(on); boostTouch.classList.toggle("on", on); };
-  boostTouch.addEventListener("pointerdown", tb(true));
-  for (const ev of ["pointerup", "pointercancel", "pointerleave"]) boostTouch.addEventListener(ev, tb(false));
 
   // ---- coins with a counting animation
   let coinsShown = 0;
@@ -147,27 +147,8 @@ export function createUI(root, { onSound, onPause, onResume, onBuy, onFree, onBo
     if (!animate) { coinsShown = value; coinsEl.textContent = String(value); }
   }
 
-  // ---- name tags over comets, pooled by id
-  const bubbleEls = new Map();
-  function setBubble(id, x, y, value, visible, kind) {
-    let el = bubbleEls.get(id);
-    if (!el) {
-      el = document.createElement("div");
-      el.style.display = "none";
-      bubbles.appendChild(el);
-      bubbleEls.set(id, el);
-    }
-    if (!visible) { if (el.style.display !== "none") el.style.display = "none"; return; }
-    if (el.style.display === "none") el.style.display = "";
-    const cls = `bubble stroke ${kind}`;
-    if (el.className !== cls) el.className = cls;
-    const txt = String(value);
-    if (el.textContent !== txt) el.textContent = txt;
-    el.style.transform = `translate3d(${x.toFixed(1)}px, ${y.toFixed(1)}px, 0) translate(-50%, -100%)`;
-  }
-
-  // ---- floating numbers
-  const floatPool = Array.from({ length: 16 }, () => {
+  // ---- floating numbers (pooled; the view merges "+N" so at most ~12 are on screen)
+  const floatPool = Array.from({ length: 14 }, () => {
     const el = document.createElement("div");
     el.className = "float stroke";
     floats.appendChild(el);
@@ -223,7 +204,7 @@ export function createUI(root, { onSound, onPause, onResume, onBuy, onFree, onBo
       <div class="upgrade" data-kind="${it.kind}">
         <button class="card ${it.affordable || it.maxed ? "" : "cant"}" type="button" data-act="buy" ${it.maxed ? "disabled" : ""}>
           <span class="lvl stroke">${t("lvl", { n: it.level })}</span>
-          <span class="icon">${it.kind === "start" ? ICON.person : ICON.coins}</span>
+          <span class="icon">${ICON[it.kind] || ICON.bolt}</span>
           <span class="title stroke">${it.title}</span>
           <span class="cost stroke">${it.maxed ? t("max") : `<b>${it.cost}</b>${ICON.coin}`}</span>
         </button>
@@ -236,8 +217,13 @@ export function createUI(root, { onSound, onPause, onResume, onBuy, onFree, onBo
       });
     });
   }
-  function popUpgrade(kind) {
-    upgrades.querySelector(`[data-kind="${kind}"] .card`)?.animate([{ scale: 1 }, { scale: 1.12 }, { scale: 1 }], { duration: 280, easing: "ease-out" });
+  function popUpgrade(kind, text) {
+    const card = upgrades.querySelector(`[data-kind="${kind}"] .card`);
+    card?.animate([{ scale: 1 }, { scale: 1.12 }, { scale: 1 }], { duration: 280, easing: "ease-out" });
+    if (card && text) {
+      const r = card.getBoundingClientRect(), rr = root.getBoundingClientRect();
+      floatText(r.left + r.width / 2 - rr.left, r.top - rr.top, text, "gold");
+    }
   }
 
   // ---- result dialog
@@ -246,15 +232,17 @@ export function createUI(root, { onSound, onPause, onResume, onBuy, onFree, onBo
   let countdown = null;   // { left, total, id, onExpire } while a timed offer is on screen
   /**
    * @param {{ kind:string, title:string, amount:number|null, buttons:object[], note?:string, timed?:object,
-   *           mode?:string, podium?:{rank:number,name:string,score:number,you:boolean}[], stats?:string[], crate?:string }} o
+   *           mode?:string, plates?:{mult:number,at:number,on:boolean}[], stats?:string[], crate?:string }} o
    */
-  function showResult({ kind, title, amount, buttons, note = "", timed = null, mode = "", podium = null, stats = null, crate = "" }) {
+  function showResult({ kind, title, amount, buttons, note = "", timed = null, mode = "", plates = null, stats = null, crate = "" }) {
     modal.hidden = false;
     dialog.className = `dialog ${kind}`;
     dialog.querySelector(".dialog-mode").textContent = mode;
     dialog.querySelector("h2").textContent = title;
-    dialog.querySelector(".podium").innerHTML = podium ? podium.map((r) =>
-      `<div class="pod${r.you ? " me" : ""}${r.rank <= 3 ? ` p${r.rank}` : ""}"><span class="r">#${r.rank}</span><span class="nm">${escapeHtml(r.name)}</span><span class="sc">${r.score}</span></div>`).join("") : "";
+    const ladder = dialog.querySelector(".podium");
+    ladder.style.flexDirection = "row";
+    ladder.innerHTML = plates ? plates.map((p) =>
+      `<div class="pod${p.on ? " me" : ""}" data-mult="${p.mult}" style="flex:1;flex-direction:column;gap:0;padding:0.25em 0.2em;text-align:center${p.on ? `;background:${PLATE_COLORS[p.mult]};box-shadow:0 0 0 0.12em #fff, 0 0 0.8em ${PLATE_COLORS[p.mult]}` : ""}"><span class="r" style="width:auto;text-align:center;font-size:1.35em;color:${p.on ? "#1a1240" : PLATE_COLORS[p.mult]}">×${p.mult}</span><span class="sc" style="font-size:max(12px,0.8em)${p.on ? ";color:#1a1240" : ""}">${Math.round(p.at * 100)}%</span></div>`).join("") : "";
     dialog.querySelector(".stats").innerHTML = stats ? stats.map((s) => `<span>${escapeHtml(s)}</span>`).join("") : "";
     const amountBox = dialog.querySelector(".amount");
     amountBox.style.display = amount === null ? "none" : "";
@@ -271,6 +259,8 @@ export function createUI(root, { onSound, onPause, onResume, onBuy, onFree, onBo
     drawRing();
     dialog.getAnimations().forEach((a) => a.cancel());
     dialog.animate([{ transform: "scale(.6)", opacity: 0 }, { transform: "scale(1.04)", opacity: 1, offset: 0.7 }, { transform: "scale(1)", opacity: 1 }], { duration: 380, easing: "ease-out" });
+    // The won plate slams down after the dialog lands.
+    ladder.querySelector(".pod.me")?.animate([{ transform: "scale(2.2)", opacity: 0 }, { transform: "scale(2.2)", opacity: 0, offset: 0.45 }, { transform: "scale(0.92)", opacity: 1, offset: 0.8 }, { transform: "scale(1)", opacity: 1 }], { duration: 760, easing: "ease-in" });
 
     let handler = null;
     let locked = false;
@@ -310,13 +300,13 @@ export function createUI(root, { onSound, onPause, onResume, onBuy, onFree, onBo
     onExpire?.();
   }
 
-  // ---- ready screen: rewarded start boost
+  // ---- city intro: rewarded Supercharged start
   function showBoost(model) {
     boostBtn.classList.toggle("hidden", !model);
     if (model) boostBtn.querySelector(".boost-label").textContent = model.label;
   }
 
-  // ---- skins shop
+  // ---- bolt shop
   // Re-rendered twice a second while open (cooldown timer): only rebuild the buttons when
   // something besides the note changed, so a press in progress is never swapped out.
   let shopKey = "";
@@ -343,64 +333,46 @@ export function createUI(root, { onSound, onPause, onResume, onBuy, onFree, onBo
     toastTimer = setTimeout(() => toastEl.classList.remove("show"), ms);
   }
 
-  // ---- round HUD
-  let scoreShown = -1;
-  function setScore(n, punch) {
-    if (n === scoreShown) return;
-    scoreShown = n;
-    scoreEl.textContent = n.toLocaleString("en-US");
-    if (punch) scoreBox.animate([{ scale: 1 }, { scale: 1.22 }, { scale: 1 }], { duration: 220, easing: "ease-out" });
+  // ---- run HUD
+  let pctShown = -1;
+  function setPowered(share, punch) {
+    const p = Math.floor(share * 100 + 1e-6);
+    if (p === pctShown) return;
+    pctShown = p;
+    scoreEl.textContent = `${p}%`;
+    meterFill.style.width = `${Math.max(0, Math.min(100, share * 100))}%`;
+    if (punch) scoreBox.animate([{ scale: 1 }, { scale: 1.18 }, { scale: 1 }], { duration: 200, easing: "ease-out" });
   }
-  let clockShown = "";
-  function setClock(secLeft, total, gold) {
-    const s = Math.max(0, Math.ceil(secLeft));
-    const txt = `${Math.floor(s / 60)}:${String(s % 60).padStart(2, "0")}`;
-    if (txt !== clockShown) {
-      clockShown = txt;
-      clockText.textContent = txt;
-      if (s <= 10 && s > 0) clockEl.animate([{ scale: 1 }, { scale: 1.15 }, { scale: 1 }], { duration: 240 });
-    }
-    clockFill.style.strokeDashoffset = String(100 * (1 - Math.max(0, secLeft) / total));
-    clockEl.classList.toggle("gold", !!gold);
+  let pipsLeft = -1, pipsMax = -1;
+  function setStrikes(left, max) {
+    if (left === pipsLeft && max === pipsMax) return;
+    const lost = pipsLeft > left;
+    pipsLeft = left;
+    pipsMax = max;
+    pips.innerHTML = Array.from({ length: max }, (_, i) =>
+      `<span class="pip${i < left ? "" : " used"}" style="display:block;width:1.25em;height:1.25em;opacity:${i < left ? 1 : 0.28};filter:drop-shadow(0 0.08em 0 #1a1240)">${ICON.bolt}</span>`).join("");
+    if (lost) pips.animate([{ scale: 1.2 }, { scale: 1 }], { duration: 220 });
   }
-  const rankRows = Array.from({ length: 5 }, () => {
+  const rankRows = Array.from({ length: 3 }, () => {
     const li = document.createElement("li");
     li.innerHTML = `<span class="r"></span><span class="nm"></span><span class="sc"></span>`;
     ranksList.appendChild(li);
     return li;
   });
-  function setRanks(rows) {
+  /** City panel (the template's .ranks box): title + up to 3 rows [icon, label, value]. */
+  function setPanel(title, rows) {
+    ranksBox.style.display = portraitQuery.matches ? "none" : "";   // portrait: the pips + meter say it; the city needs the room
+    if (ranksTitle.textContent !== title) ranksTitle.textContent = title;
     for (let i = 0; i < rankRows.length; i++) {
       const li = rankRows[i];
       const r = rows[i];
       if (!r) { li.style.display = "none"; continue; }
       li.style.display = "";
       const [a, b, c] = li.children;
-      const rt = `#${r.rank}`, sc = String(r.score);
-      if (a.textContent !== rt) a.textContent = rt;
-      if (b.textContent !== r.name) b.textContent = r.name;
-      if (c.textContent !== sc) c.textContent = sc;
-      li.className = r.you ? "me" : r.danger ? "danger" : "";
+      if (a.textContent !== r[0]) a.textContent = r[0];
+      if (b.textContent !== r[1]) b.textContent = r[1];
+      if (c.textContent !== r[2]) c.textContent = r[2];
     }
-  }
-  const feedPool = Array.from({ length: 3 }, () => {
-    const el = document.createElement("p");
-    el.className = "stroke";
-    feedLines.appendChild(el);
-    return el;
-  });
-  let feedAt = -99;
-  let feedClock = 0;
-  function feed(text, kind = "") {
-    const el = feedPool.pop();
-    feedPool.unshift(el);
-    feedLines.prepend(el);
-    el.textContent = text;
-    el.className = `stroke ${kind}`;
-    el.getAnimations().forEach((a) => a.cancel());
-    el.animate([{ opacity: 0, transform: "translateY(-0.4em)" }, { opacity: 1, transform: "none", offset: 0.08 }, { opacity: 1, offset: 0.8 }, { opacity: 0 }], { duration: 4200, fill: "forwards" });
-    feedAt = feedClock;
-    feedBox.classList.add("on");
   }
 
   let pillKey = "";
@@ -415,15 +387,43 @@ export function createUI(root, { onSound, onPause, onResume, onBuy, onFree, onBo
     pill.animate([{ transform: "translate(-50%, 0.5em) scale(.9)", opacity: 0 }, { transform: "translate(-50%, 0) scale(1)", opacity: 1 }], { duration: 260, easing: "ease-out" });
   }
 
-  let worldTimer = 0;
+  let worldLeft = 0;   // seconds the card stays up (ticks in update(), so a paused game holds it)
   function showWorld(small, big) {
     worldCard.querySelector(".small").textContent = small;
     worldCard.querySelector(".big").textContent = big;
     worldCard.classList.remove("hidden");
     worldCard.animate([{ transform: "translate(-50%, -50%) scale(.5)", opacity: 0 }, { transform: "translate(-50%, -50%) scale(1.08)", opacity: 1, offset: 0.35 }, { transform: "translate(-50%, -50%) scale(1)", opacity: 1 }], { duration: 420, easing: "ease-out" });
-    clearTimeout(worldTimer);
-    worldTimer = setTimeout(() => worldCard.classList.add("hidden"), 1900);
+    worldLeft = 1.6;
   }
+
+  // ---- charge ring around the target (screen px); null hides it
+  const cLast = { on: false, x: 0, y: 0, k: -1, band: "", lo: -1, hi: -1 };
+  function setCharge(c) {
+    if (!c) { if (cLast.on) { charge.style.display = "none"; cLast.on = false; cLast.k = -1; } return; }
+    const k = Math.min(1, c.charge);
+    if (cLast.on && Math.abs(c.x - cLast.x) < 0.5 && Math.abs(c.y - cLast.y) < 0.5 && Math.abs(k - cLast.k) < 0.004 && c.band === cLast.band) return;
+    const first = !cLast.on;
+    cLast.on = true; cLast.x = c.x; cLast.y = c.y; cLast.k = k; cLast.band = c.band;
+    charge.style.display = "";
+    const sc = c.band === "super" ? 1.14 : c.band === "over" ? 1.06 + Math.random() * 0.06 : 1;
+    charge.style.transform = `translate(${c.x.toFixed(1)}px, ${c.y.toFixed(1)}px) translate(-50%, -50%) scale(${sc})`;
+    if (c.lo !== cLast.lo || c.hi !== cLast.hi) {
+      cLast.lo = c.lo; cLast.hi = c.hi;
+      chargeBand.setAttribute("stroke-dasharray", `${((c.hi - c.lo) * 100).toFixed(1)} ${(100 - (c.hi - c.lo) * 100).toFixed(1)}`);
+      chargeBand.setAttribute("stroke-dashoffset", String(-c.lo * 100));
+    }
+    chargeFill.setAttribute("stroke-dasharray", `${(k * 100).toFixed(1)} 100`);
+    chargeFill.setAttribute("stroke", c.band === "super" ? "#ffe066" : c.band === "over" ? "#ff5a6e" : "#ffffff");
+    chargeBand.setAttribute("opacity", c.band === "super" ? "1" : "0.6");
+    if (first) charge.animate([{ opacity: 0 }, { opacity: 1 }], { duration: 120 });
+  }
+
+  let hintAnim = null;
+
+  // Portrait: three upgrade cards fill the bottom row on a 390 px phone, so the shop button moves up
+  // to the boost's row (left side). Inline because styles.css belongs to the look pass.
+  function placeShopButton() { shopBtn.style.bottom = portraitQuery.matches ? "11.6em" : ""; }
+  portraitQuery.addEventListener?.("change", placeShopButton);
 
   return {
     setCoins,
@@ -433,45 +433,25 @@ export function createUI(root, { onSound, onPause, onResume, onBuy, onFree, onBo
       soundBtn.title = platformMute ? t("muted_by_platform") : effectiveMuted ? t("sound_off") : t("sound_on");
       soundBtn.setAttribute("aria-label", soundBtn.title);
     },
-    /** Home overlay: wordmark, "Offline Arena", PLAY and a device hint under it. */
-    showHome(on, { title = "", mode = "", play = "", main = "", sub = "", icon = "mouse" } = {}) {
+    /** City intro overlay: wordmark, city + theme, and the pulsing "hold" hint (no PLAY button: the city is the button). */
+    showHome(on, { title = "", mode = "", main = "", sub = "", icon = "mouse" } = {}) {
       home.classList.toggle("hidden", !on);
-      if (!on) return;
+      if (!on) { hintAnim?.cancel(); hintAnim = null; return; }
       home.querySelector(".logo").textContent = title;
       home.querySelector(".mode").textContent = mode;
-      home.querySelector(".play").innerHTML = `<span>${play}</span>`;
-      hint.querySelector(".main").innerHTML = `<span class="ico">${ICON[icon] || ""}</span>${escapeHtml(main)}`;
+      const m = hint.querySelector(".main");
+      m.innerHTML = `<span class="ico">${ICON[icon] || ""}</span>${escapeHtml(main)}`;
       hint.querySelector(".sub").textContent = sub;
+      if (!hintAnim) hintAnim = m.animate([{ transform: "scale(1)", opacity: 0.85 }, { transform: "scale(1.07)", opacity: 1 }, { transform: "scale(1)", opacity: 0.85 }], { duration: 1300, iterations: Infinity, easing: "ease-in-out" });
     },
-    /** Round HUD on/off (clock, score, meter, pause). The leaderboard slice and feed stay live on the home. */
-    showRoundHud(on) { root.classList.toggle("in-round", on); },
-    setScore,
-    pulseScore() { scoreBox.animate([{ scale: 1 }, { scale: 1.25 }, { scale: 1 }], { duration: 220, easing: "ease-out" }); },
-    setClock,
-    setMeter(k, visible = true) {
-      meter.classList.toggle("hidden", !visible);
-      meterFill.style.width = `${Math.round(Math.max(0, Math.min(1, k)) * 100)}%`;
-    },
-    setRanks,
-    feed,
+    /** Run HUD on/off (% powered, strikes, city panel, pause). */
+    showRoundHud(on) { root.classList.toggle("in-round", on); pips.style.display = on ? "flex" : "none"; },
+    setPowered,
+    setStrikes,
+    setPanel,
+    setCharge,
     showPill,
     showWorld,
-    /** Death message with the respawn ring (k: 0..1 of the respawn wait). */
-    showDeath(text, k) {
-      if (text === null) { death.classList.add("hidden"); return; }
-      death.classList.remove("hidden");
-      worldCard.classList.add("hidden");
-      const p = death.querySelector("p");
-      if (p.textContent !== text) p.textContent = text;
-      deathFill.style.strokeDashoffset = String(100 * Math.max(0, Math.min(1, k)));
-    },
-    showStick(v) {
-      stick.classList.toggle("hidden", !v);
-      if (!v) return;
-      stick.style.transform = `translate(${v.x.toFixed(0)}px, ${v.y.toFixed(0)}px) translate(-50%, -50%)`;
-      stickKnob.style.transform = `translate(${v.kx.toFixed(0)}px, ${v.ky.toFixed(0)}px)`;
-    },
-    showTouchBoost(on) { boostTouch.classList.toggle("hidden", !on); },
     showPaused(on, { title = "", sub = "", keys = "" } = {}) {
       paused.hidden = !on;
       if (!on) return;
@@ -482,7 +462,7 @@ export function createUI(root, { onSound, onPause, onResume, onBuy, onFree, onBo
     showUpgrades,
     popUpgrade,
     showBoost,
-    showShopButton(on) { shopBtn.classList.toggle("hidden", !on); },
+    showShopButton(on) { shopBtn.classList.toggle("hidden", !on); placeShopButton(); },
     openShop(model) { renderShop(model, true); shopModal.hidden = false; root.classList.add("shop-open"); shopModal.querySelector(".shop").animate([{ transform: "scale(.7)", opacity: 0 }, { transform: "scale(1)", opacity: 1 }], { duration: 260, easing: "ease-out" }); },
     updateShop(model) { if (!shopModal.hidden) renderShop(model); },
     closeShop() { shopModal.hidden = true; root.classList.remove("shop-open"); },
@@ -491,16 +471,14 @@ export function createUI(root, { onSound, onPause, onResume, onBuy, onFree, onBo
     /** The unlock reveal: the new swatch pops from silhouette to colour. */
     popSwatch(id) { shopModal.querySelector(`.swatch[data-id="${id}"]`)?.animate([{ scale: 0.4, rotate: "-12deg" }, { scale: 1.25, rotate: "6deg", offset: 0.6 }, { scale: 1, rotate: "0deg" }], { duration: 520, easing: "ease-out" }); },
     shakeElement(el) { el?.animate([{ translate: "0" }, { translate: "-0.25em" }, { translate: "0.25em" }, { translate: "0" }], { duration: 220 }); },
-    setBubble,
     floatText,
     showResult,
     toast,
     adOverlay: { show() { adBlock.hidden = false; }, hide() { adBlock.hidden = true; } },
-    /** Per-frame: smooth coin counter, revive countdown, kill-feed box fade. */
+    /** Per-frame: smooth coin counter, offer countdown. */
     update(dt) {
       tickCountdown(dt);
-      feedClock += dt;
-      if (feedBox.classList.contains("on") && feedClock - feedAt > 4.3) feedBox.classList.remove("on");
+      if (worldLeft > 0) { worldLeft -= dt; if (worldLeft <= 0) worldCard.classList.add("hidden"); }
       if (coinsShown !== coinsTarget) {
         const step = Math.max(1, Math.round(Math.abs(coinsTarget - coinsShown) * Math.min(1, dt * 6)));
         coinsShown += Math.sign(coinsTarget - coinsShown) * step;

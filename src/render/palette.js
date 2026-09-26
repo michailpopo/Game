@@ -124,28 +124,29 @@ export function withSkin(theme, skinHex) {
  *   stars           0..1 density of tiny stars/bokeh (0 = none)
  *   fog             fog colour (distance fade toward the horizon), fogNear/fogFar in world units
  *   hemiSky/hemiGround/hemi   hemisphere light, key/keyIntensity, rim/rimIntensity
- *   env             [top, horizon, bottom] tint of the reflection environment, envPanels = softbox colours
+ *   env             [top, horizon, bottom] tint of the reflection environment, envPanels = softbox colours,
+ *                   envPanelIntensity (default 1) scales the softboxes, envIntensity = scene.environmentIntensity
  */
 export const BACKDROPS = {
   // Volt City night: deep navy to indigo, a magenta storm glow on the horizon
   storm: {
-    top: "#050a24", bottom: "#140a3a", horizon: "#c2188f", horizonAt: 0.66, horizonWidth: 0.16,
-    glow: "#ff2fb0", glowAt: [0.5, 0.74], glowSize: 0.55, glow2: "#3b2bff", glow2At: [0.15, 0.95], glow2Size: 0.6,
-    vignette: 0.55, stars: 0.35,
-    fog: "#2a0f55", fogNear: 26, fogFar: 95,
-    hemiSky: "#5b6cff", hemiGround: "#1a0b2e", hemi: 0.9,
-    key: "#9fb4ff", keyIntensity: 1.25, rim: "#ff3fbf", rimIntensity: 2.2,
-    env: ["#10184a", "#b01a88", "#07061a"], envPanels: ["#6fe9ff", "#ff58c8", "#fff3dc"], envIntensity: 0.7,
+    top: "#030620", bottom: "#0f0a33", horizon: "#9c1175", horizonAt: 0.72, horizonWidth: 0.1,
+    glow: "#ff2fb0", glowAt: [0.62, 0.72], glowSize: 0.24, glow2: "#2433ff", glow2At: [0.15, 0.98], glow2Size: 0.5,
+    vignette: 0.6, stars: 0.4,
+    fog: "#3a0c55", fogNear: 40, fogFar: 150,
+    hemiSky: "#3346c8", hemiGround: "#0a0618", hemi: 0.45,
+    key: "#9fb2ff", keyIntensity: 1.35, rim: "#ff3fbf", rimIntensity: 0.8,
+    env: ["#0a1040", "#4a0c50", "#05040f"], envPanels: ["#5fd9ff", "#ff58c8", "#c9d4ff"], envPanelIntensity: 0.3, envIntensity: 0.4,
   },
   // deep space: blue-violet with a violet core glow
   space: {
-    top: "#0b0830", bottom: "#05030f", horizon: "#3a1a9e", horizonAt: 0.45, horizonWidth: 0.3,
-    glow: "#7a3cff", glowAt: [0.5, 0.55], glowSize: 0.6, glow2: "#00b3ff", glow2At: [0.85, 0.2], glow2Size: 0.45,
-    vignette: 0.6, stars: 0.6,
-    fog: "#150a3d", fogNear: 30, fogFar: 120,
-    hemiSky: "#8f9dff", hemiGround: "#1a0f3a", hemi: 1.1,
-    key: "#fff1e6", keyIntensity: 2.2, rim: "#45d8ff", rimIntensity: 2.5,
-    env: ["#1a1460", "#5a2bd6", "#0a0620"], envPanels: ["#ffffff", "#7fe6ff", "#ff7ad9"], envIntensity: 1,
+    top: "#0a0730", bottom: "#04020d", horizon: "#3a1a9e", horizonAt: 0.45, horizonWidth: 0.22,
+    glow: "#7a3cff", glowAt: [0.5, 0.62], glowSize: 0.42, glow2: "#0090ff", glow2At: [0.88, 0.2], glow2Size: 0.35,
+    vignette: 0.65, stars: 0.6,
+    fog: "#120a38", fogNear: 20, fogFar: 60,
+    hemiSky: "#8f9dff", hemiGround: "#1a0f3a", hemi: 0.7,
+    key: "#fff1e6", keyIntensity: 1.8, rim: "#45d8ff", rimIntensity: 1.6,
+    env: ["#1a1460", "#4a24b0", "#0a0620"], envPanels: ["#ffffff", "#7fe6ff", "#ff7ad9"], envPanelIntensity: 0.6, envIntensity: 0.8,
   },
   // sunset: hot coral to violet
   sunset: {

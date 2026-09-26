@@ -196,7 +196,7 @@ export class FxSprites {
   mesh;
   #max; #live = 0; #steal = 0; #time = 0;
   #d;                     // CPU pool, SPR floats per sprite (dense: 0..live-1)
-  #aPos; #aVel; #aNrm; #aCol; #aSize; #attrs; #ranges;
+  #aPos; #aVel; #aNrm; #aCol; #aSize; #attrs; #uploaded = 0;
 
   /** @param {{ max?: number, additive?: boolean, fog?: boolean }} [opts] */
   constructor(scene, { max = 1500, additive = true, fog = false } = {}) {
@@ -210,7 +210,6 @@ export class FxSprites {
     geo.setAttribute("iPos", this.#aPos); geo.setAttribute("iVel", this.#aVel); geo.setAttribute("iNrm", this.#aNrm);
     geo.setAttribute("iCol", this.#aCol); geo.setAttribute("iSize", this.#aSize);
     this.#attrs = [this.#aPos, this.#aVel, this.#aNrm, this.#aCol, this.#aSize];
-    this.#ranges = this.#attrs.map(() => ({ start: 0, count: 0 }));   // reused every frame (no garbage)
     geo.instanceCount = 0;
     const mat = new ShaderMaterial({
       vertexShader: SPRITE_VERTEX, fragmentShader: SPRITE_FRAGMENT, transparent: true, depthWrite: false,
@@ -333,11 +332,10 @@ export class FxSprites {
       C[i * 4] = d[b + 13]; C[i * 4 + 1] = d[b + 14]; C[i * 4 + 2] = d[b + 15]; C[i * 4 + 3] = alpha;
       S[i * 2] = size; S[i * 2 + 1] = d[b + 21];
     }
-    for (let n = 0; n < this.#attrs.length; n++) {
-      const a = this.#attrs[n], r = this.#ranges[n];
-      a.clearUpdateRanges();
-      if (live) { r.start = 0; r.count = live * a.itemSize; a.updateRanges.push(r); a.needsUpdate = true; }
-    }
+    // Whole-buffer uploads: three.js empties `updateRanges` after every upload, so ranges would allocate
+    // a fresh array store each frame. Skipped entirely while nothing is (or was) alive.
+    if (live || this.#uploaded) for (let n = 0; n < this.#attrs.length; n++) this.#attrs[n].needsUpdate = true;
+    this.#uploaded = live;
     this.mesh.geometry.instanceCount = live;
     this.mesh.visible = live > 0;
   }
@@ -393,7 +391,7 @@ export class Debris {
       const d = this.#d, b = i * DEB;
       const u = Math.random() * 2 - 1, a = Math.random() * 6.283, r = Math.sqrt(1 - u * u);
       let vx = r * Math.cos(a), vy = u, vz = r * Math.sin(a);
-      if (dir) { vx = dir.x + vx * cone; vy = dir.y + vy * cone; vz = dir.z + vz * cone; const l = Math.hypot(vx, vy, vz) || 1; vx /= l; vy /= l; vz /= l; }
+      if (dir) { vx = dir.x + vx * cone; vy = dir.y + vy * cone; vz = dir.z + vz * cone; const l = Math.sqrt(vx * vx + vy * vy + vz * vz) || 1; vx /= l; vy /= l; vz /= l; }
       const sp = speed * (0.45 + Math.random() * 0.55);
       d[b] = at.x + (Math.random() - 0.5) * spread; d[b + 1] = at.y + (Math.random() - 0.5) * spread; d[b + 2] = at.z + (Math.random() - 0.5) * spread;
       d[b + 3] = vx * sp; d[b + 4] = vy * sp + up * (0.5 + Math.random() * 0.5); d[b + 5] = vz * sp;
@@ -424,7 +422,7 @@ export class Debris {
       if (!dead && d[b + 14] >= 0 && d[b + 15] > d[b + 14]) {
         // magnet: steer toward the target, accelerating
         const dx = T.x - d[b], dy = T.y - d[b + 1], dz = T.z - d[b + 2];
-        const dist = Math.hypot(dx, dy, dz);
+        const dist = Math.sqrt(dx * dx + dy * dy + dz * dz);
         if (dist < 0.35) { dead = true; this.onArrive?.(i); }
         else {
           const want = 10 + (d[b + 15] - d[b + 14]) * 40, k = 1 - Math.exp(-9 * dt);

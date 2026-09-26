@@ -1,37 +1,39 @@
 /**
- * Boot + game flow controller - Comet Chain (docs/GAME_BRIEF.md).
+ * Boot + game flow controller - Storm Grid (docs/GAME_BRIEF.md).
  *
  * Boot order matters:
  *   1. SDK init (awaited, with a timeout) -> loadingStart
- *   2. services: pause, gameplay reporter, save, audio, input, controls, ads
- *   3. renderer + the first round built -> loadingStop -> release BOOT
- *   4. the player lands IN the live arena (CG-GAME-001): one click on PLAY (or anywhere on the
- *      arena, or Space/Enter) starts the round; gameplayStart fires then, from gameplay-events.js
+ *   2. services: pause, gameplay reporter, save, audio, input, ads
+ *   3. renderer + the first city built -> loadingStop -> release BOOT
+ *   4. the player lands IN the live dark city (CG-GAME-001): the first press on the city (or
+ *      Space/Enter) starts the run AND starts charging the first strike; gameplayStart fires then,
+ *      from gameplay-events.js
  *
- * Round flow: ready -> run (90 s clock) -> [death -> 2 s respawn, or the revive offer] -> won
- * (the round is over) -> podium + Claim / Claim x3 -> next round (ready).
+ * Run flow: ready (city intro) -> run (3+ strikes: hold to charge, release to strike) -> the last
+ * cascade ends -> [85-99% powered: "One more strike" offer, once per session] -> result (% powered,
+ * jackpot plate, coins, Claim / Claim x3) -> next city (>= 60%) or the same city again.
  *
  * Ad placements and the rule each follows - src/game/offers.js decides visibility and caps:
- *   round result   -> "Claim" or "Claim x3" (rewarded, same button style)
- *   "Claim"        -> midgame from round GAME.firstMidgameLevel on (a natural break)
- *   death          -> "Keep chain" (rewarded, once per session, only after >= 30 s of the round,
- *                     ring countdown that removes the offer at 0) next to "Respawn"; otherwise
- *                     the free 2 s respawn with no dialog at all
- *   ready screen   -> "Start x2" boost (rewarded, after the first rounds, cooldown)
- *                     "FREE" upgrade (rewarded) only when unaffordable, with cooldown
- *   trails shop    -> "Random" unlock for coins (always a new trail) and "+coins" (rewarded)
- *                     only while the unlock is unaffordable, with a visible cooldown timer
+ *   result          -> "Claim" (or "Retry") next to "Claim x3" (rewarded, same button style, from run 2)
+ *   "Next city" / "Retry" -> midgame from city GAME.firstMidgameLevel on (a natural break), never
+ *                      right after a rewarded video
+ *   85-99% powered  -> "One more strike" (rewarded, once per session, auto-SUPERCHARGE) next to
+ *                      "Finish", with a ring countdown that removes the offer at 0
+ *   city intro      -> "Supercharged start" (+2 strikes; rewarded, after the first runs, cooldown),
+ *                      "FREE" upgrade (rewarded) only when unaffordable, with cooldown
+ *   bolt shop       -> "Random" unlock for coins (always a new bolt) and "+coins" (rewarded) only
+ *                      while the unlock is unaffordable, with a visible cooldown timer
  * Everything works with ads off (Basic Launch) and with an ad blocker.
  *
- * Mouse control (CG-QUAL-008): pointer lock on the PLAY click, a cursor ring in the arena,
- * P / Tab / native Escape release it -> pause overlay; menus always run unlocked
- * (src/game/controls.js).
+ * Mouse control (CG-QUAL-008): click-to-target - nothing follows mouse movement continuously, so no
+ * pointer lock (project.json notes). The hold uses pointer capture (core/input.js): a release
+ * outside the frame still fires the strike and cannot click the page.
  */
 
 import "@fontsource/lilita-one/latin-400.css";
 import "./ui/styles.css";
 
-import { ARENA, GAME, OFFERS } from "./config.js";
+import { GAME, OFFERS, STORM } from "./config.js";
 import { initPlatform } from "./platform/platform.js";
 import { PauseArbiter, Reason, watchInterruptions } from "./core/pause.js";
 import { GameLoop } from "./core/loop.js";
@@ -44,51 +46,66 @@ import { AdaptiveQuality } from "./core/quality.js";
 import { initI18n, t } from "./core/i18n.js";
 import { createStage } from "./render/stage.js";
 import { fontsReady } from "./render/text-texture.js";
-import { themeFor, withSkin } from "./render/palette.js";
-import { autopilot } from "./game/ai.js";
-import { Controls } from "./game/controls.js";
+import { autopilot, densestUnlit } from "./game/ai.js";
 import {
-  createSim, forceFail, forceWin, inFinale, makeInput, massOf, playerRank, playerScore, progress, respawn, revive,
-  setPlayerMass, stageEncounter, standings, startRun, step, timeLeft,
+  addStartStrikes, addStrike, createSim, forceFail, forceWin, makeInput, nearestBuilding, plateFor, progress, runCoins,
+  startRun, step,
 } from "./game/sim.js";
 import {
-  DEFAULT_SAVE, SKINS, UPGRADES, completionPercent, crateFor, nextTier, pickRandomSkin, roundReward, skinColor,
-  skinUnlockCost, startMass, upgradeCost,
+  DEFAULT_SAVE, MIGRATIONS, SKINS, UPGRADES, completionPercent, pickRandomSkin, skinColor, skinUnlockCost, upgradeCost,
+  upgradeLevels,
 } from "./game/meta.js";
 import { boostOffer, cashOffer, freeUpgradeOffer, reviveOffer } from "./game/offers.js";
-import { ARENA_SFX } from "./game/sfx.js";
-import { fmtValue, ladderKey, levelOf } from "./game/values.js";
+import { STORM_SFX } from "./game/sfx.js";
+import { themeOf } from "./game/look.js";
 import { GameView } from "./game/view.js";
 import { createUI } from "./ui/ui.js";
 
 const qs = new URLSearchParams(location.search);
 const wait = (ms) => new Promise((r) => setTimeout(r, ms));
 const mmss = (sec) => `${Math.floor(sec / 60)}:${String(sec % 60).padStart(2, "0")}`;
-const LOCK = "lock";   // pause reason: pointer lost to a focus change (not a gameplay break)
+const pct = (share) => Math.floor(share * 100 + 1e-6);
+const SHOWN_UPGRADES = ["voltage", "fork", "capacitor"];   // the city intro's cards (all 5 + the rooftop screen: WP-32)
+const PLATE_LADDER = [...STORM.payout.plates].reverse();   // [[0.6, 2], [0.8, 3], [0.95, 5], [1, 10]]
 
 async function boot() {
   const canvas = document.getElementById("game");
   // Flow state is declared before the first await: callbacks that resolve
   // during boot (e.g. adblock detection) must never hit a temporal dead zone.
-  let level = 1;                // round number
+  let level = 1;                // city number
   let sim = null;
   let runEnded = false;
-  let deathHandled = false;
   let revivesUsed = 0;
   let resumeRamp = 1;
-  let boosted = false;          // this round's ready screen already took the "Start x2" boost
+  let boosted = false;          // this city's intro already took the Supercharged start
   let offerTick = 0;
-  let hudTick = 0;
   let qaAutopilot = false;
+  let qaHold = null;            // QA/screenshot override for the hold button (null = real input)
+  let qaFrozen = false;         // QA screenshot staging: simulation and effects stopped on this frame
+  let qaFreezeWhen = null;      // QA: freeze on the first step where this returns true
+  let qaFrozenAnims = [];
+  const qaFreeze = (on) => {
+    qaFrozen = on;
+    view.fxScale = 1;
+    if (on) {
+      // The effects of this very step (bolts, cards, floats) get 0.3 s to draw in, then everything holds.
+      setTimeout(() => {
+        if (!qaFrozen) return;
+        view.fxScale = 0;
+        qaFrozenAnims = document.getAnimations().filter((a) => a.playState === "running");
+        // A slow frame may leave a fresh card or float at its first keyframe: hold it at least 0.25 s in.
+        qaFrozenAnims.forEach((a) => { if ((a.currentTime ?? 0) < 250) a.currentTime = 250; a.pause(); });
+      }, 300);
+    } else { qaFrozenAnims.forEach((a) => a.play()); qaFrozenAnims = []; }
+  };
   let paused = false;
-  let lastScore = 0;
-  let lastClockSec = -1;
-  let finaleShown = false;
-  let deathText = "";
-  let onboard = { step: 0, steer: 0, boost: 0, t: 0, t2: 0 };
+  let lastLit = 0;
+  let aim = -1;                 // the targeted building
+  let inputMode = "mouse";      // mouse | touch | keys
+  let sawSuper = false;         // onboarding: the player released in the gold band at least once
+  let panelKey = -1;
+  const pointer = { id: null, down: false, x: 0, y: 0 };
   const offerSeen = new Map();  // surface -> visible, so "offer shown" is logged once per appearance
-  const rankRows = [];
-  const standingsBuf = [];
   const stepIn = makeInput();
   const platform = await initPlatform();
   platform.loadingStart();
@@ -97,17 +114,15 @@ async function boot() {
 
   const pause = new PauseArbiter([Reason.BOOT]);
   const gameplay = createGameplayReporter(platform, pause);
-  const save = new SaveService({ key: `${GAME.slug}.save`, version: GAME.saveVersion, defaults: DEFAULT_SAVE }).init(platform);
-  const audio = new AudioService({ sounds: { ...SFX, ...ARENA_SFX }, userMuted: save.data.userMuted }).bindPlatform(platform).installUnlockHandlers(window);
-  const input = new Input(canvas, { bindings: { action: ["Enter"], boost: ["Space", "ShiftLeft"] } }).attach();
-  const controls = new Controls(canvas, input, { onUnlock: (focused) => pauseRound(focused ? "user" : "focus"), onPauseKey }).attach();
+  const save = new SaveService({ key: `${GAME.slug}.save`, version: GAME.saveVersion, defaults: DEFAULT_SAVE, migrations: MIGRATIONS }).init(platform);
+  const audio = new AudioService({ sounds: { ...SFX, ...STORM_SFX }, userMuted: save.data.userMuted }).bindPlatform(platform).installUnlockHandlers(window);
+  const input = new Input(canvas, { bindings: { action: ["Space", "Enter"], pause: ["KeyP"] } }).attach();
   const stage = createStage(canvas);
   const quality = new AdaptiveQuality(stage.renderer);
-  const touchUI = () => controls.mode === "touch" || matchMedia("(pointer: coarse)").matches || platform.systemInfo?.device?.type === "mobile";
+  const touchUI = () => inputMode === "touch" || matchMedia("(pointer: coarse)").matches || platform.systemInfo?.device?.type === "mobile";
 
   const ui = createUI(document.getElementById("ui"), {
-    onSound: toggleSound, onPause: () => (paused ? resumeRound() : pauseRound("user")), onResume: resumeRound, onPlay: (e) => tryStartRun(e),
-    onTouchBoost: (on) => { controls.touchBoost = on; },
+    onSound: toggleSound, onPause: () => (paused ? resumeRun() : pauseRun()), onResume: resumeRun,
     onBuy: buyUpgrade, onFree: freeUpgrade, onBoost: takeBoost,
     onShop: openShop, onShopClose: closeShop, onSkin: selectSkin, onUnlock: unlockRandom, onCash: cashForShop,
   });
@@ -116,237 +131,199 @@ async function boot() {
 
   await fontsReady();
 
-  // Up to 8 fixed steps per frame: the 90 s round clock stays real-time down to ~8 fps on weak
-  // devices (a step costs ~0.1-0.2 ms); below that the spiral guard slows the game instead.
+  // Up to 8 fixed steps per frame: the charge and the cascade stay real-time down to ~8 fps on weak
+  // devices (a step costs well under 0.1 ms); below that the spiral guard slows the game instead.
   const loop = new GameLoop({ update, render, maxStepsPerFrame: 8 });
   const view = new GameView(stage, { audio, ui, loop });
-  view.cursor = controls.cursor;
+  view.recolor(skinColor(save.data));
 
-  const currentTheme = () => withSkin(themeFor(0), skinColor(save.data));
+  const themeName = () => t(`theme_${themeOf(sim.city).id}`);
+  const cityMode = () => t("city_mode", { n: level, theme: themeName() });
 
   function loadLevel(n) {
     level = n;
-    boosted = false;
-    sim = createSim({ level: n, tier: save.data.tier, seed: `round-${n}-${save.data.runs}`, startMass: startMass(save.data) });
+    sim = createSim({ level: n, seed: `city-${n}`, up: upgradeLevels(save.data), extraStrikes: boosted ? OFFERS.boostStrikes : 0 });
     runEnded = false;
-    deathHandled = false;
-    finaleShown = false;
-    lastClockSec = -1;
-    view.build(sim, currentTheme());
-    ui.setScore(playerScore(sim), false);
-    ui.setClock(ARENA.round.durationSec, ARENA.round.durationSec, false);
-    ui.showDeath(null);
+    lastLit = 0;
+    view.build(sim);
+    aim = -1;
+    ui.setPowered(0, false);
+    ui.setStrikes(sim.strikesLeft, sim.strikesMax);
+    ui.setCharge(null);
     ui.showPill(null);
   }
 
   function enterReady() {
-    const touch = touchUI();
+    const keys = inputMode === "keys";
     ui.showHome(true, {
-      title: GAME.title, mode: t("offline_arena"), play: t("play"),
-      main: t(touch ? "hint_touch" : "hint_mouse"), sub: t(touch ? "hint_touch_sub" : "hint_mouse_sub"), icon: touch ? "finger" : "mouse",
+      title: t("title"), mode: cityMode(), main: t("hint_hold"),
+      sub: keys ? t("hint_sub_keys", { keys: input.movementLabel }) : t("hint_sub_pointer"), icon: touchUI() ? "finger" : keys ? "keys" : "mouse",
     });
     ui.showRoundHud(false);
-    ui.showTouchBoost(false);
-    controls.setRunning(false);
-    canvas.style.cursor = "";
     refreshReady();
   }
 
-  function tryStartRun(e) {
-    if (!sim || sim.phase !== "ready" || pause.has(Reason.MENU) || pause.has(Reason.AD) || ui.shopOpen) return;
+  /** The first press on the city (or Space / Enter) starts the run; the same press charges the first strike. */
+  function tryStartRun() {
+    if (!sim || sim.phase !== "ready" || !canPlay()) return false;
     startRun(sim);
-    controls.setRunning(true);
-    if (e && e.pointerType === "mouse") {
-      controls.mode = "mouse";
-      controls.requestLock();                       // CG-QUAL-008: lock on the PLAY click (a user gesture)
-      const r = canvas.getBoundingClientRect();
-      const g = { x: 0, z: 0 };
-      if (e.target === canvas && view.screenToGround(e.clientX - r.left, e.clientY - r.top, g)) controls.aimAt(g.x - sim.player.x, g.z - sim.player.z);
-      else controls.aimAt(Math.cos(sim.player.heading) * 3, Math.sin(sim.player.heading) * 3);
-    } else if (e && e.pointerType === "touch") controls.mode = "touch";
-    else if (!e) controls.mode = "keys";           // Space / Enter: no cursor steering until the mouse moves
     ui.showHome(false);
     ui.showRoundHud(true);
     ui.showUpgrades(null);
     ui.showBoost(null);
     ui.showShopButton(false);
-    ui.showTouchBoost(touchUI());
     offerSeen.clear();
-    onboard = { step: save.data.runs < 3 ? 0 : 3, steer: 0, boost: 0, t: 0, t2: 0 };
     gameplay.setPlaying(true);
-    platform.setGameContext({ round: level, tier: save.data.tier });
+    platform.setGameContext({ city: level });
     save.update((d) => { d.runs++; });
-    audio.play("click");
+    return true;
   }
+
+  const canPlay = () => !paused && !pause.has(Reason.MENU) && !pause.has(Reason.AD) && !pause.has(Reason.BOOT) && !ui.shopOpen && !ui.modalOpen;
+
+  // ---------------------------------------------------------------- pointer: press = aim + charge, release = strike
+  const local = (e) => { const r = canvas.getBoundingClientRect(); return [e.clientX - r.left, e.clientY - r.top]; };
   canvas.addEventListener("pointerdown", (e) => {
-    if (sim?.phase === "ready") { tryStartRun(e); return; }
-    // A click on the arena during a round re-tries the lock (fallback mode, after a revive ...).
-    if (sim?.phase === "run" && !paused && e.pointerType === "mouse" && !controls.locked) controls.requestLock();
+    if (pointer.id !== null || e.button > 0) return;             // a second finger (or button) is ignored
+    if (!sim || (sim.phase !== "ready" && sim.phase !== "run") || !canPlay()) return;
+    [pointer.x, pointer.y] = local(e);
+    pointer.id = e.pointerId;
+    pointer.down = true;
+    inputMode = e.pointerType === "touch" ? "touch" : "mouse";
+    aim = view.pick(sim, pointer.x, pointer.y);
+    if (sim.phase === "ready") tryStartRun();
   });
+  canvas.addEventListener("pointermove", (e) => {
+    const holding = e.pointerId === pointer.id;
+    if (!holding && e.pointerType !== "mouse") return;
+    if (!sim || (sim.phase !== "ready" && sim.phase !== "run") || !canPlay()) return;
+    [pointer.x, pointer.y] = local(e);
+    if (holding || e.pointerType === "mouse") { aim = view.pick(sim, pointer.x, pointer.y); if (!holding) inputMode = "mouse"; }
+  }, { passive: true });
+  const pointerUp = (e) => { if (e.pointerId === pointer.id) { pointer.down = false; pointer.id = null; } };
+  window.addEventListener("pointerup", pointerUp);
+  window.addEventListener("pointercancel", pointerUp);
+  window.addEventListener("blur", () => { pointer.down = false; pointer.id = null; });
   window.addEventListener("keydown", (e) => {
     if (e.code === "KeyM" && !e.repeat && !e.ctrlKey && !e.metaKey && !e.altKey) toggleSound();
   });
 
-  // ---------------------------------------------------------------- pause / pointer lock
-  function onPauseKey() {
-    if (paused) { resumeRound(); return; }
-    if (sim?.phase !== "run" || runEnded || pause.has(Reason.MENU) || pause.has(Reason.AD)) return;
-    controls.releaseLock();
-    pauseRound("user");
-  }
-
-  /** "user": P / Tab / Escape / pause button -> a gameplay break. "focus": the lock went with the window focus. */
-  function pauseRound(kind) {
+  // ---------------------------------------------------------------- pause (P / pause button; Escape is never bound)
+  function pauseRun() {
     if (paused || sim?.phase !== "run" || runEnded) return;
     paused = true;
-    pause.hold(kind === "user" ? Reason.DIALOG : LOCK);
-    controls.setRunning(false);
-    controls.releaseLock();
+    pointer.down = false;
+    pointer.id = null;
+    pause.hold(Reason.DIALOG);
+    ui.setCharge(null);
     const touch = touchUI();
     ui.showPaused(true, { title: t("paused"), sub: t(touch ? "tap_resume" : "click_resume"), keys: touch ? "" : t("pause_keys") });
   }
 
-  function resumeRound() {
+  function resumeRun() {
     if (!paused) return;
     paused = false;
     ui.showPaused(false);
-    controls.setRunning(true);
-    if (controls.mode === "mouse") controls.requestLock();   // the resume click / key is a user gesture
     pause.release(Reason.DIALOG);
-    pause.release(LOCK);
   }
 
   // ---------------------------------------------------------------- simulation step
   function update(dt) {
-    if (sim.phase === "ready" && (input.justPressed("action") || input.justPressed("boost"))) tryStartRun(null);
+    if (qaFrozen) return;
+    if (input.justPressed("pause")) { if (paused) resumeRun(); else pauseRun(); }
+    const live = sim.phase === "ready" || sim.phase === "run";
+    if (live && canPlay()) {
+      // Keyboard crosshair: arrows / WASD step between antennas in that screen direction.
+      const dx = (input.justPressed("right") ? 1 : 0) - (input.justPressed("left") ? 1 : 0);
+      const dy = (input.justPressed("down") ? 1 : 0) - (input.justPressed("up") ? 1 : 0);
+      if (dx || dy) { inputMode = "keys"; aim = view.stepAim(sim, aim, dx, dy); }
+      if (input.justPressed("action")) {
+        if (inputMode !== "keys" && !pointer.down) inputMode = "keys";
+        if (aim < 0) aim = view.pick(sim, stage.size.width / 2, stage.size.height / 2);
+        if (sim.phase === "ready") tryStartRun();
+      }
+    }
     if (sim.phase === "run") {
       if (qaAutopilot) autopilot(sim, stepIn);
-      else controls.intent(sim.player, view, stepIn);
-    }
+      else {
+        stepIn.hold = qaHold ?? (!paused && (pointer.down || input.held("action")));
+        stepIn.aim = aim;
+      }
+    } else stepIn.hold = false;
     step(sim, dt, stepIn);
     input.endStep();
-    if (sim.phase === "failed" && !deathHandled) onDeath();
-    else if (sim.phase === "run" && deathHandled) { deathHandled = false; ui.showDeath(null); }
-    if (sim.phase === "won" && !runEnded) onRoundEnd();
+    if (qaAutopilot && stepIn.aim >= 0) aim = stepIn.aim;
+    if (qaFreezeWhen && qaFreezeWhen(sim)) { qaFreezeWhen = null; qaFreeze(true); }
+    if ((sim.phase === "won" || sim.phase === "failed") && !runEnded) onRunEnd();
   }
 
   function render(alpha, dt) {
     stage.resize();
     if (resumeRamp < 1) { resumeRamp = Math.min(1, resumeRamp + dt * 2); loop.timeScale = 0.25 + 0.75 * resumeRamp; }
+    const live = sim.phase === "ready" || sim.phase === "run";
+    view.aim.index = aim;
+    view.aim.visible = live && !paused && aim >= 0 && (inputMode !== "touch" || sim.holding);
     view.update(sim, alpha, dt);
-    hud(dt);
-    ui.update(dt);
+    hud();
+    ui.update(dt * view.fxScale);
     offerTick += dt;
     if (offerTick >= 0.5) { offerTick = 0; tickOffers(); }
     quality.update(loop.frameMs, dt);
     stage.render();
   }
 
-  // ---------------------------------------------------------------- round HUD
-  function hud(dt) {
-    const inRound = sim.phase === "run" || sim.phase === "failed";
-    const p = sim.player;
-    const score = playerScore(sim);
-    if (score !== lastScore) { ui.setScore(score, score > lastScore && inRound); lastScore = score; }
-    if (inRound) {
-      const left = timeLeft(sim);
-      const gold = inFinale(sim);
-      ui.setClock(left, ARENA.round.durationSec, gold);
-      const sec = Math.ceil(left);
-      if (sec !== lastClockSec) {
-        if (sec <= 10 && sec > 0 && lastClockSec > 0) audio.play("count", { pitch: sec <= 3 ? 1.5 : 1, volume: sec <= 3 ? 1 : 0.55 });
-        lastClockSec = sec;
-      }
-      if (gold && !finaleShown) {
-        finaleShown = true;
-        ui.showWorld(t("golden_finale"), "×2");
-        audio.play("sting");
-      }
-      ui.setMeter(p.meter, ARENA.boost.cost === "meter" && p.alive);
-      // New world reached for the first time (the planet ladder is the collection).
-      const lv = p.alive ? levelOf(Math.max(2, p.head)) : 0;
-      if (lv > save.data.bestWorld) {
-        const first = save.data.bestWorld > 0;
-        save.update((d) => { d.bestWorld = lv; });
-        if (first && lv >= 3 && sim.phase === "run") ui.showWorld(t("new_world"), t(`planet_${ladderKey(lv)}`));
-      }
-      // Death message with the respawn ring.
-      if (sim.phase === "failed" && !sim.holdRespawn) ui.showDeath(deathText, 1 - sim.respawnIn / ARENA.round.respawnSec);
-      onboarding(dt);
+  // ---------------------------------------------------------------- run HUD
+  function hud() {
+    if (sim.litCount !== lastLit) { ui.setPowered(progress(sim), sim.litCount > lastLit); lastLit = sim.litCount; }
+    ui.setStrikes(sim.strikesLeft, sim.strikesMax);
+    // City panel: rebuilt only when a number changes (no per-frame strings).
+    const pk = (((level * 16 + sim.strikesLeft) * 16 + sim.strikesMax) * 4096 + sim.districtsDone * 512 + sim.bestChain) * 2 + (stage.size.aspect < 1 ? 1 : 0);
+    if (pk !== panelKey && sim.phase !== "ready") {
+      panelKey = pk;
+      ui.setPanel(t("city_n", { n: level }), [
+        [`${sim.strikesLeft}/${sim.strikesMax}`, t("strikes"), ""],
+        [`${sim.districtsDone}/${sim.city.districts.length}`, t("blocks"), ""],
+        [String(sim.bestChain), t("best_chain"), ""],
+      ]);
     }
-    ui.showStick(inRound ? controls.stickView : null);
-    canvas.style.cursor = inRound && !controls.locked && controls.mode === "mouse" && !paused ? "crosshair" : "";
-    hudTick += dt;
-    if (hudTick >= 0.25 && sim.phase !== "won") { hudTick = 0; ranks(); }   // frozen at the whistle
-  }
-
-  /** Leaderboard slice: the top 3, then you with a neighbour. */
-  function ranks() {
-    const n = standings(sim, standingsBuf);
-    rankRows.length = 0;
-    let me = standingsBuf.findIndex((s) => s.isPlayer);
-    const push = (i) => {
-      const sn = standingsBuf[i];
-      rankRows.push({ rank: i + 1, name: sn.isPlayer ? t("you") : sn.name, score: massOf(sim, sn), you: sn.isPlayer, danger: !sn.isPlayer && sim.player.alive && sn.head > sim.player.head });
-    };
-    for (let i = 0; i < Math.min(3, n); i++) push(i);
-    if (me >= 3) { if (me > 3) push(me - 1); push(me); }
-    else if (n > 3) push(3);
-    if (rankRows.length < 5 && me + 1 < n && me + 1 > 3) push(me + 1);
-    ui.setRanks(rankRows);
-  }
-
-  /** Contextual pills: steer -> (later) boost; the lock hint when the mouse runs unlocked. */
-  function onboarding(dt) {
-    const touch = controls.mode === "touch";
-    const keys = controls.mode === "keys";
-    onboard.t += dt;
-    if (sim.phase !== "run" || paused || pause.has(Reason.MENU)) { ui.showPill(null); return; }
-    if (controls.mode === "mouse" && !controls.locked && onboard.t > 1.2) { ui.showPill(t("pill_lock"), "mouse"); return; }
-    if (stepIn.hasDir) onboard.steer += dt;
-    if (sim.player.boosting) onboard.boost += dt;
-    if (onboard.step === 0) {
-      ui.showPill(touch ? t("pill_steer_touch") : keys ? t("pill_steer_keys", { keys: input.movementLabel }) : t("pill_steer_mouse"), touch ? "finger" : "mouse");
-      if (onboard.steer > 0.8 && onboard.t > 3) onboard.step = 1;
-    } else if (onboard.step === 1) {
-      ui.showPill(null);
-      if (onboard.t > 14) { onboard.step = 2; onboard.t2 = onboard.t; }
-    } else if (onboard.step === 2) {
-      ui.showPill(touch ? t("pill_boost_touch") : t("pill_boost_mouse"), "boost");
-      if (onboard.boost > 0.4 || onboard.t - onboard.t2 > 8) { onboard.step = 3; save.update((d) => { d.lastSeenAt = Date.now(); }); }
-    } else ui.showPill(null);
+    // Keyboard players: after a cascade the crosshair slides to the nearest dark building.
+    if (inputMode === "keys" && sim.phase === "run" && !sim.holding && sim.bolts.length === 0 && aim >= 0 && sim.lit[aim]) {
+      const b = sim.city.buildings[aim];
+      const u = nearestBuilding(sim, b.x, b.z, true);
+      if (u >= 0) aim = u;
+    }
+    // Onboarding: until the first SUPERCHARGE, a pill while charging.
+    if (sim.lastRelease?.band === "super") sawSuper = true;
+    ui.showPill(sim.phase === "run" && sim.holding && !sawSuper && save.data.runs <= 3 ? t("pill_band") : null, "bolt");
   }
 
   // ---------------------------------------------------------------- flow
-  /** The player was swallowed: a 2 s respawn, or (once per session, after 30 s) the revive offer. */
-  async function onDeath() {
-    deathHandled = true;
-    const killer = sim.deathBy ? sim.snakes.find((sn) => sn.name === sim.deathBy) : null;
-    deathText = killer ? t("swallowed_by", { name: killer.name, v: fmtValue(killer.head) }) : t("crashed");
-    const p = progress(sim);
+  /** The last cascade ended (or the city is fully powered). */
+  async function onRunEnd() {
+    runEnded = true;
+    pointer.down = false;
+    ui.setCharge(null);
+    ui.showPill(null);
+    if (paused) { paused = false; ui.showPaused(false); pause.release(Reason.DIALOG); }
+    const share = progress(sim);
     const offer = ads.rewardedAvailability;
-    const canRevive = reviveOffer({ available: offer.ok, revivesUsed, progress: p }) && ARENA.round.mode === "timed";
-    if (!canRevive) { ui.showDeath(deathText, 0); return; }   // the sim respawns the player after round.respawnSec
+    if (!reviveOffer({ available: offer.ok, revivesUsed, progress: share })) { showCityResult(); return; }
 
-    sim.holdRespawn = true;
-    ui.showDeath(deathText, 0);
-    await wait(800);
-    if (sim.phase !== "failed") return;   // the round ended meanwhile
-    controls.releaseLock();
-    controls.setRunning(false);
+    // "One more strike": Finish (the decline) and the offer share one button style and appear together.
+    // The ring counts down; at 0 it removes the offer - it never accepts it.
+    gameplay.setPlaying(false);
+    await wait(700);
     pause.hold(Reason.MENU);
     ads.beginBreak("fail");
-    ui.showDeath(null);
     let reviveOpen = true;
-    // Respawn (the decline) and Keep chain (the offer) share one button style and appear together.
-    // The ring counts down; at 0 it removes the offer - it never accepts it.
+    const left = sim.city.buildings.length - sim.litCount;
     const dlg = ui.showResult({
       kind: "fail",
-      mode: `${t("offline_arena")} · ${t("round_n", { n: level })}`,
-      title: killer ? t("swallowed_title") : t("crashed"),
-      stats: [killer ? deathText : null, t("stat_chain", { m: sim.deathMass })].filter(Boolean),
+      mode: cityMode(),
+      title: t("so_close"),
+      stats: [left === 1 ? t("near_full_1", { p: pct(share) }) : t("near_full_n", { p: pct(share), k: left })],
       amount: null,
-      buttons: [{ id: "retry", label: t("respawn") }, { id: "revive", label: t("keep_chain"), video: true }],
+      buttons: [{ id: "finish", label: t("finish") }, { id: "revive", label: t("one_more_strike"), video: true }],
       timed: { id: "revive", seconds: OFFERS.reviveCountdownSec, onExpire: () => { reviveOpen = false; ads.offer("fail-revive", "expired"); } },
     });
     ads.offer("fail-revive");
@@ -360,8 +337,12 @@ async function boot() {
         if (r.shown) {
           dlg.close();
           ads.endBreak();
-          revive(sim);
-          backToRound();
+          addStrike(sim);
+          runEnded = false;
+          pause.release(Reason.MENU);
+          gameplay.setPlaying(true);
+          resumeRamp = 0;
+          loop.timeScale = 0.25;
           return;
         }
         reviveOpen = false;
@@ -372,77 +353,63 @@ async function boot() {
       if (reviveOpen) ads.offer("fail-revive", "declined");
       dlg.close();
       ads.endBreak();
-      respawn(sim);
-      backToRound();
+      pause.release(Reason.MENU);
+      showCityResult();
     });
   }
 
-  function backToRound() {
-    deathHandled = false;
-    ui.showDeath(null);
-    controls.setRunning(true);
-    pause.release(Reason.MENU);
-    resumeRamp = 0;
-    loop.timeScale = 0.25;
-  }
-
-  /** The clock hit 0:00 (or forceWin): podium, payout, Claim / Claim x3, next round. */
-  async function onRoundEnd() {
-    runEnded = true;
+  /** % powered -> jackpot plate -> coins; Claim / Claim x3; next city (>= 60%) or the same city again. */
+  async function showCityResult() {
     gameplay.setPlaying(false);
-    controls.setRunning(false);
-    controls.releaseLock();
-    if (paused) { paused = false; ui.showPaused(false); pause.release(Reason.DIALOG); pause.release(LOCK); }
     platform.clearGameContext();
-    ui.showPill(null);
-    ui.showDeath(null);
-    ui.showTouchBoost(false);
-    if (ARENA.round.mode === "timed") ui.setClock(Math.max(0, timeLeft(sim)), ARENA.round.durationSec, false);
-    const { rank, of } = playerRank(sim);
-    const mass = playerScore(sim);
-    const swallows = sim.player.kills;
-    const crate = crateFor(rank);
-    const reward = roundReward(mass, swallows, rank, save.data);
-    const next = level + 1;
-    const tierBefore = save.data.tier;
-    const firstWin = rank === 1 && !save.data.firstWin;
+    const share = progress(sim);
+    const plate = plateFor(share);
+    const won = sim.phase === "won";
+    const reward = runCoins(sim);
+    const city = level;
+    const firstFull = share >= 1 && save.data.fullPowers === 0;
+    const bestBefore = save.data.bestLevel;
     save.update((d) => {
-      d.coins += reward; d.level = next; d.bestLevel = Math.max(d.bestLevel, next); d.wins++;
-      d.tier = nextTier(d.tier, rank); d.bestTier = Math.max(d.bestTier, d.tier);
-      d.bestRank = d.bestRank ? Math.min(d.bestRank, rank) : rank; d.bestScore = Math.max(d.bestScore, mass);
-      d.swallows += swallows;
-      if (rank === 1) d.firstWin = true;
+      d.coins += reward;
+      if (won) { d.level = city + 1; d.bestLevel = Math.max(d.bestLevel, city + 1); d.wins++; }
+      if (share >= 1) d.fullPowers++;
+      d.bestShare = Math.max(d.bestShare, share);
+      d.bestChain = Math.max(d.bestChain, sim.bestChain);
+      d.plates = { ...d.plates, [city]: Math.max(d.plates[city] || 0, plate.mult) };
     });
     save.flush();
-    platform.reportCompletion(completionPercent(save.data.bestTier));
-    if (firstWin || (save.data.tier === ARENA.bots.maxTier && tierBefore < ARENA.bots.maxTier)) platform.happytime();   // rare on purpose
+    platform.reportCompletion(completionPercent(save.data.bestLevel));
+    // happytime sparingly: the first FULL POWER ever, reaching city 20 and city 40.
+    if (firstFull || (bestBefore < 20 && save.data.bestLevel >= 20) || (bestBefore < 40 && save.data.bestLevel >= 40)) platform.happytime();
 
-    // Podium: the top 3 and you.
-    const n = standings(sim, standingsBuf);
-    const podium = [];
-    for (let i = 0; i < Math.min(3, n); i++) {
-      const sn = standingsBuf[i];
-      podium.push({ rank: i + 1, name: sn.isPlayer ? t("you") : sn.name, score: massOf(sim, sn), you: sn.isPlayer });
-    }
-    if (rank > 3) podium.push({ rank, name: t("you"), score: mass, you: true });
-    audio.play("win", { pitch: rank === 1 ? 1 : rank <= 3 ? 0.9 : 0.8 });
-
-    await wait(1100);
+    await wait(won ? 1300 : 900);   // the camera orbits the lit city first
     pause.hold(Reason.MENU);
     ads.beginBreak("level-complete");
     const offer = ads.rewardedAvailability;
+    const videoOk = offer.ok && save.data.runs >= 2;   // city 1's first result has no video offer
+    const n = sim.city.buildings.length;
+    let note = "";
+    if (!won) note = t("near_pass", { p: pct(share), d: Math.max(1, Math.ceil((STORM.payout.passAt - share) * 100)) });
+    else if (share < 1) {
+      // The true near-miss to the next plate, in buildings ("94% - one building short of x5").
+      const [at, mult] = PLATE_LADDER.find(([a]) => a > share + 1e-9);
+      const k = Math.max(1, Math.ceil(at * n - 1e-9) - sim.litCount);
+      if (mult === 10) note = k === 1 ? t("near_full_1", { p: pct(share) }) : t("near_full_n", { p: pct(share), k });
+      else if (k <= 3) note = k === 1 ? t("near_plate_1", { p: pct(share), m: mult }) : t("near_plate_n", { p: pct(share), k, m: mult });
+    }
+    if (offer.reason === "adblock") note = t("adblock_notice");
     const dlg = ui.showResult({
-      kind: "win",
-      mode: t("results_mode", { n: level }),
-      title: `${t("round_over")} ${t("rank_of", { r: rank, of })}`,
-      podium,
-      stats: [t("stat_chain", { m: mass }), t("stat_swallows", { k: swallows }), t("stat_best", { b: save.data.bestRank })],
+      kind: won ? "win" : "fail",
+      mode: cityMode(),
+      title: share >= 1 ? t("full_power") : t(won ? "city_cleared" : "city_dark", { p: pct(share) }),
+      plates: PLATE_LADDER.map(([at, mult]) => ({ at, mult, on: mult === plate.mult })),
+      stats: [t("stat_lit", { a: sim.litCount, b: n }), t("stat_blocks", { a: sim.districtsDone, b: sim.city.districts.length }), t("stat_chain", { n: sim.bestChain })],
       amount: reward,
-      crate: t("crate", { m: crate }),
-      buttons: [{ id: "claim", label: t("claim") }, offer.ok ? { id: "claim_x", label: t("claim_x", { m: 3 }), video: true } : null],
-      note: offer.reason === "adblock" ? t("adblock_notice") : "",
+      crate: plate.mult > 1 ? t("jackpot", { m: plate.mult }) : "",
+      buttons: [won ? { id: "claim", label: t("claim") } : { id: "retry", label: t("retry") }, videoOk ? { id: "claim_x", label: t("claim_x", { m: 3 }), video: true } : null],
+      note,
     });
-    if (offer.ok) ads.offer("level-complete-x3");
+    if (videoOk) ads.offer("level-complete-x3");
     let rewardedShown = false;
 
     dlg.onChoice(async (id) => {
@@ -467,10 +434,11 @@ async function boot() {
       ui.setCoins(save.data.coins, { animate: true });
       dlg.close();
       await wait(250);
-      // Natural break on "next round". Skipped right after a rewarded video: two ads back to back is bad UX.
-      if (level >= GAME.firstMidgameLevel && !rewardedShown) await ads.midgame({ context: "level-complete-next" });
+      // Natural break on "Next city" / "Retry". Skipped right after a rewarded video: two ads back to back is bad UX.
+      if (city >= GAME.firstMidgameLevel && !rewardedShown) await ads.midgame({ context: won ? "level-complete-next" : "retry" });
       ads.endBreak();
-      loadLevel(next);
+      boosted = false;
+      loadLevel(won ? city + 1 : city);
       pause.release(Reason.MENU);
       enterReady();
     }
@@ -487,11 +455,11 @@ async function boot() {
 
   function upgradeModel() {
     const ctx = offerCtx();
-    const items = Object.keys(UPGRADES).map((kind) => {
+    const items = SHOWN_UPGRADES.map((kind) => {
       const cost = upgradeCost(kind, save.data);
       return {
         kind,
-        title: t(kind === "start" ? "start_units" : "income"),
+        title: t(`up_${kind}`),
         level: save.data[UPGRADES[kind].key] + 1,
         cost,
         affordable: cost !== null && save.data.coins >= cost,
@@ -499,7 +467,7 @@ async function boot() {
         free: freeUpgradeOffer(kind, save.data, ctx),
       };
     });
-    // At most OFFERS.maxVideoOffersPerScreen video buttons on the ready screen (CG-ADS-011: rewarded
+    // At most OFFERS.maxVideoOffersPerScreen video buttons on the intro (CG-ADS-011: rewarded
     // ads are "special opportunities"): the boost counts as one, then the cheapest FREE upgrade.
     const budget = OFFERS.maxVideoOffersPerScreen - (boostModel() ? 1 : 0);
     items.filter((it) => it.free.visible).sort((x, y) => x.cost - y.cost).slice(Math.max(0, budget)).forEach((it) => { it.free = { visible: false }; });
@@ -508,13 +476,13 @@ async function boot() {
 
   function boostModel() {
     const b = boostOffer(save.data, { ...offerCtx(), boostedThisRun: boosted });
-    return b.visible ? { label: t("start_boost", { m: b.factor }) } : null;
+    return b.visible ? { label: t("start_boost", { n: b.strikes }) } : null;
   }
 
-  /** Ready screen: upgrades (after the first finished round), boost (after the first rounds), shop (after round 1). */
+  /** City intro: upgrades (after the first cleared city), boost (after the first runs), shop (after run 1). */
   function refreshReady() {
     if (!sim || sim.phase !== "ready" || ui.shopOpen) return;
-    const upgrades = save.data.wins > 0 ? upgradeModel() : null;   // first session: nothing before the first round
+    const upgrades = save.data.wins > 0 ? upgradeModel() : null;   // first session: nothing before the first city
     ui.showUpgrades(upgrades);
     seen("free-upgrade", !!upgrades?.some((u) => u.free.visible));
     const boost = boostModel();
@@ -531,20 +499,13 @@ async function boot() {
     if (!!boost !== !!offerSeen.get("ready-boost")) { ui.showBoost(boost); seen("ready-boost", !!boost); }
   }
 
-  function applyStartMass() {
-    if (sim.phase !== "ready") return;
-    const m = startMass(save.data) * (boosted ? OFFERS.boostFactor : 1);
-    sim.startMass = m;
-    setPlayerMass(sim, m);
-    ui.setScore(playerScore(sim), true);
-  }
-
+  /** Upgrades change the storm's numbers: rebuild this city's simulation (same layout; gold rods may appear). */
   function applyUpgrade(kind) {
     save.update((d) => { d[UPGRADES[kind].key]++; });
-    if (kind === "start") applyStartMass();
+    if (sim.phase === "ready") loadLevel(level);
     audio.play("tier", { pitch: 1.2 });
     refreshReady();
-    ui.popUpgrade(kind);
+    ui.popUpgrade(kind, t(`up_fx_${kind}`));
   }
 
   async function takeBoost() {
@@ -554,9 +515,9 @@ async function boot() {
       grant: () => {
         boosted = true;
         save.update((d) => { d.lastBoostAt = Date.now(); });
-        applyStartMass();
-        const s = view.toScreen(sim.player.x, 2.4, sim.player.z);
-        ui.floatText(s.x, s.y, t("boosted", { m: OFFERS.boostFactor }), "gold");
+        addStartStrikes(sim, OFFERS.boostStrikes);
+        ui.setStrikes(sim.strikesLeft, sim.strikesMax);
+        ui.floatText(stage.size.width / 2, stage.size.height * 0.45, t("boosted", { n: OFFERS.boostStrikes }), "gold");
         audio.play("tier", { pitch: 1.35 });
       },
     });
@@ -565,20 +526,19 @@ async function boot() {
     refreshReady();
   }
 
-  // ---------------------------------------------------------------- trails shop
+  // ---------------------------------------------------------------- bolt shop
   function shopModel() {
     const ctx = offerCtx();
     const cost = skinUnlockCost(save.data);
     const cash = cashOffer(save.data, ctx);
     const wanting = cost !== null && save.data.coins < cost;
-    const base = themeFor(0);
     let note = "";
     if (cost === null) note = t("all_skins");
     else if (wanting && ads.rewardedAvailability.reason === "adblock") note = t("adblock_notice");
     else if (wanting && ctx.available && cash.cooldown > 0) note = t("free_coins_in", { t: mmss(cash.cooldown) });
     return {
       title: t("skins"),
-      skins: SKINS.map((s) => ({ id: s.id, color: s.color ?? base.crowd, owned: save.data.owned.includes(s.id), selected: save.data.skin === s.id })),
+      skins: SKINS.map((s) => ({ id: s.id, color: s.color, owned: save.data.owned.includes(s.id), selected: save.data.skin === s.id })),
       unlock: cost === null ? null : { label: t("unlock_random"), cost, affordable: !wanting },
       cash: cash.visible ? { amount: cash.amount } : null,
       note,
@@ -611,7 +571,7 @@ async function boot() {
   function selectSkin(id) {
     if (!save.data.owned.includes(id) || save.data.skin === id || pause.has(Reason.AD)) return;
     save.update((d) => { d.skin = id; });
-    view.recolor(currentTheme());
+    view.recolor(skinColor(save.data));
     audio.play("pop", { pitch: 1.2 });
     ui.updateShop(shopModel());
   }
@@ -630,7 +590,7 @@ async function boot() {
     save.update((d) => { d.coins -= cost; d.owned.push(id); d.skin = id; });
     save.flush();
     ui.setCoins(save.data.coins, { animate: true });
-    view.recolor(currentTheme());
+    view.recolor(skinColor(save.data));
     ui.updateShop(shopModel());
     seen("shop-cash", !!shopModel().cash);
     ui.popSwatch(id);
@@ -691,13 +651,14 @@ async function boot() {
     const blocked = reasons.length > 0;
     loop.setSimPaused(blocked);
     audio.setHiddenMute(reasons.includes(Reason.HIDDEN));
+    if (blocked) { pointer.down = false; pointer.id = null; }
     if (!blocked && sim?.phase === "run") { resumeRamp = 0; loop.timeScale = 0.25; }
   });
-  // On hide: always write (a timestamp + the best chain so far), so the save is flushed even when
-  // the debounced write already went out - the last reliable moment on mobile (pagehide).
+  // On hide: always write (a timestamp), so the save is flushed even when the debounced write
+  // already went out - the last reliable moment on mobile (pagehide).
   watchInterruptions(pause, {
     onHide: () => {
-      save.update((d) => { d.lastSeenAt = Date.now(); if (sim) d.bestScore = Math.max(d.bestScore, sim.player.peakMass || 0); });
+      save.update((d) => { d.lastSeenAt = Date.now(); if (sim) d.bestChain = Math.max(d.bestChain, sim.bestChain); });
       save.flush();
     },
     interactionTarget: canvas,
@@ -713,38 +674,27 @@ async function boot() {
     uiRoot.classList.add("marketing");
     document.getElementById("boot").classList.add("done");
     ui.showHome(false);
-
+    loadLevel(Number(qs.get(kind ? "cover_level" : "capture_level") || 8));
+    startRun(sim);
+    ui.showRoundHud(!kind);
     if (kind) {
       uiRoot.classList.add("cover");
       const title = document.createElement("div");
       title.className = "cover-title stroke";
-      title.textContent = GAME.title;
+      title.textContent = t("title");
       uiRoot.appendChild(title);
-      loadLevel(Number(qs.get("cover_level") || 3));
-      startRun(sim);
-      for (let i = 0; i < 60 * 25; i++) { autopilot(sim, stepIn); step(sim, 1 / 60, stepIn); if (sim.phase !== "run") break; }
-      setPlayerMass(sim, Number(qs.get("cover_count") || 1500));
-      sim.events.length = 0;
-      view.snapCamera(sim);
-      const shots = {
-        landscape: { pos: [0, 15, 12], look: [0, 0, -1] },
-        portrait: { pos: [0, 17, 10], look: [0, 0, -2] },
-        square: { pos: [0, 16, 11], look: [0, 0, -1.5] },
-      };
-      view.setCameraOverride(shots[kind] || shots.landscape);
-      view.bodies.badges.visible = false;   // covers: the title is the only text allowed
+      // Half the city powered, then freeze mid-cascade (a forked bolt in the air).
+      const stopAt = Number(qs.get("cover_share") || 0.5);
+      for (let i = 0; i < 60 * 40 && sim.phase === "run"; i++) {
+        autopilot(sim, stepIn); step(sim, 1 / 60, stepIn);
+        if (progress(sim) >= stopAt && sim.bolts.length >= 2) break;
+      }
       loop.setSimPaused(true);
       loop.start();
       await wait(1200);
       window.__GS_COVER_READY__ = true;
       return;
     }
-
-    loadLevel(Number(qs.get("capture_level") || 3));
-    startRun(sim);
-    const lead = Number(qs.get("capture_lead") || 20);
-    while (sim.phase === "run" && sim.t < lead) { autopilot(sim, stepIn); step(sim, 1 / 60, stepIn); }
-    if (qs.get("capture_units")) setPlayerMass(sim, Number(qs.get("capture_units")));
     sim.events.length = 0;
     view.snapCamera(sim);
     let frames = 0;
@@ -752,11 +702,15 @@ async function boot() {
       frame(dt = 1 / 30) {
         const steps = Math.max(1, Math.round(dt * 60));
         for (let i = 0; i < steps; i++) { autopilot(sim, stepIn); step(sim, 1 / 60, stepIn); }
+        aim = stepIn.aim;
+        view.aim.index = aim;
+        view.aim.visible = sim.phase === "run";
         stage.resize();
         view.update(sim, 1, dt);
+        hud();
         ui.update(dt);
         stage.render();
-        return { frame: ++frames, phase: sim.phase, count: playerScore(sim) };
+        return { frame: ++frames, phase: sim.phase, progress: progress(sim) };
       },
     };
   }
@@ -768,17 +722,22 @@ async function boot() {
   const qa = qs.get("qa") === "1";
   const qaLevel = qa ? Number(qs.get("level")) : 0;
   // QA fixtures (?qa=1 only): a returning player's runs / wins / coins, so the harness reaches
-  // the boost, upgrade and shop surfaces without playing ten rounds first.
+  // the boost, upgrade and shop surfaces without playing ten cities first.
   if (qa && Number(qs.get("runs")) > 0) save.update((d) => { d.runs = Math.max(d.runs, Number(qs.get("runs"))); });
   if (qa && qs.has("coins")) save.update((d) => { d.coins = Math.max(0, Number(qs.get("coins")) || 0); });
   if (qa && Number(qs.get("wins")) > 0) save.update((d) => { d.wins = Math.max(d.wins, Number(qs.get("wins"))); });
-  if (qa && Number(qs.get("tier")) > 0) save.update((d) => { d.tier = Math.min(ARENA.bots.maxTier, Number(qs.get("tier"))); });
+  // ?up=voltage,fork,strikes,capacitor,gold - upgrade levels (screenshots of a mid-campaign storm).
+  if (qa && qs.has("up")) {
+    const lv = qs.get("up").split(",").map((v) => Math.max(0, Number(v) || 0));
+    save.update((d) => { ["voltage", "fork", "strikes", "capacitor", "gold"].forEach((k, i) => { d[UPGRADES[k].key] = Math.min(UPGRADES[k].max, lv[i] || 0); }); });
+  }
   loadLevel(qaLevel > 0 ? qaLevel : save.data.level);
   stage.resize();
+  view.snapCamera(sim);
   ui.setCoins(save.data.coins);
   ui.setSound(audio.state);
   loop.start();
-  platform.reportCompletion(completionPercent(save.data.bestTier));
+  platform.reportCompletion(completionPercent(save.data.bestLevel));
   platform.loadingStop();
   pause.release(Reason.BOOT);
   document.getElementById("boot").classList.add("done");
@@ -796,13 +755,10 @@ async function boot() {
     // exists with ?qa=1 and exposes no way to grant ad rewards.
     window.__GS_QA__ = {
       get state() {
-        const p = sim.player;
-        const r = playerRank(sim);
         return {
-          phase: sim.phase, level, tier: save.data.tier, count: playerScore(sim), score: playerScore(sim), value: p.alive ? p.head : sim.deathHead,
-          rank: r.rank, of: r.of, progress: progress(sim), timeLeft: timeLeft(sim), alive: p.alive, chain: Array.from(p.chain.subarray(0, p.n)),
-          kills: p.kills, deaths: p.deaths, looseCount: sim.loose.count, botsAlive: sim.snakes.filter((s) => !s.isPlayer && s.alive).length,
-          lock: controls.locked, lockRefused: controls.lockRefused, inputMode: controls.mode, paused,
+          phase: sim.phase, level, progress: progress(sim), lit: sim.litCount, buildings: sim.city.buildings.length, simT: sim.t,
+          strikesLeft: sim.strikesLeft, strikesMax: sim.strikesMax, holding: sim.holding, charge: sim.charge, bolts: sim.bolts.length,
+          score: sim.score, bestChain: sim.bestChain, districtsDone: sim.districtsDone, aim, inputMode, paused,
           coins: save.data.coins, pause: pause.reasons, gameplayReported: gameplay.reported,
           firstGameplayStartMs: gameplay.firstStartMs, audio: audio.state, save: save.status,
           platform: { name: platform.name, environment: platform.environment }, fps: loop.stats.fps,
@@ -810,19 +766,31 @@ async function boot() {
           runs: save.data.runs, skin: save.data.skin, owned: [...save.data.owned], boosted, shopOpen: ui.shopOpen,
         };
       },
+      /** The share of the city at which "One more strike" is offered (OFFERS.reviveMinProgress, never at 100%). */
+      reviveAt: Math.min(0.99, OFFERS.reviveMinProgress + 0.05),
       feedback,
       start: tryStartRun,
-      /** The autopilot steers (dead-air and long-run checks); the player's input is ignored meanwhile. */
+      /** The autopilot plays (dead-air and long-run checks); the player's input is ignored meanwhile. */
       setAutopilot(on) { qaAutopilot = !!on; },
-      /** Ends the round now (a finished round is the "won" phase). */
+      /** Screenshot staging: hold the strike button (true/false) or give it back to the player (null). */
+      setHold(on) { qaHold = on === null ? null : !!on; },
+      /** Screenshot staging: aim at a building (-1: the densest dark area). */
+      setAim(i = -1) { aim = i >= 0 ? i : densestUnlit(sim); return aim; },
+      /** Screenshot staging: freeze the simulation AND the effects on the current frame (true), or run on (false). */
+      freeze(on) { qaFreeze(!!on); },
+      get frozen() { return qaFrozen; },
+      /**
+       * Screenshot staging: freeze on the first simulation step where the condition holds:
+       * { charge: 0.85 } while holding, { bolts: 4 } bolts in the air, { district: n } more than n powered blocks.
+       */
+      freezeWhen(c) {
+        qaFreezeWhen = (s) => (c.charge !== undefined && s.holding && s.charge >= c.charge)
+          || (c.bolts !== undefined && s.bolts.length >= c.bolts) || (c.district !== undefined && s.districtsDone > c.district);
+      },
+      /** Ends the run now with the whole city powered (FULL POWER, "won"). */
       forceWin() { forceWin(sim); },
-      /** @param {number} [at] round progress 0..1 at which the player is swallowed (the revive offer needs OFFERS.reviveMinProgress) */
+      /** @param {number} [at] share powered 0..1 at which the run ends (the One-more-strike offer needs reviveAt) */
       forceFail(at = 0) { forceFail(sim, at); },
-      /** Screenshot staging: "victim" = a smaller comet crosses just ahead; "killer" = a much bigger one waits ahead. */
-      stage(kind) { return stageEncounter(sim, kind); },
-      setMass(m) { setPlayerMass(sim, m); },
-      /** Jump the round clock (screenshots of the golden finale / time-out). */
-      setTimeLeft(sec) { if (sim.phase === "run") sim.t = Math.max(0, ARENA.round.durationSec - sec); },
       renderInfo: () => ({ ...stage.renderer.info.render, geometries: stage.renderer.info.memory.geometries, textures: stage.renderer.info.memory.textures }),
       /** Triangles per unique geometry in the scene - the "not high poly" budget (project.json budgets). */
       sceneStats() {

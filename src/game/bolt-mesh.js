@@ -35,7 +35,13 @@ export class BoltMesh {
   #pos; #col; #geo;
   #haloMesh; #sparkMesh; #owned = [];
 
-  constructor(scene, { segments = 180, halos = 200, sparks = 500 } = {}) {
+  /**
+   * @param {{ segments?:number, halos?:number, sparks?:number, unit?:number }} [o]
+   *        segments: 150 keeps the ribbon geometry at 4,800 triangles (the one "hero" geometry allowed
+   *        over project.json trianglesPerGeometry); unit: world units per metre-ish scale of the jag/gravity
+   */
+  constructor(scene, { segments = 150, halos = 200, sparks = 500, unit = 1 } = {}) {
+    this.unit = unit;
     // Segment pool: [ax, ay, az, bx, by, bz, age, life, width, seed, r, g, b, reveal]
     this.#segN = segments;
     this.#seg = new Float32Array(segments * 14);
@@ -57,7 +63,8 @@ export class BoltMesh {
     }
     geo.setIndex(idx);
     this.#geo = geo;
-    const ribbons = new Mesh(geo, new MeshBasicMaterial({ vertexColors: true, transparent: true, depthWrite: false, blending: AdditiveBlending, side: DoubleSide }));
+    // depthTest off: lightning is light - it reads over the rooftops in front instead of vanishing behind them.
+    const ribbons = new Mesh(geo, new MeshBasicMaterial({ vertexColors: true, transparent: true, depthWrite: false, depthTest: false, blending: AdditiveBlending, side: DoubleSide }));
     ribbons.name = "bolts";
     ribbons.frustumCulled = false;
     ribbons.renderOrder = 4;
@@ -68,7 +75,7 @@ export class BoltMesh {
     const quad = new PlaneGeometry(1, 1);
     this.#owned.push(tex, quad);
     const mk = (n, name) => {
-      const m = new InstancedMesh(quad, new MeshBasicMaterial({ map: tex, transparent: true, depthWrite: false, blending: AdditiveBlending }), n);
+      const m = new InstancedMesh(quad, new MeshBasicMaterial({ map: tex, transparent: true, depthWrite: false, depthTest: false, blending: AdditiveBlending }), n);
       m.name = name;
       m.frustumCulled = false;
       m.instanceMatrix.setUsage(DynamicDrawUsage);
@@ -120,7 +127,7 @@ export class BoltMesh {
       const a = Math.random() * Math.PI * 2, u = Math.random() * 2 - 1, sp = speed * (0.35 + Math.random() * 0.65);
       const r = Math.sqrt(1 - u * u);
       P[o] = x; P[o + 1] = y; P[o + 2] = z;
-      P[o + 3] = Math.cos(a) * r * sp; P[o + 4] = Math.abs(u) * sp * 0.8 + 1.5; P[o + 5] = Math.sin(a) * r * sp;
+      P[o + 3] = Math.cos(a) * r * sp; P[o + 4] = Math.abs(u) * sp * 0.8 + 1.5 * this.unit; P[o + 5] = Math.sin(a) * r * sp;
       P[o + 6] = 0; P[o + 7] = life * (0.6 + Math.random() * 0.8); P[o + 8] = size * (0.6 + Math.random() * 0.8);
       P[o + 9] = color.r; P[o + 10] = color.g; P[o + 11] = color.b;
     }
@@ -144,7 +151,7 @@ export class BoltMesh {
         S[o + 6] += dt;
         const age = S[o + 6];
         if (age >= life) { S[o + 7] = -1; }
-        else alpha = age < 0.04 ? 1 : Math.max(0, 1 - (age - 0.04) / (life - 0.04)) ** 1.5;
+        else alpha = age < 0.05 ? 1 : Math.max(0, 1 - (age - 0.05) / (life - 0.05)) ** 1.2;
       }
       if (alpha <= 0) {                           // collapse unused strips (zero area)
         for (let v = 0; v < 2 * PTS * 2; v++) { const q = (vbase + v) * 3; P[q] = P[q + 1] = P[q + 2] = 0; C[(vbase + v) * 4 + 3] = 0; }
@@ -161,13 +168,13 @@ export class BoltMesh {
       _perp.normalize();
       _perp2.crossVectors(_d, _perp).normalize();
       const seed = S[o + 9] * 13.7 + flick * 0.31;
-      const jag = Math.min(1.4, len * 0.12);
+      const jag = Math.min(1.4 * this.unit, len * 0.12);
       const reveal = Math.min(1, S[o + 6] / 0.06);  // the bolt draws itself from a to b
       const w = S[o + 8];
       for (let strip = 0; strip < 2; strip++) {
-        const width = strip === 0 ? w * 3.2 : w * 0.7;
+        const width = strip === 0 ? w * 3.6 : w * 0.85;
         const cr = strip === 0 ? S[o + 10] : 1, cg = strip === 0 ? S[o + 11] : 1, cb = strip === 0 ? S[o + 12] : 1;
-        const a = strip === 0 ? alpha * 0.55 : alpha;
+        const a = strip === 0 ? alpha * 0.7 : alpha;
         for (let k = 0; k < PTS; k++) {
           const f = Math.min(k / (PTS - 1), reveal);
           const env = Math.sin(Math.PI * f);
@@ -180,7 +187,8 @@ export class BoltMesh {
           P[vi * 3] = _pt.x + _side.x; P[vi * 3 + 1] = _pt.y + _side.y; P[vi * 3 + 2] = _pt.z + _side.z;
           P[vi * 3 + 3] = _pt.x - _side.x; P[vi * 3 + 4] = _pt.y - _side.y; P[vi * 3 + 5] = _pt.z - _side.z;
           const edge = k === 0 || k === PTS - 1 ? 0.4 : 1;
-          for (let s = 0; s < 2; s++) { const ci = (vi + s) * 4; C[ci] = cr * a * edge; C[ci + 1] = cg * a * edge; C[ci + 2] = cb * a * edge; C[ci + 3] = a; }
+          // Additive blending multiplies by alpha once: the colour itself is not pre-multiplied.
+          for (let s = 0; s < 2; s++) { const ci = (vi + s) * 4; C[ci] = cr * edge; C[ci + 1] = cg * edge; C[ci + 2] = cb * edge; C[ci + 3] = a; }
         }
       }
     }
@@ -209,13 +217,14 @@ export class BoltMesh {
     const Q = this.#spark, sm = this.#sparkMesh;
     k = 0;
     const drag = Math.exp(-1.8 * dt);
+    const gravity = 16 * this.unit;
     for (let i = 0; i < this.#sparkN; i++) {
       const o = i * 12;
       if (Q[o + 7] <= 0) continue;
       Q[o + 6] += dt;
       const t = Q[o + 6] / Q[o + 7];
       if (t >= 1) { Q[o + 7] = -1; continue; }
-      Q[o + 4] -= 16 * dt;
+      Q[o + 4] -= gravity * dt;
       Q[o + 3] *= drag; Q[o + 5] *= drag;
       Q[o] += Q[o + 3] * dt; Q[o + 1] = Math.max(0.2, Q[o + 1] + Q[o + 4] * dt); Q[o + 2] += Q[o + 5] * dt;
       const size = Q[o + 8] * (1 - t * 0.6);

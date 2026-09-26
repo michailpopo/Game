@@ -2,7 +2,7 @@
  * Ribbons - pooled camera-facing polylines in ONE draw call (additive): lightning bolts and trails.
  * Allocation-free per frame; the ribbon mesh is rebuilt on the CPU each frame for live slots only.
  *
- *   const ribbons = new Ribbons(scene, { max: 48, points: 33 });
+ *   const ribbons = new Ribbons(scene, { max: 30, points: 33 });   // 1,920-triangle pool, 1 draw call
  *   const bolts = new Bolts(ribbons);
  *   bolts.strike(a, b, { color: "#4df3ff", width: 0.5, forks: 2, arc: 1.2 });   // forked bolt a -> b
  *   const t = ribbons.trail({ color: "#ff2d95", width: 0.3, points: 16 });      // a trail slot
@@ -10,8 +10,8 @@
  *   ribbons.release(t);                // fades out, then frees the slot
  *   // per frame:  bolts.update(dt); ribbons.update(dt, camera);
  *
- * Look: across the ribbon a white-hot core (`core` 0..1) inside a coloured glow; `intensity` > 1
- * blooms on the high tier. Bolts flicker (re-jag every `flicker` s) and taper toward fork tips;
+ * Look: across the ribbon a white-hot core (`core` = its HDR brightness, 0 = none) inside a coloured
+ * glow (`intensity`; keep it ~1.5-2 so the colour stays saturated under ACES - the core carries the white). Bolts flicker (re-jag every `flicker` s) and taper toward fork tips;
  * `progress` < 1 reveals a bolt part-way (mid-leap). Trails fade from head to tail.
  */
 
@@ -40,12 +40,11 @@ varying float vCore;
 varying vec4 vCol;
 #include <common>
 void main() {
-  float s = abs( vSide );
-  float glow = pow( 1.0 - s, 2.2 );
-  float core = smoothstep( 0.3, 0.0, s ) * vCore;
-  float peak = max( vCol.r, max( vCol.g, vCol.b ) );
-  vec3 c = vCol.rgb * glow + vec3( peak * 1.15 ) * core;
-  gl_FragColor = vec4( c, clamp( glow + core, 0.0, 1.0 ) * vCol.a );
+  float s = min( abs( vSide ), 1.0 );                        // clamp: interpolation can overshoot 1 -> NaN
+  float glow = exp( - s * s * 2.5 ) * sqrt( 1.0 - s );      // wide coloured glow
+  float core = smoothstep( 0.14, 0.0, s );                   // white-hot centre line
+  vec3 c = vCol.rgb * glow + vec3( vCore ) * core;           // vCore = absolute core brightness (HDR)
+  gl_FragColor = vec4( c, clamp( glow + core * step( 0.001, vCore ), 0.0, 1.0 ) * vCol.a );
   #include <tonemapping_fragment>
   #include <colorspace_fragment>
 }`;
@@ -66,7 +65,8 @@ export class Ribbons {
   mesh;
   #R; #P; #rec; #pts; #pos; #info; #col; #dirty; #hi = 0;
 
-  constructor(scene, { max = 48, points = 33 } = {}) {
+  /** Pool geometry = max x (points - 1) x 2 triangles; the default 30 x 33 = 1,920 stays under profile M's 2,000 per geometry. */
+  constructor(scene, { max = 30, points = 33 } = {}) {
     this.#R = max; this.#P = points;
     this.#rec = new Float32Array(max * RB);
     this.#pts = new Float32Array(max * points * 3);
@@ -105,17 +105,17 @@ export class Ribbons {
 
   get maxPoints() { return this.#P; }
 
-  /** Claim a slot. opts: color, intensity 2.5, width 0.4, w0/w1 (width scale at start/end), core 1, life (s, Infinity), flicker 0..1, alpha 1 */
+  /** Claim a slot. opts: color, intensity 1.8, width 0.4, w0/w1 (width scale at start/end), core 2.5 (white brightness), life (s, Infinity), flicker 0..1, alpha 1 */
   alloc(o = NO_OPTS, mode = 0) {
     const rec = this.#rec;
     let r = -1;
     for (let i = 0; i < this.#R; i++) if (!rec[i * RB]) { r = i; break; }
     if (r < 0) return -1;
     const b = r * RB;
-    _c.set(o.color ?? "#4df3ff").multiplyScalar(o.intensity ?? 2.5);
+    _c.set(o.color ?? "#4df3ff").multiplyScalar(o.intensity ?? 1.8);
     rec[b] = 1; rec[b + 1] = mode; rec[b + 2] = 0; rec[b + 3] = o.life ?? Infinity; rec[b + 4] = rec[b + 3];
     rec[b + 5] = o.width ?? 0.4; rec[b + 6] = o.w0 ?? 1; rec[b + 7] = o.w1 ?? 1;
-    rec[b + 8] = _c.r; rec[b + 9] = _c.g; rec[b + 10] = _c.b; rec[b + 11] = o.alpha ?? 1; rec[b + 12] = o.core ?? 1;
+    rec[b + 8] = _c.r; rec[b + 9] = _c.g; rec[b + 10] = _c.b; rec[b + 11] = o.alpha ?? 1; rec[b + 12] = o.core ?? 2.5;
     rec[b + 13] = o.flicker ?? 0; rec[b + 14] = 0; rec[b + 15] = 0;
     if (r + 1 > this.#hi) this.#hi = r + 1;
     return r;
@@ -131,7 +131,7 @@ export class Ribbons {
 
   /** A trail slot (mode 1): push the head position every frame. opts as alloc(); points = history length. */
   trail(o = NO_OPTS) {
-    const r = this.alloc({ w0: 0, w1: 1, core: 0.6, ...o }, 1);
+    const r = this.alloc({ w0: 0, w1: 1, core: 1.5, ...o }, 1);
     if (r >= 0) this.#rec[r * RB + 2] = 0;
     return r;
   }
@@ -208,8 +208,9 @@ export class Ribbons {
         col[vi * 4 + 4] = cr; col[vi * 4 + 5] = cg; col[vi * 4 + 6] = cb; col[vi * 4 + 7] = a;
       }
     }
+    const upload = hi > 0 || this.#hi > 0;      // skip the upload while nothing is (or was) alive
     this.#hi = hi;
-    this.#pos.needsUpdate = true; this.#info.needsUpdate = true; this.#col.needsUpdate = true;
+    if (upload) { this.#pos.needsUpdate = true; this.#info.needsUpdate = true; this.#col.needsUpdate = true; }
     this.mesh.geometry.setDrawRange(0, hi * (P - 1) * 6);
     this.mesh.visible = hi > 0;
   }
@@ -283,7 +284,7 @@ export class Bolts {
   }
 
   /**
-   * A forked bolt from a to b ({x,y,z}). opts: color "#4df3ff", intensity 3, width 0.45, core 1, life 0.35
+   * A forked bolt from a to b ({x,y,z}). opts: color "#4df3ff", intensity 1.8 (glow), width 0.45, core 3 (white), life 0.35
    * (Infinity = until killed), forks 2, forkLength 0.4 (x main length), jag 0.12, arc 0 (upward bow, world),
    * depth 5 (33 points), flicker 0.06 (s between re-jags; 0 = frozen), progress 1, forkProgress 1.
    * Returns the bolt id (or -1).
@@ -294,7 +295,7 @@ export class Bolts {
     const B = this.#bolts[id];
     const R = this.#ribbons;
     const life = o.life ?? 0.35;
-    B.main = R.alloc({ color: o.color ?? "#4df3ff", intensity: o.intensity ?? 3, width: o.width ?? 0.45, w0: 0.85, w1: 1, core: o.core ?? 1, life, flicker: 0.25 });
+    B.main = R.alloc({ color: o.color ?? "#4df3ff", intensity: o.intensity ?? 1.8, width: o.width ?? 0.45, w0: 0.85, w1: 1, core: o.core ?? 3, life, flicker: 0.25 });
     if (B.main < 0) return -1;
     B.alive = true; B.a.copy(a); B.b.copy(b);
     B.depth = Math.min(6, o.depth ?? 5); B.jag = o.jag ?? 0.12; B.arc = o.arc ?? 0; B.flicker = o.flicker ?? 0.06; B.t = 0;
@@ -302,7 +303,7 @@ export class Bolts {
     B.forkN = Math.min(MAX_FORKS, o.forks ?? 2);
     const rand = this.#rand;
     for (let f = 0; f < B.forkN; f++) {
-      B.forks[f] = R.alloc({ color: o.forkColor ?? o.color ?? "#4df3ff", intensity: (o.intensity ?? 3) * 0.8, width: (o.width ?? 0.45) * 0.6, w0: 1, w1: 0.15, core: o.core ?? 1, life, flicker: 0.35 });
+      B.forks[f] = R.alloc({ color: o.forkColor ?? o.color ?? "#4df3ff", intensity: (o.intensity ?? 1.8) * 0.85, width: (o.width ?? 0.45) * 0.6, w0: 1, w1: 0.15, core: (o.core ?? 3) * 0.8, life, flicker: 0.35 });
       B.forkAt[f] = 0.2 + rand() * 0.6;
       _dir.set(rand() - 0.5, (rand() - 0.5) * 0.8 - 0.25, rand() - 0.5).normalize();
       B.forkDir.set([_dir.x, _dir.y, _dir.z], f * 3);

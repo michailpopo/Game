@@ -14,7 +14,7 @@
 import { ARENA as A } from "../config.js";
 // sim.js imports this module too; the cycle is safe because these are only called at run time.
 import { canEat, collidable } from "./sim.js";
-import { blockSize } from "./values.js";
+import { headSize } from "./values.js";
 
 /**
  * @param {object} s simulation state
@@ -25,7 +25,7 @@ import { blockSize } from "./values.js";
 export function think(s, me, rng, o = {}) {
   const B = A.bots;
   const ai = me.ai;
-  const hs = blockSize(me.head);
+  const hs = headSize(me.head);
   const flee = (o.flee ?? B.fleeRadius) + hs * 0.5;
   const chase = o.chase ?? B.chaseRadius;
   const seek = o.seek ?? B.seekRadius;
@@ -34,12 +34,14 @@ export function think(s, me, rng, o = {}) {
   const roll = rng ? rng.next() : 0;
   const bend = rng ? (rng.next() - 0.5) * 2.2 : 0.4;
 
-  // 1. flee the nearest block of any snake with a bigger head
+  // 1. flee the nearest part (comet or planet) of any chain with a bigger head
   let td2 = flee * flee, tx = 0, tz = 0, threat = false;
   for (const other of s.snakes) {
     if (other === me || !collidable(s, other) || other.head <= me.head) continue;
-    const broad = other.len + flee + A.blocks.sizeMax;
-    if ((other.x - me.x) ** 2 + (other.z - me.z) ** 2 > broad * broad) continue;
+    const broad = other.len + flee + A.values.sizeMax;
+    const h2 = (other.x - me.x) ** 2 + (other.z - me.z) ** 2;
+    if (h2 > broad * broad) continue;
+    if (h2 < td2) { td2 = h2; tx = other.x; tz = other.z; threat = true; }
     for (let j = 0; j < other.n; j++) {
       const dx = other.segX[j] - me.x, dz = other.segZ[j] - me.z;
       const d2 = dx * dx + dz * dz;
@@ -114,7 +116,7 @@ export function steerBot(s, me, out) {
   dx /= d; dz /= d;
 
   // Wall: when the look-ahead point is outside the safe zone, bend toward the middle.
-  const hs = blockSize(me.head);
+  const hs = headSize(me.head);
   const ahead = 3.5 + hs;
   const fx = me.x + Math.cos(me.heading) * ahead, fz = me.z + Math.sin(me.heading) * ahead;
   const safe = A.arena.halfSize - 3 - hs;

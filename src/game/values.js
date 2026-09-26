@@ -24,10 +24,35 @@ export function valueAt(level) {
   return ARENA.values.base * 2 ** (level - 1);
 }
 
-/** Edge length of a block of value v (world units). */
+const LADDER = ARENA.values.ladder;
+
+/** The ladder entry for a level (steps past the table reuse the last entry's key). */
+export function ladderAt(level) {
+  return LADDER[Math.min(LADDER.length, Math.max(1, level)) - 1];
+}
+
+/** Diameter of a planet of value v (world units) - drawing and collision. */
 export function blockSize(v) {
-  const b = ARENA.blocks;
-  return Math.min(b.sizeMax, b.size + b.sizePerLevel * (levelOf(v) - 1));
+  const lv = Math.max(1, levelOf(v));
+  if (lv <= LADDER.length) return LADDER[lv - 1].size;
+  const vals = ARENA.values;
+  return Math.min(vals.sizeMax, LADDER[LADDER.length - 1].size + vals.sizeAfter * (lv - LADDER.length));
+}
+
+/** Diameter of the comet that leads a chain whose biggest planet is worth v. */
+export function headSize(v) {
+  const c = ARENA.comet;
+  return Math.min(c.sizeMax, c.size + c.sizePerLevel * (Math.max(1, levelOf(Math.max(v, ARENA.values.base))) - 1));
+}
+
+/** Fresh stardust (and the small values) look like stardust; bigger dropped values stay planets. */
+export function isStardust(v, gold) {
+  return gold || v < ARENA.values.base * 4;
+}
+
+/** Diameter of a loose pickup. */
+export function looseSize(v, gold) {
+  return isStardust(v, gold) ? ARENA.blocks.stardustSize : blockSize(v) * ARENA.blocks.looseScale;
 }
 
 /** Short label for a value: 2 ... 8192, then 16K, 32K ... 1M. */

@@ -1,19 +1,19 @@
 /**
  * Game identity and tuning. Everything a designer tweaks lives here.
  *
- * WP-10: merge-snake arena core (grey-box, theme-neutral). The designer's twist
- * (theme, round structure, one rule change) is meant to land by editing ARENA and
- * src/render/palette.js - values, merge ladder, colours per value, block shape,
- * arena size, contact and round rules are all read from here, never hard-coded.
+ * WP-10: merge-snake arena core with the owner's twist R1 "Comet Chain" (docs/CONCEPTS.md):
+ * a comet drags a chain of planets; 90 s rounds with 2 s respawns and a rank payout.
+ * Values, merge ladder, sizes, arena, contact and round rules are read from ARENA; colours,
+ * rings and glows per planet from src/render/palette.js - never hard-coded in game code.
  */
 
 export const GAME = {
   slug: "cg-game",
-  title: "Merge Arena",        // placeholder wordmark until the designer names the game
+  title: "Comet Chain",        // working title (owner, 2026-09-26)
   saveVersion: 1,
   // CrazyGames midgame guidance: wait until the tutorial is done / level 3-4
   // before the first midgame ad. Not a cooldown - the SDK paces the rest.
-  // "Level" = arena number: it goes up each time the player reaches the arena's target value.
+  // "Level" = round number: it goes up after every finished round.
   firstMidgameLevel: 3,
   // Endless level game: this arena counts as 100% for reportGameCompletedPercentage.
   completionLevel: 12,
@@ -28,9 +28,9 @@ export const OFFERS = {
   // Revive: CrazyGames guidance "at most once per session" (CG-ADS-014), and only
   // for runs worth continuing. The ring countdown EXPIRES the offer at 0 - it never accepts.
   revivesPerSession: 1,
-  reviveMinProgress: 0.2,
+  reviveMinProgress: 1 / 3,   // progress = round time / duration: 30 s of a 90 s round
   reviveCountdownSec: 6,
-  // "Start x2" on the ready screen: one run that starts with twice the start mass.
+  // "Start x2" on the ready screen: one round that starts with twice the starter chain.
   boostAfterRuns: 2,          // not in the first runs - let the player learn the game first
   boostCooldownSec: 120,
   boostFactor: 2,
@@ -44,52 +44,76 @@ export const OFFERS = {
 };
 
 /**
- * The arena. Units: world units (a 2-block is 1 unit wide), seconds, radians.
- * Rates are per second and multiplied by dt in the simulation (CG-GAME-003).
+ * The arena ("Comet Chain", concept R1 in docs/CONCEPTS.md). Units: world units, seconds,
+ * radians. Rates are per second and multiplied by dt in the simulation (CG-GAME-003).
+ * Colours, rings and glows per ladder step live in src/render/palette.js (PLANETS).
  */
 export const ARENA = {
   arena: {
-    shape: "square",          // "square" | "circle"
-    halfSize: 40,             // square: half the side; circle: the radius
-    wall: "block",            // "block": heads slide along the wall | "kill": touching the wall ends the run
-    wallMargin: 0.6,          // how far inside the wall a head centre is kept
-    gridStep: 2,              // floor dot grid spacing (presentation)
+    shape: "circle",          // "circle" | "square"
+    halfSize: 40,             // circle: the radius; square: half the side
+    wall: "block",            // "block": comets slide along the edge | "kill": touching it is a death
+    wallMargin: 0.6,          // how far inside the edge a comet centre is kept
   },
 
-  // Value ladder: base, base*2, base*4 ... Equal neighbours merge into one of double value.
-  // The chain is kept sorted, biggest at the head, so a chain is the binary form of its mass.
+  // Value ladder: base, base*2, base*4 ... Equal neighbours fuse into one of double value.
+  // The chain is kept sorted, biggest planet right behind the comet, so a chain is the binary
+  // form of its total. One ladder entry per step: `key` names the planet (palette + i18n),
+  // `size` is its diameter in world units (drawing AND collision). Steps past the end grow by
+  // sizeAfter per step up to sizeMax.
   values: {
     base: 2,
-    maxChain: 32,             // blocks one snake can carry (a mass of 2^33 - far beyond play)
+    maxChain: 32,
+    ladder: [
+      { key: "pebble", size: 0.72 },      // 2
+      { key: "moon", size: 0.86 },        // 4
+      { key: "ice", size: 1.0 },          // 8
+      { key: "desert", size: 1.12 },      // 16
+      { key: "ocean", size: 1.24 },       // 32
+      { key: "ringed", size: 1.36 },      // 64   torus ring
+      { key: "sun", size: 1.5 },          // 128  glow
+      { key: "bluegiant", size: 1.62 },   // 256  glow
+      { key: "redgiant", size: 1.74 },    // 512  glow
+      { key: "pulsar", size: 1.84 },      // 1024 ring + glow
+      { key: "blackhole", size: 1.94 },   // 2048 ring + glow
+      { key: "quasar", size: 2.04 },      // 4096 ring + glow
+    ],
+    sizeAfter: 0.08,
+    sizeMax: 2.3,
   },
 
-  // Block shape and size (the look lives in palette.js: colours per value, label style).
+  // The comet leads its chain; its size follows the head value (the biggest planet it carries).
+  comet: {
+    size: 1.05,               // diameter with a pebble-headed chain
+    sizePerLevel: 0.07,
+    sizeMax: 2.0,
+  },
+
+  // Loose pickups: fresh spawns are stardust (small), dropped planets keep their size.
   blocks: {
-    size: 1.0,                // edge of the smallest block
-    sizePerLevel: 0.08,       // + per doubling
-    sizeMax: 2.3,
-    looseScale: 0.84,         // loose blocks are drawn and collide a little smaller
-    spacing: 1.04,            // centre distance along a chain = mean edge x this
+    stardustSize: 0.55,       // diameter of a loose value-2/4 pickup
+    looseScale: 0.8,          // a dropped planet is drawn and collides this much smaller
+    spacing: 1.02,            // centre distance along a chain = mean diameter x this
   },
 
   snake: {
     speed: 6.8,               // u/s
     turnRate: 3.8,            // rad/s max heading change for a small head (mouse / touch target)
-    turnRateBig: 2.6,         // rad/s at blocks.sizeMax (big snakes turn wider)
+    turnRateBig: 2.6,         // rad/s at comet.sizeMax (big comets turn wider)
     keyTurnRate: 3.4,         // rad/s with A/D or the arrow keys
-    idleTurnRate: 0.9,        // rad/s: the ready-screen snake circles on the spot
+    idleTurnRate: 0.9,        // rad/s: the ready-screen comet circles on the spot
     idleSpeed: 2.6,
-    startMass: 6,             // a fresh player chain: [4, 2]
-    protectSec: 2,            // spawn / revive protection: cannot kill or be killed, blinks
-    eatReach: 0.95,           // a loose block is eaten within (head + block) / 2 x this
-    magnetRadius: 1.7,        // loose blocks this far beyond the head's edge slide into it
+    startMass: 14,            // the starter chain: 8-4-2 (fresh round and every respawn)
+    protectSec: 2,            // spawn / respawn protection: cannot kill or be killed, blinks
+    eatReach: 0.95,           // a pickup is eaten within (comet + pickup) / 2 x this
+    magnetRadius: 1.7,        // pickups this far beyond the comet's edge slide into it
     magnetSpeed: 8,           // u/s
-    pathStep: 0.2,            // head path is recorded every this many units (chain follows it)
+    pathStep: 0.2,            // the comet's path is recorded every this many units (the chain follows it)
   },
 
   boost: {
     factor: 1.6,              // speed multiplier while boosting
-    cost: "meter",            // "meter": a bar drains while boosting and refills | "dropTail": sheds the smallest block every dropSec
+    cost: "meter",            // "meter": a bar drains while boosting and refills | "dropTail": sheds the smallest planet every dropSec
     drainPerSec: 0.42,        // full bar = ~2.4 s of boost
     regenPerSec: 0.16,        // empty -> full in ~6 s
     restartAt: 0.2,           // after running dry, boost works again from this level
@@ -97,76 +121,77 @@ export const ARENA = {
   },
 
   contact: {
-    // "headVsAny": a head touching ANY block of another snake compares the two HEAD values -
-    //              bigger head eats (the loser's chain drops as loose blocks), smaller dies.
-    // "headVsHead": only head-to-head touches count; heads pass through bodies.
+    // "headVsAny": a comet touching ANY part of another chain compares the two HEAD values
+    //              (biggest planets) - bigger swallows, the loser's planets scatter as pickups.
+    // "headVsHead": only comet-to-comet touches count; comets pass through chains.
     rule: "headVsAny",
     equal: "bounce",          // equal heads: "bounce" (both turn away) | "none" (pass through)
     reach: 0.82,              // contact when centre distance < (a + b) / 2 x this
     bounceCooldown: 0.5,
-    dropScatter: 3.4,         // u/s: a dead snake's blocks scatter outward
+    dropScatter: 3.4,         // u/s: a dead chain's planets scatter outward
     dropDamping: 3.2,         // 1/s: the scatter slows with exp(-k*dt)
   },
 
   loose: {
-    target: 220,              // loose blocks the spawner keeps on the floor
+    target: 230,              // pickups the spawner keeps on the floor
     spawnPerSec: 30,          // refill rate
-    capacity: 720,            // pool size; drops from dead snakes fit on top of the target
-    weights: [[2, 0.8], [4, 0.16], [8, 0.04]],   // [value, weight] for fresh spawns
-    minDistFromHead: 2.5,     // no spawn right under a head
-    // Food floor around the player: when fewer than nearMin loose blocks lie within nearRadius of
-    // the player's head, fresh blocks spawn in a ring nearInner..nearRadius away (keeps a reward
-    // in reach every second, hypercasual-hits.md rule 2).
+    capacity: 720,            // pool size; dropped planets fit on top of the target
+    weights: [[2, 0.85], [4, 0.15]],   // [value, weight] for fresh stardust
+    minDistFromHead: 2.5,     // no spawn right under a comet
+    // Food floor around the player: when fewer than nearMin pickups lie within nearRadius,
+    // fresh stardust spawns in a ring nearInner..nearRadius away (a reward in reach every second).
     nearRadius: 13,
     nearInner: 7,
     nearMin: 14,
   },
 
   bots: {
-    count: 12,
-    prefix: "Bot",            // shown in every name: bots are never presented as real players
-    names: ["Kiwi", "Mango", "Plum", "Pixel", "Nova", "Fizz", "Taco", "Blip", "Olive", "Zest", "Pebble", "Comet", "Mochi", "Rusty", "Juno"],
-    respawnSec: 2.5,
-    startMass: [6, 10, 14, 22, 30],   // picked at random, never above the current cap
+    count: 11,
+    prefix: "",               // the mode is labelled "Offline Arena" (HUD, home, leaderboard, result); names stay plain
+    names: ["Kiwi", "Mango", "Plum", "Pixel", "Fizz", "Taco", "Blip", "Olive", "Zest", "Mochi", "Rusty", "Juno", "Biscuit", "Noodle", "Pepper"],
+    respawnSec: 2,
+    startMass: [6, 10, 14, 22, 30],   // picked at random, never above the bot's cap
     thinkSec: 0.22,           // decision interval (sim time); steering in between is continuous
     seekRadius: 14,
     fleeRadius: 6,
     chaseRadius: 10,
-    aggression: 0.45,         // chance a bot chases a smaller head it sees (arena 1)
-    aggressionPerLevel: 0.07,
+    aggression: 0.45,         // chance a bot chases a smaller head it sees (round 1)
+    aggressionPerLevel: 0.05,
     boostWhenClose: 3.2,      // flee/chase boost distance
-    // Each spawn draws a tier: the bot's own cap is this fraction of the arena cap (on the ladder),
-    // so the field always has small fry to eat and a few big threats.
-    tiers: [0.125, 0.25, 0.25, 0.5, 0.5, 1],
-    // Difficulty ramp: a bot's head never exceeds cap = min(capMax, max(capStart * 2^(t/capDoubleSec), playerHead * capVsPlayer)).
+    // Difficulty ramp: arena cap = min(capMax, max(capStart * 2^(t/capDoubleSec), playerHead * capVsPlayer));
+    // each spawn draws a tier (its share of the cap), so there are always small comets to eat and a few big threats.
     capStart: 8,
-    capDoubleSec: 50,
+    capDoubleSec: 30,
     capVsPlayer: 2,
     capMax: 8192,
+    tiers: [0.125, 0.25, 0.25, 0.5, 0.5, 1],
   },
 
   round: {
-    mode: "target",           // "target": reach the arena's target value -> won | "timed": survive durationSec | "endless": until death
-    winValue: 1024,           // arena 1 target; x winValueGrowth per arena
+    mode: "timed",            // "timed": the round ends after durationSec, rank = chain total | "target": reach winValue | "endless"
+    durationSec: 90,
+    respawnSec: 2,            // a death respawns the player with the starter chain after this long (timed mode)
+    finaleSec: 15,            // the last seconds spawn golden stardust...
+    finaleFactor: 2,          // ...worth this many times more
+    winValue: 1024,           // "target" mode only; x winValueGrowth per round
     winValueGrowth: 2,
     winValueMax: 65536,
-    durationSec: 180,
   },
 
   rewards: {
-    coinsPerScore: 0.12,      // coins = (peak score x this + kills x coinsPerKill) x income upgrade
-    coinsPerKill: 4,
-    winBonusBase: 20,         // + (base + arena x perLevel) when the arena target is reached
-    winBonusPerLevel: 7,
+    // Coins at the end of a round = chain total / scorePerCoin x the rank's multiplier (skill-based, never random).
+    scorePerCoin: 8,
+    rankMultipliers: [[1, 5], [3, 3], [6, 2], [99, 1]],   // [up to rank, x]: #1 x5, #2-3 x3, #4-6 x2, rest x1
+    minCoins: 5,
   },
 
   camera: {
     pitchDeg: 60,             // 90 = straight down
-    halfWidth: 12.5,          // visible ground half-width at the head (landscape) for a small snake
-    halfWidthPortrait: 7.6,   // portrait keeps blocks large; the tall screen shows more ahead
+    halfWidth: 12.5,          // visible ground half-width at the head (landscape) for a small chain
+    halfWidthPortrait: 7.6,   // portrait keeps planets large; the tall screen shows more ahead
     zoomPerLevel: 0.045,      // + per doubling of the head value
     zoomMax: 1.6,
     follow: 6,                // 1/s exponential follow
-    lookAhead: 1.2,           // units ahead of the head
+    lookAhead: 1.2,           // units ahead of the comet
   },
 };

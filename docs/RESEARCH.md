@@ -290,6 +290,100 @@ a close copy risks the clone rule (CG-GAME-007).
 
 Re-measure Rocket Fling and Mob Rush around 2026-10-10: their votes/day after the new-game boost decides A vs B.
 
+## Hit list: popular and simple (MEASURED 2026-09-26)
+**New data source: CrazyGames publishes likes and PLAYS in its listing JSON.**
+- Every tag and category page's `__NEXT_DATA__.props.pageProps.games.items[]` carries `totalLikes` and
+  `totalPlays` for each game.
+- `totalLikes` equals the page's upvotes (Cubes 2048.io 128,226 = the "128K likes" in the 2026-09-22 recording).
+- So **plays are public**, contrary to `references/research/data-sources.md`. That reference should be updated.
+
+**Collection:**
+- The home page, 11 categories (up to 300 games each) and 17 tags gave **2,819 unique games** with likes and plays.
+- The top 150 by plays and the top 150 by likes (212 slugs), plus the snake / 2048 / merge / io family, were measured
+  with `cg-game.mjs`: **291 games**.
+- Plays/day = plays / days since Basic Launch (else since Full Launch). This is a real traction figure, not a PROXY.
+- Raw data: `qa/research-hits.json`, `qa/research-hits.md`, `qa/research-hits-listings.json`.
+
+### The Cubes 2048.io family (snake / 2048 / merge / io arena)
+| Game | Likes | Plays | Plays/day | Votes/day | Added (BL) | Tech | Real MP | What it is |
+|---|---|---|---|---|---|---|---|---|
+| **Cubes 2048.io** | **128,226** | **53.4M** | **38,795** | 113.9 | 2022-12-19 | HTML5 | no (bots) | numbered-cube snake, merge on eat, top-down 3D boxes |
+| Paper.io 2 | 126,427 | 74.1M | 26,997 | 55.6 | 2019-03-21 | HTML5 | no (bots) | territory capture (snake-tag family) |
+| Holey.io Battle Royale | 81,926 | 32.7M | 28,748 | 86.3 | 2023-08-15 | HTML5 | no (bots) | hole swallow arena |
+| Man Runner 2048 | 85,724 | 50.0M | 44,003 | 87.6 | 2023-08-17 | Unity | no | runner + 2048 merge + cannon |
+| Snake.io | 37,634 | 15.0M | 10,259 | 29.2 | 2022-09-28 | HTML5 | yes | classic slither .io |
+| Worms.Zone | 28,084 | 34.1M | 11,744 | 11.4 | 2018-10-11 | HTML5 | no | slither with bots |
+| Gulper.io | 19,559 | 38.7M | 13,778 | 8.1 | 2019-01-20 | HTML5 | yes | slither |
+| Snake Clash.io | 11,231 | 2.5M | 4,123 | 22.1 | 2025-02-03 | Unity | no | 3D snake arena |
+| **Cubes 2048 Royale** | 9,069 | 0.66M | 1,852 | 77.5 | 2025-10-06 | HTML5 | **yes** (2-5) | **direct numbered-cube clone** + battle royale |
+| **Harvest.io - 3D Farming Arcade** (Azur Games) | 5,643 | 0.41M | **11,346** | **174.1** | **2026-08-21** | HTML5 | no | **theme swap**: a tractor whose hay-bale trailer grows like a snake tail |
+| Noob Snake 2048 | 4,606 | 6.0M | 5,133 | 4.4 | 2023-07-13 | HTML5 | no | numbered-block snake clone, portrait |
+| Numbers Arena | 3,784 | 1.06M | 964 | 3.8 | 2023-09-21 | Unity | no | number snake with +/- and x2 pickups |
+| Snake Merge: Idle & io Zone | 3,023 | 0.89M | 832 | 3.3 | 2023-10-17 | Unity | no | snake + idle merge |
+| Other 2048 tag (30 games) | <= 2,858 | <= 4.5M | <= 5,117 | <= 6.4 | - | mixed | - | classic 2048 drop/merge puzzles: small |
+| Merge tag leaders | Piece of Cake 93,708 · Designville 83,634 · Mansion Tale 27,564 (140.9 v/d, 2026-02) | | | | | | | merge-2 story games (large content, difficulty 4) |
+
+**How the clones of Cubes 2048.io do** (plays/day as a share of the original's 38,795):
+- Noob Snake 2048: 13%.
+- Cubes 2048 Royale: 4.8%, even with real multiplayer and the same name.
+- Numbers Arena: 2.5%.
+- Snake Merge Idle: 2.1%.
+- **A near-copy gets a small fraction of the original.**
+
+**The fresh twist that works:**
+- **Harvest.io** (Azur Games, 2026-08-21, HTML5 3D): the snake-grows-by-collecting loop reskinned as a tractor
+  harvesting a field, with a hay trailer as the tail.
+- 11,346 plays/day in its first 36 days (29% of Cubes 2048.io's lifetime daily rate) and 174 votes/day: the best
+  newcomer in the snake tag.
+- **Lesson (HYPOTHESIS drawn from these numbers):** keep the proven loop (steer, collect, grow, eat smaller rivals,
+  bots, leaderboard slice). Change the fantasy and the object completely: no numbered cubes on a dark grid.
+  Add a visible second axis (merge or evolve) that is ours.
+
+### Popular single-player games, rated for build difficulty (for us: three.js, primitives, bots only)
+Top 40 by likes + top 40 by plays/day among single-player games (full list in `qa/research-hits.md`).
+Difficulty: 1 = weekend core ... 5 = large.
+
+| Game | Likes | Plays/day | Votes/day | Tech | Diff | Why |
+|---|---|---|---|---|---|---|
+| Space Waves | 777,880 | 265,602 | 989 | Unity | 2 | one button; needs ~30 designed levels |
+| Ragdoll Archers | 350,529 | 148,305 | - | HTML5 | 3 | ragdoll physics + archery AI |
+| Count Masters | 198,857 | 110,828 | 381.6 | Unity | 2 | crowd runner, instanced units, gates, procedural levels |
+| Thief Puzzle | 180,221 | 84,154 | 289 | HTML5 | 3 | many hand-made drawing puzzles and art |
+| Geometry Game | 130,816 | 14,749 | 40.9 | HTML5 | 2-3 | Geometry Dash clone; level design |
+| **Cubes 2048.io** | 128,226 | 38,795 | 113.9 | HTML5 | **2** | snake + merge + bots, all boxes |
+| **Paper.io 2** | 126,427 | 26,997 | 55.6 | HTML5 | **2** | territory fill + bots |
+| Bridge Race | 92,391 | 55,234 | 166.4 | Unity | 2-3 | collect-stack-build race vs bots |
+| Man Runner 2048 | 85,724 | 44,003 | 87.6 | Unity | 2 | runner + merge + boss cannon |
+| **Slice Master** | 85,290 | 84,539 | 111.8 | HTML5 | **2** | knife-flip arc + slicing, generated levels |
+| **Holey.io** | 81,926 | 28,748 | 86.3 | HTML5 | **2-3** | hole swallow, fake falling, bots |
+| Tile Jumper 3D | 60,957 | 33,930 | 127.6 | HTML5 | 1-2 | ball hops on tiles (one verb) |
+| **Stone Grass: Mowing** | 41,642 | 30,490 | 85.6 | Unity | **1-2** | mow a field, upgrades, relaxing |
+| Downhill Racer | 39,441 | 26,763 | 541.6 | Unity (2026-07) | 2-3 | endless downhill avoid |
+| **Harvest.io** | 5,643 | 11,346 | 174.1 | HTML5 (2026-08) | **2** | snake-like tractor, bots |
+| Driving / stunt games (Traffic Rider, Deadly Descent, Sky Riders, Real Car Driving ...) | 84k-519k | 26k-118k | 94-1,038 | mostly Unity | 3-4 | vehicle physics, tracks, content |
+| Merge-story games (Piece of Cake, Designville) | 84k-94k | 23k-61k | 121-158 | HTML5 | 4 | large art and content |
+
+**Popular AND simple** (>= ~20k likes or >= ~100 votes/day, difficulty <= 2-3):
+- Cubes 2048.io
+- Paper.io 2
+- Slice Master
+- Count Masters
+- Man Runner 2048
+- Holey.io
+- Space Waves
+- Tile Jumper 3D
+- Stone Grass
+- Bridge Race
+- Harvest.io (fresh)
+
+**Best mechanic families for us (HYPOTHESIS):**
+1. **Grow-by-collecting arena with bots** (Cubes 2048.io, Harvest.io, Holey.io, Paper.io 2). It is the most proven
+   browser-native family, and a theme swap still wins in 2026.
+2. **Crowd / number runner with gates** (Count Masters, Man Runner 2048). The top traction in the family, but it is
+   held by Unity ports.
+3. **One-verb skill arcade** (Slice Master, Space Waves, Tile Jumper 3D).
+4. **Relaxing collect-and-upgrade** (Stone Grass).
+
 ## Could not verify / need from the user
 **Could not verify (2026-09-26):**
 - Live play of Bouncemasters and Splash Sliders: their game-files hosts are blocked (`bouncemasters.game-files.crazygames.com`,

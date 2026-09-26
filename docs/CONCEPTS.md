@@ -594,3 +594,207 @@ RESEARCH.md (researcher; this package may only touch CONCEPTS.md).
 | Stone skipping on CrazyGames | - | - | - | - | - | none (search: "stone skip", "skipping", "skip it", "skipper", "skim", "pebble") |
 | Domino toppling on CrazyGames | - | - | - | - | - | none (search: "domino", "dominoes", "topple", "chain reaction") |
 | Skip It! (off CrazyGames) | - | - | 2026-03-02 | - | HTML5 | REPORTED via WebSearch summaries: 1Games.IO; hold for power, drag to steer, power gates, upgrades incl. offline earning; on many web portals |
+
+## Round 2 - Cubes 2048.io family (2026-09-26)
+**Why this round:** the owner changed direction on 2026-09-26: "games like Cubes 2048.io that have many likes / are
+very popular and not that hard to make", ready to upload by the end of the session. Skip Legend (C1) is shelved; its
+brief stays in `docs/GAME_BRIEF.md`.
+
+**Shared core:** a theme-neutral engine is being built in parallel in `src/game/`. Every concept below sits on top of
+it and names the one core rule it changes. The core:
+- steer a chain of value blocks that follow the head (pointer or keys);
+- loose pickups; equal values merge and double;
+- eat heads smaller than yours, die to a bigger head;
+- boost; bots with simple AI; leaderboard ranks.
+
+**For all three:**
+- Single-player "Offline Arena" against 11 bots, labelled as bots: a "BOT" tag on each name and in the leaderboard
+  slice, never presented as real people.
+- Profile M, landscape + portrait, mouse + keys + touch.
+- Mouse-follow steering is mouse-gesture control, so CG-QUAL-008 applies: pointer lock/confine on desktop, a custom
+  pointer, an unlock shortcut that is not Escape, and on-screen buttons kept clickable. Touch steers by drag, and WASD /
+  arrows (`event.code`) are a full alternative.
+
+**Family evidence** (MEASURED 2026-09-26):
+- Cubes 2048.io: 8.2, 157,017 votes, 113.9/day, HTML5 (RESEARCH).
+- **Cubes 2048 Royale: HTML5, BL 2025-10-06, 29.9/day since BL (77.5 since Full Launch 2026-05-13).** Its description:
+  "blends ... Snake, 2048, and battle royale". A battle-royale variant, so a shrinking zone / last-one-standing twist
+  is already taken and is *not* used below.
+- Snake.io: 29.2/day. Noob Snake 2048: 4.4/day. (DESIGNER, `cg-game.mjs`.)
+- The family has proven demand. The gap is only in the twist.
+
+### R1 - Comet Chain (space; 90 s rounds with respawns; a rank jackpot every round)
+- **Pitch:** steer a comet that drags a chain of numbered planets through a star field. Swallow stardust (2s), fuse
+  equal planets into bigger worlds, swallow smaller comets, dodge bigger ones. Every round lasts 90 s: die and you
+  respawn small 2 s later. When the clock hits 0, your chain is weighed and your rank pays out.
+- **Core rule it changes:** *game over -> timed round.* Death respawns you after 2 s with a starter chain (2-4-8)
+  instead of ending the run. The round ends at 90 s, and rank = chain total at time-out among you + 11 bots.
+  - Optional tuning on top: the last 15 s spawn golden stardust worth 2x (a finale crescendo).
+- **Verbs:** steer, boost (hold click / Space / second finger), eat, merge.
+- **First 30 s:**
+  - 0-2 s: the arena is live behind a one-tap "PLAY" overlay (<= 1 click); bots already roam; a "Move to steer" pill.
+  - ~1.5 s: first stardust "+2". ~5 s: first fusion (2+2 -> 4) with a snap-pop.
+  - 10-20 s: a small bot comet crosses you and you swallow it; its planets burst into stardust.
+  - ~25 s: "Hold to boost" pill. The round clock ring counts down at top centre.
+  - At 90 s: podium and payout.
+- **3-second clip:** a comet whips a chain of glowing planets through stardust; two 8-planets fuse into a 16 with a
+  flash; it swallows a smaller comet, whose planets scatter as sparkles.
+- **Reward cadence:**
+
+  | Scale | Interval | What happens |
+  |---|---|---|
+  | micro | 0.3-1 s | stardust "+2", tick on a pitch ladder |
+  | streak | 3-8 s | fusion cascades (2->4->8->16), "x3 FUSION" |
+  | peak | 20-40 s | swallowing a comet, a 128+ fusion, the 15 s golden finale |
+  | run end | 90 s, fixed | podium rank reveal -> coins = chain total / 8 x rank crate (#1 x5, #2-3 x3, #4-6 x2, #7-12 x1; skill-based, never random) -> **Claim x3** |
+  | meta | every 2-3 rounds | XP level, comet trail skins (12, silhouettes) |
+  | return | daily | gift + **x2** |
+
+- **Ad-surface plan (7):**
+
+  | # | Surface | Moment | Reward vs next goal | Cap | Coin path |
+  |---|---|---|---|---|---|
+  | 1 | Start bigger | pre-round overlay | start the round with a 32 head (~the first 30 s of growth) | hidden in rounds 1-2; every 2nd round or 120 s | "Start size" upgrade |
+  | 2 | Keep your chain (revive, 5 s ring that declines at 0; REVIVE / RESPAWN same size) | death after >= 30 s of the round | respawn with your full chain instead of the starter | once per session | the normal respawn |
+  | 3 | Claim x3 | round result | x3 the round's coins | every result | "Claim" |
+  | 4 | Shop cash | shop, next skin unaffordable | +22% of its price | 180 s timer | coins |
+  | 5 | Free upgrade (Start size / Magnet / Boost tank) | unaffordable card | one level | 180 s | coins |
+  | 6 | Try a trail | shop, locked skin | one round with it | once per skin | unlock with coins |
+  | 7 | Daily gift x2 | first session of the day, a gift icon (never blocks PLAY) | double | 1/day | base gift |
+
+  Midgame on "Next round". Every round is a natural break, and the SDK caps it at about every 2nd round. No midgame
+  after a revive or x3 video at the same break (CG-ADS-015).
+- **Poly fit:**
+  - planets: `IcosahedronGeometry(r,1)` (80 tris, flat-shaded, one colour per value) + an instanced number sprite
+    (2 tris);
+  - comet head: icosahedron + a ribbon tail;
+  - stardust: instanced octahedra (8 tris);
+  - star field: points.
+  - Cap: <= 400 visible planets = ~32k tris. ~12 draw calls.
+- **Name:** Comet Chain. CrazyGames search API "comet chain", "planet 2048", "space snake": no hits ("comet" alone
+  only fuzzy-matches Cemetery Warrior).
+- **Clone risk vs Cubes 2048.io: MEDIUM.**
+  - Shared: the chain / merge-double / eat-smaller loop, which is a genre convention by now.
+  - Ours: planets in space with their own colour ladder, and timed rounds with respawns and a rank jackpot. There is
+    no game over and no shrinking zone, so it does not overlap Cubes 2048 Royale.
+  - Our own UI, podium and name.
+- **Build effort on the core: LOW** (~0.5-1 day): round timer, respawn, rank payout screen, golden finale, theme.
+
+### R2 - Merge Express (trains; cut a rival's chain and steal the wagons)
+- **Pitch:** drive a little locomotive across open fields, pulling numbered wagons. Grab loose cargo; equal wagons
+  couple into one of double value. Cut straight across a rival train to uncouple everything behind the cut: those
+  wagons roll loose and are yours to grab. Bigger engines still swallow smaller ones.
+- **Core rule it changes:** *head vs enemy body.*
+  - When your head crosses an enemy segment whose value is <= your head's, that chain is **cut** there. The segments
+    behind the cut become loose pickups carrying their values.
+  - A bigger segment bounces you off; there is no death on bodies.
+  - Head-vs-head (eat smaller, die to bigger) is unchanged.
+- **Verbs:** steer, boost, cut, collect.
+- **First 30 s:**
+  - 0-2 s: the plain is live, a "Move to steer" pill.
+  - ~1.5 s: first cargo "+2"; ~6 s: first coupling.
+  - ~15 s: a scripted small bot train crosses ahead, with the pill "Cross a smaller train to cut it!".
+  - ~18 s: the first cut, "+5 WAGONS"; you sweep them up and they couple 8+8 -> 16.
+- **3-second clip:** a locomotive slices through a rival's wagon line; five numbered wagons tumble loose; it swoops
+  back, hooks them, and they couple into a bigger number.
+- **Reward cadence:**
+  - micro: cargo every 0.3-1 s.
+  - streak: coupling cascades.
+  - peak: a cut every 10-20 s (hit-stop, wagons tumbling, "+N WAGONS"), swallowing an engine.
+  - run end: the core's death result, with length rank and coins -> **Claim x3**.
+  - meta: locomotive skins, XP.
+  - return: daily gift.
+- **Ad surfaces (7):** the same set as R1: Start bigger ("start with 5 wagons"), revive once per session (5 s ring,
+  after >= 60 s alive), Claim x3, shop cash, free upgrade, try a locomotive, daily x2. The same caps and coin paths.
+  - Weak spot: runs are endless until death (like Cubes 2048.io), so natural breaks come only at deaths, 2-6 min
+    apart for a good player.
+- **Poly fit:**
+  - wagons: boxes (12 tris) with a canvas number face;
+  - locomotive: boxes + cylinders (~200);
+  - loose cargo: instanced boxes;
+  - ground plane with instanced cone trees.
+  - ~20k tris.
+- **Name:** Merge Express. CrazyGames search API "merge express": no hits; "express" matches only MATH EXPRESSions.
+- **Clone risk vs Cubes 2048.io: LOW-MEDIUM.** Cut-and-steal changes the fight: bodies become targets, not walls.
+  Trains read as their own world, and chain-following is literal for trains.
+- **Build effort on the core: MEDIUM** (~1-1.5 days): chain split at an index, cut segments -> pickups, bounce,
+  bot AI that cuts and avoids being cut, cut feedback.
+
+### R3 - Gloop Merge (jelly slimes; value = physical size)
+- **Pitch:** lead a wobbly chain of jelly slimes. Equal slimes squish together into one twice as big, so you see your
+  power, not just read it. Big slimes crush small heads, but big chains are wide and slow to turn, so small slimes slip
+  through gaps and snipe.
+- **Core rule it changes:** *size = value.*
+  - Segment radius = `r0 x (1 + 0.22 x log2(value))`, and collision uses that radius.
+  - Head top speed and turn rate fall 4% per doubling of head value (a comeback mechanic).
+  - Numbers stay on top for clarity.
+- **Verbs:** steer, boost, squish (merge), crush.
+- **First 30 s:** like R1/R2. The first squish at ~5 s makes a visibly bigger slime with a jiggle; ~20 s the pill
+  "Small slimes are faster: slip through!".
+- **3-second clip:** tiny slimes chain up; two mediums squish into a big wobbling one; a huge slime rolls over a
+  small head, which pops into droplets.
+- **Reward cadence:**
+  - micro: droplets every 0.3-1 s.
+  - streak: squish cascades with bounce animations.
+  - peak: crushing a head, a giant squish.
+  - run end: the death result -> Claim x3.
+  - meta: slime skins.
+  - return: daily.
+- **Ad surfaces (7):** the same set and caps as R1/R2. Same weak spot as R2: breaks come only at death.
+- **Poly fit:** slimes: `IcosahedronGeometry(r,1)` (80) with squash-and-stretch scaling (no shader); droplets
+  instanced (20); ~30k tris at the cap.
+- **Name:** Gloop Merge. CrazyGames search API "gloop" (fuzzy "loop" titles only), "slime 2048": no hits.
+  "slime merge" hits Slime Tower Merge and Slimer Merge (merge puzzles), so "Slime" is avoided in the title.
+- **Clone risk vs Cubes 2048.io: MEDIUM.** The size-based look moves it toward Agar.io and the blob genre; the
+  speed/size trade-off is a real rule change.
+- **Build effort on the core: LOW-MEDIUM** (~0.5-1 day): radius/speed as functions of value, squish/jiggle tweens,
+  camera zoom by size.
+
+### Round 2 scores (1-5; one reason per row covering the three)
+| Dimension | R1 Comet Chain | R2 Merge Express | R3 Gloop Merge | Reason |
+|---|---|---|---|---|
+| Core-loop strength | 4 | 5 | 4 | all use the proven Cubes loop; R2 adds a skill move (cut) that creates the best moments |
+| Clarity in 5 s | 4 | 4 | 5 | R3's size reads instantly; R1 needs value colours and numbers; R2's cut needs one pill |
+| First session | 5 | 4 | 4 | R1 cannot game-over in the first 90 s (respawns); R2/R3 can die early like Cubes |
+| Replayability | 4 | 4 | 4 | bots and emergent fights in all three |
+| Skill headroom | 3 | 5 | 4 | R2: cut, bait, protect your tail; R3: small-and-fast sniping; R1: the core only |
+| Originality | 3 | 4 | 3 | R2 changes combat; R1 changes structure + theme; R3 drifts toward Agar-style blobs |
+| Thumbnail identity | 4 | 5 | 4 | a train slicing a wagon line is unmistakable; a comet + planets is good; blobs are generic |
+| Hook density | 5 | 4 | 4 | R1 adds a rank jackpot every 90 s; R2/R3 jackpot only at death |
+| 3-second clip | 4 | 5 | 4 | the cut + steal is the most readable payoff |
+| Production simplicity | 5 | 3 | 4 | R1: timer + respawn + rank screen; R2: chain split + pickups + bot cut AI; R3: radius/speed scaling + squish |
+| Performance risk (5 = safe) | 4 | 4 | 4 | ~12 chains + pickups, instanced; all inside profile M |
+| Poly fit, profile M | 5 | 5 | 5 | icosahedra, boxes, instanced |
+| Mobile/touch fit | 4 | 4 | 4 | drag-steer on touch works but is less precise than one-tap games |
+| Content scalability | 5 | 5 | 5 | rules and bots generate every round |
+| Time to gameplay | 5 | 5 | 5 | one tap on PLAY |
+| Ad-break fit | 5 | 3 | 3 | R1 has a break every 90 s; R2/R3 only at death (minutes apart) |
+| Retention hooks | 4 | 4 | 4 | XP, skins, daily in all three |
+| Monetization fit | 5 | 4 | 4 | R1: Claim x3 on every round's jackpot + a start boost per round |
+| Ad-surface count | 5 | 5 | 5 | 7 surfaces each, with caps and coin paths |
+| Market gap evidence | 3 | 3 | 3 | family demand MEASURED (113.9/day, Royale 77.5/day since FL); gap only via the twist (HYPOTHESIS) |
+| **Total (of 100)** | **86** | **85** | **82** | |
+
+### Round 2 decision
+**Recommended: R1 Comet Chain.**
+- It is the cheapest to finish on the shared core (a timer, respawn, a rank screen), which fits "upload-ready by the
+  end of the session".
+- It turns the family's weakest money point, long runs with breaks only at death, into a natural break, a rank
+  jackpot and a Claim x3 every 90 s.
+- Respawns remove the early game-over, which makes for a better first session.
+- It avoids Cubes 2048 Royale's battle-royale twist.
+
+**R2 Merge Express** is the stronger game on originality, skill and clip (85, close behind). Its cut rule is the best
+**first update** for R1: "comet cuts a smaller comet's tail", which moves R1 further from Cubes 2048.io. Together,
+R1 + cut would score highest, but it doubles the build risk for today.
+
+**Core rule change each needs:**
+- R1: game over -> 90 s round with 2 s respawns and a rank payout at time-out.
+- R2: head x enemy body -> cut when head >= segment (the tail becomes loose pickups), else bounce.
+- R3: segment radius and head speed/turn rate as functions of value.
+
+**NEEDS USER:**
+- Pick R1 / R2 / R3.
+- Approve the name.
+- Say whether the bot arena is labelled "Offline Arena" or with per-name "BOT" tags (both are honest; the tags keep the
+  leaderboard slice readable).

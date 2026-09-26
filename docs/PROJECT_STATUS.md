@@ -4,15 +4,14 @@ Updated: 2026-09-26 · Project folder: /home/user/Game (repo michailpopo/Game, b
 
 ## Where we are
 - **Phase:** 2 Concept -> 3 Prototype
-- **Current objective:** finish the brief for Skip Legend, then build the grey-box prototype of tap-per-skip.
-- **Next action (one concrete step):** planner verifies GAME_BRIEF.md / ORIGINALITY.md / project.json, closes
-  Gate 1, then briefs WP-02 (threejs-game-engineer).
+- **Current objective:** re-benchmark concepts against the most popular CrazyGames games that are simple to build (owner's feedback), then re-confirm the concept.
+- **Next action (one concrete step):** researcher's hit list (popular AND simple) -> concept designer derives concepts from it -> owner picks again.
 - **Waiting on the user:** nothing right now. Next: play the prototype (Gate 2).
 
 ## Gates
 | Gate | Status | Date | Evidence |
 |---|---|---|---|
-| 1 Concept | IN PROGRESS | 2026-09-26 | owner picked C1 Skip Legend (docs/CONCEPTS.md); brief + originality in progress |
+| 1 Concept | IN PROGRESS (reopened) | 2026-09-26 | owner picked C1 Skip Legend, then asked to re-benchmark against very popular games (Cubes 2048.io-level likes) that are simple to make; hit-list research running, Skip Legend brief on hold |
 | 2 Prototype fun | NOT STARTED | | |
 | 3 Vertical slice | NOT STARTED | | |
 | 4 Gameplay quality | NOT STARTED | | |
@@ -60,3 +59,4 @@ npm run qa           # all automated checks + COMPLIANCE_REPORT.md
 | 2026-09-26 | Research-and-propose, desktop + mobile, single-player | owner's answers | own idea, desktop only, multiplayer |
 | 2026-09-26 | Runner template (three.js, profile M minimal-poly) | one-screen hypercasual game | world template |
 | 2026-09-26 | Concept C1 Skip Legend, working title kept | owner's pick at Gate 1 (recommended: simplest build, 7 wanted ad surfaces, no stone-skipping game on CrazyGames) | C4 Core Diver (fallback if the feel fails), C5 Topple Line, C2 Blob Barrage, C3 Grazeline |
+| 2026-09-26 | Gate 1 reopened; Skip Legend brief on hold | owner: "Rocket Fling only has 1.6k likes - look at games like Cubes 2048.io that have many likes / are very popular and not that hard to make" | continuing Skip Legend unchanged |

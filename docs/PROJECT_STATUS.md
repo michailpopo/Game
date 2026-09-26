@@ -1,18 +1,18 @@
-# Project status - Comet Chain
+# Project status - (new original concept, round 3)
 
 Updated: 2026-09-26 · Project folder: /home/user/Game (repo michailpopo/Game, branch claude/festive-darwin-7ukgnb)
 
 ## Where we are
-- **Phase:** 3 Prototype (core engine WP-10)
-- **Current objective:** Comet Chain (Cubes 2048.io family, full reskin): brief + core engine -> twist -> slice -> QA -> launch package, upload-ready this session.
-- **Next action (one concrete step):** verify WP-10 when the engineer returns (build, sim-health, browser-qa, screenshots), publish a playtest build for the owner, start WP-11 (meta/offers) and WP-12 (juice/audio) in parallel.
-- **Waiting on the user:** play playtest 1 (https://claude.ai/artifact/CTruCX2mZudU1JvJ5qosaH) on PC and phone; answer: what did you try first, when did it get fun, when did you want to stop.
+- **Phase:** 2 Concept (round 3) + look kit (WP-20)
+- **Current objective:** an original, dopamine-hitting game that looks premium, upload-ready this session.
+- **Next action (one concrete step):** designer's round-3 concepts -> owner picks; feel artist's premium look kit (WP-20) -> owner approves the look -> build.
+- **Waiting on the user:** pick among the round-3 concepts (next message).
 
 ## Gates
 | Gate | Status | Date | Evidence |
 |---|---|---|---|
-| 1 Concept | PASS | 2026-09-26 | owner picked R1 Comet Chain; CONCEPTS (8 concepts scored), GAME_BRIEF, ORIGINALITY (name search logged), project.json truthful, BUILD_PLAN WP-10..13, no placeholders (planner checked) |
-| 2 Prototype fun | IN PROGRESS | 2026-09-26 | WP-10 verified; playtest 1 published (private page, core engine, no offers polish yet) - waiting for the owner to play on PC + phone |
+| 1 Concept | IN PROGRESS (round 3) | 2026-09-26 | round 3: original dopamine concepts with a premium art direction; owner picks, then approves a look test before the build |
+| 2 Prototype fun | FAIL (Comet Chain) | 2026-09-26 | owner played playtest 1: "the game looks shit" - wants an original, dopamine-hitting game, not a copy; Comet Chain shelved |
 | 3 Vertical slice | NOT STARTED | | |
 | 4 Gameplay quality | NOT STARTED | | |
 | 5 Content & polish | NOT STARTED | | |
@@ -62,3 +62,5 @@ npm run qa           # all automated checks + COMPLIANCE_REPORT.md
 | 2026-09-26 | Gate 1 reopened; Skip Legend brief on hold | owner: "Rocket Fling only has 1.6k likes - look at games like Cubes 2048.io that have many likes / are very popular and not that hard to make" | continuing Skip Legend unchanged |
 | 2026-09-26 | Direction: Cubes 2048.io family, full reskin | owner: very popular (128k likes) and simple; hit list: clones get 2-13% of its plays, a full reskin (Harvest.io) 29% | Skip Legend (shelved), crowd runner, one-verb arcade |
 | 2026-09-26 | Concept R1 Comet Chain; bots labelled via "Offline Arena" mode name only; title kept | owner's picks | R2 Merge Express, R3 Gloop Merge; per-name BOT tag |
+| 2026-09-26 | Comet Chain shelved after the owner's playtest | owner: "the game looks shit, now create an original game not copy game, but it must be dopamine hitting" | polishing Comet Chain |
+| 2026-09-26 | Art direction becomes a user checkpoint before building (look test) | the skill lists art direction as the owner's decision; we skipped it for Comet Chain | building first, showing later |

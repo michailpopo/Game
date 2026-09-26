@@ -1,4 +1,4 @@
-# Game brief - Volt City
+# Game brief - Storm Grid (concept T1 "Volt City", renamed 2026-09-26)
 
 Status: Gate 1 passed 2026-09-26. The owner picked T1 Volt City (docs/CONCEPTS.md "Round 3 decision") and kept the name
 (see the **name warning** under Risks). The owner's constraint: **"It must be 3d game"**.

@@ -1,4 +1,4 @@
-# Build plan - Volt City (original, 3D)
+# Build plan - Storm Grid (concept "Volt City", original, 3D)
 
 Owner: the planner (game-studio-director / the main session). Builders work only from packages here.
 Last updated: 2026-09-26

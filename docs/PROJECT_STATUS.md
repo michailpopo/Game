@@ -1,4 +1,4 @@
-# Project status - (new original concept, round 3)
+# Project status - Storm Grid
 
 Updated: 2026-09-26 · Project folder: /home/user/Game (repo michailpopo/Game, branch claude/festive-darwin-7ukgnb)
 

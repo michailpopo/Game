@@ -57,3 +57,8 @@ look test and the first playable build:
 All shipped assets are listed with licenses in `docs/ASSET_MANIFEST.md`: three.js primitives, canvas textures, ZzFX
 sounds and the Lilita One font (OFL, via @fontsource). No assets, names, characters, UI or level layouts were taken
 from another game.
+
+## Rename (2026-09-26)
+The owner renamed the game to **Storm Grid** after the "Volt City" casino collision above. Planner re-check the same
+day: CrazyGames search API `q=storm grid` -> no results. The designer's checks for Storm Grid (slug 404, Poki sitemap,
+WebSearch) are logged above in the name search section.

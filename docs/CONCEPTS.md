@@ -1032,3 +1032,8 @@ Planner's reading of that constraint for every package: a real 3D scene, not a s
 camera from an elevated 3/4 angle; bolts travel through 3D space between rooftop antennas; the camera kicks, tilts
 and swoops to follow the chain; the result sweep can orbit the lit city. Next: brief, a 3D look test the owner
 approves, then the build.
+
+**Name decision, 2026-09-26:** the name search found "Volt City", a Volt Casino game with a blackout-city premise
+(gambling association on a 13+ platform). The owner chose the designer's recommendation **"Storm Grid"** (CrazyGames
+search API and slug clear, Poki clear, no game of that exact name on the web). Concept id T1 stays "Volt City" in the
+docs; the game ships as Storm Grid.

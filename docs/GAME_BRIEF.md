@@ -1,362 +1,373 @@
-# Game brief - Comet Chain
+# Game brief - Volt City
 
-Status: Gate 1 passed 2026-09-26. The owner picked R1 Comet Chain (docs/CONCEPTS.md "Round 2 decision") and kept the
-title. Bots are labelled by the mode name "Offline Arena" only. Brief v1 for an upload-ready v1 this session.
-Last updated: 2026-09-26 · Author: game-concept-designer · The engine is the theme-neutral merge-snake core in
-`src/game/` (`ARENA` in `src/config.js`); every rule below names the config key it sets or the rule it adds.
+Status: Gate 1 passed 2026-09-26. The owner picked T1 Volt City (docs/CONCEPTS.md "Round 3 decision") and kept the name
+(see the **name warning** under Risks). The owner's constraint: **"It must be 3d game"**.
+Last updated: 2026-09-26 · Author: game-concept-designer.
+Previous briefs: `docs/shelved/SKIP_LEGEND_BRIEF.md` and `docs/shelved/COMET_CHAIN_BRIEF.md`.
+
+**Where the numbers come from:** a Monte Carlo of the exact chain rule below (seeded cities, 3 player profiles, a greedy
+upgrade buyer, 20-30 campaigns each, 2026-09-26). The model is described in "Economy", so the engineer can port it as a
+Node balance test.
 
 ## One-line pitch
-Steer a comet through a pastel nebula, swallow stardust and smaller comets, and fuse equal planets into ever bigger
-worlds, from pebble to sun. Every round lasts 90 seconds, and your rank at the bell pays out.
+A 3D city lies in blackout. Hold to charge a storm, release to strike a rooftop, and watch the lightning **leap from
+antenna to antenna, forking as it goes**, while every building it touches lights up window by window and pays. Power
+the whole city for the x10 jackpot.
 
 ## Loops
 | Loop | Length | Description (verbs) |
 |---|---|---|
-| Core | 0.3-5 s | **steer** (mouse / touch joystick / WASD) toward stardust -> **eat** (+value) -> equal planets **fuse** and evolve to the next world (pebble -> moon -> ice world ...) -> **swallow** comets whose head is smaller, **dodge** bigger ones, **boost** to chase or escape |
-| Session | 90 s rounds, ~100 s with the result | round starts on one tap -> grow and fight -> die = respawn in 2 s with a starter chain, the clock keeps running -> last 15 s golden finale (stardust worth 2x) -> at 0:00 rank by chain total -> podium payout (x5 / x3 / x2 / x1) -> Claim or Claim x3 -> upgrade / shop -> next round |
-| Meta | days | coins -> 3 upgrades (Start size, Magnet, Boost tank) + 12 trail skins; arena tier 1-20 adapts to results; best rank and biggest world reached; daily gift with a forgiving streak |
+| Core | 1-6 s per strike | **hold** (aim with the press position, the charge ring fills) -> **release** (in the SUPERCHARGE band for max power) -> the bolt hits the chosen antenna and **chains** through the city in 3D, forking; each lit building pays "+N"; whole districts light for a bonus |
+| Session (one city) | 15-35 s | 3-6 strikes per city -> % powered -> jackpot plate (x2 / x3 / x5 / x10 FULL POWER) -> Claim or Claim x3 -> upgrades -> next city (>= 60% powered) or retry |
+| Meta | days | coins -> 5 upgrades (Voltage, Fork, Strikes, Capacitor, Gold rods) that visibly change the storm; 40 cities in 8 themed districts; 12 bolt skins; daily gift with a forgiving streak; after city 40, the endless "Storm Season" (Should) |
 
 ## First 30 seconds (beat by beat, cold start)
 | Time | What the player sees | What they do | Feedback |
 |---|---|---|---|
-| 0-2 s | The live arena is the home. Pastel nebula, 12 comets already roaming and eating, header "OFFLINE ARENA". Your small comet (moon head + pebble) circles in the centre. A big PLAY button and a device hint (mouse icon / finger icon) | - | ambient twinkle |
-| ~2 s | - | one tap/click on PLAY (<= 1 click, CG-GAME-001) | round clock ring "1:30" starts. Desktop: pointer lock + a custom cursor ring. Pill "Move to steer" |
-| 2-4 s | Stardust within reach (the engine's food floor keeps >= 14 pickups within 13 u) | steer onto a pebble | **first "+2" by ~3 s**, tick sound, the chain gains a pebble |
-| 4-8 s | - | eat another pebble | **first fusion**: 2 pebbles snap into a moon (pop, morph, flash). The leaderboard slice moves |
-| 8-20 s | A smaller comet (a pebble head, placed by the engine's `stageEncounter` on round 1) crosses nearby | steer into it | "Swallowed Kiwi!" in the kill feed, its planets burst into stardust, you vacuum them up. Fusion cascade to an ice world |
-| 20-25 s | A bigger comet appears with a red rim | turn away | pill "Hold click / Space to boost" (touch: the boost button pulses) |
-| 25-30 s | Leaderboard slice "OFFLINE ARENA · you #4 of 13" | keep eating | rank ticks up. The clock ring drains. |
+| 0-2 s | The first frame is the level. A small dark 3D city of 24 buildings in 2x2 blocks, seen from an elevated 3/4 camera slowly drifting. A purple storm cloud rumbles overhead, one tall rooftop antenna pulses, and a hand icon shows "hold". A "0% POWERED" meter sits at the top. No menu. | - | distant thunder, a soft hum |
+| 2-3 s | - | press and hold anywhere (the target ring snaps to the nearest antenna) | the charge ring fills around the target (1.2 s to full), the hum rises, sparks gather in the cloud |
+| ~3 s | The ring enters the gold SUPERCHARGE band (80-95%); the first city ever widens it to 60-95% and slows the fill to 1.6 s | release | "SUPERCHARGE!" ding, a white-cyan bolt slams the antenna: 60 ms hit-stop, flash, camera kick |
+| 3-6 s | Two bolts leave the impact and leap rooftop to rooftop through 3D space | watch | each hop crackles on a rising pitch ladder, the building lights gold window by window, "+2 +2 +3 ...". **First "+N" within ~1 s of the release** |
+| 6-8 s | A whole block lights up | - | "BLOCK POWERED" chord, streetlights flash on, "+25%" |
+| 8-20 s | Strikes 2 and 3 on the dark parts of the city | hold / release | "FORK x2", meter climbs 40% -> 75% -> 94% |
+| 20-24 s | The meter lands; the camera orbits the lit city | - | jackpot plate x5 slams down, coins fly in (~170 on city 1) |
+| 24-30 s | Result: Claim (city 1 has no video offer), the Voltage upgrade card glows affordable (60), "Next city" | tap Claim, tap the Voltage card | upgrade pop: "+2 hops"; city 2 builds itself block by block |
 
-No ad before the third round has finished (the first midgame can come after ~5 min, CrazyGames guidance).
+No ad of any kind before city 4. The first city is tuned so every player gets at least the x3 plate (assist above).
 
 ## Controls
 | Device | Input | Action |
 |---|---|---|
-| Desktop keyboard (physical keys, `KeyboardEvent.code`) | `KeyW/KeyA/KeyS/KeyD` and arrows = 8-way screen-relative direction (engine `hasDir`); `Space` or `ShiftLeft` = boost (hold); `KeyP` = pause / release pointer; `Tab` = release pointer; `KeyM` = mute | steer, boost, pause |
-| Mouse | After PLAY: **pointer lock** (requested on the PLAY click, never before a user gesture). Mouse movement moves a **virtual cursor ring** drawn in the arena, clamped to 6 u around the head, and the comet steers toward it. **Hold left button** = boost. Unlock: `P`/`Tab`, or the browser's native Escape (never bound by the game). On unlock the round pauses with a "Click to resume" overlay. Menus (result, shop, upgrades) always run unlocked with the normal cursor. | steer, boost |
-| Touch | A **virtual joystick** appears where the first finger lands (left 70% of the screen); drag direction = heading. **Boost** = a second finger anywhere, or the round boost button bottom-right (72 px, inside the safe area). `touch-action: none`, `user-select: none`. | steer, boost |
+| Touch | **press and hold** anywhere on the city = charge. The target ring snaps to the antenna nearest the finger (screen distance, max 80 px; otherwise the nearest unlit building to the ground point under the finger). Dragging while holding moves the target. **Release** = strike. A second finger is ignored. | aim + charge + strike |
+| Mouse | **left button hold / release**, the same rules; the target follows the cursor while holding | same |
+| Keyboard (physical keys, `KeyboardEvent.code`) | `ArrowUp/Down/Left/Right` and `KeyW/A/S/D` move a crosshair between antennas (snap to the nearest in that screen direction); **hold / release `Space` or `Enter`** = charge / strike; `KeyP` pause; `KeyM` mute. `e.repeat` ignored; no Escape; no Ctrl combos. | same |
 
-**Mouse-control rule check (CG-QUAL-008): yes.** The comet follows mouse gestures in a top view, so:
-- the pointer is locked and confined during the round;
-- a custom pointer (the cursor ring) is shown;
-- unlock shortcuts exist (P, Tab, native Escape);
-- on-screen buttons stay keyboard-accessible (P pause, M mute) and become clickable whenever the pointer is unlocked.
+**Mouse-control rule check (CG-QUAL-008): no.** This is click-to-target: the player chooses a point by pressing on it,
+and nothing follows mouse movement continuously. The rule's own text says "Click-on-UI games need no confinement". No
+pointer lock, and `project.json` `mouse-gesture = false`. The hold uses pointer capture, so a release outside the
+frame still fires the strike and cannot click the page.
 
-`project.json` `mouse-gesture = true`.
+## The charge meter
+The fill is linear, 0 -> 100% in **1.2 s**. The first city ever: 1.6 s, with a band of 60-95%.
 
-## Round rules (numbers -> `ARENA`)
-- **Round:** `round.mode = "timed"`, `round.durationSec = 90`. The round ends at 0:00 with phase `won` for everyone
-  alive; the player is ranked even if dead at that moment (by the mass they died with).
-- **Respawn (new rule):**
-  - When the player's head is eaten, the round continues. After `round.respawnSec = 2` the player respawns at a safe
-    spot with `round.respawnMass = 14` (chain 8-4-2) and `snake.protectSec = 2` (blinking, cannot eat or be eaten).
-  - The dropped chain scatters as stardust for everyone.
-  - Bots respawn as today (`bots.respawnSec = 2.5`).
-- **Rank:** by chain total (mass) at 0:00 among the player + 12 bots (`playerRank` / `standings`). Ties go to the
-  bigger head, then the earlier reach.
-- **Golden finale (new rule):** at 0:15 left, fresh stardust spawns from `round.finaleWeights = [[4,0.6],[8,0.3],[16,0.1]]`
-  (double the normal `loose.weights`). Gold tint, the clock turns gold, and ticks speed up.
-- **Contact:** the engine default `contact.rule = "headVsAny"`: a head touching any block of another comet compares
-  heads; the bigger eats, and equal heads bounce.
-- **Arena:** `arena.shape = "circle"`, `halfSize = 40`. The edge is an asteroid belt, `wall = "block"` (slide along
-  it, no death).
-- **Bot names:** `bots.prefix = ""`, owner decision. Honesty comes from the mode label instead: "OFFLINE ARENA" is shown
-  on the home, the round HUD header, the leaderboard slice header, the kill feed's first line and the podium ("Offline
-  Arena results"). Remove "Comet" from `bots.names` (it is the player's fantasy).
+| Charge at release | Name | Strike energy (hops) | Extra |
+|---|---|---|---|
+| 0-40% | WEAK | 0.5 x E0 | - |
+| 40% - band start | CHARGED | E0 x (0.5 + 1.25 x (c - 0.4)), rising to E0 | - |
+| **band start - 95%** | **SUPERCHARGE** (gold ring) | **1.3 x E0 per bolt, two bolts leave the impact** | "SUPERCHARGE!" + a guaranteed fork at impact |
+| 95-100% | HOT | E0 | - |
+| > 100% | OVERCHARGE (the ring flashes red) | if still held 0.35 s after full (1.55 s), the strike auto-fires as a **FIZZLE**: energy 3, no forks | sputter sound |
 
-## Bot AI difficulty ramp (numbers -> `ARENA.bots`)
-The **arena tier** (1-20) adapts to results:
-- +1 after a top-3 finish;
-- -1 after rank 8 or worse (floor 1);
-- unchanged otherwise.
+- The band is 80-95% at Capacitor 0. Each Capacitor level widens it downward by 3 points (max level 5: 65-95%).
+- `E0 = 8 + 2 x Voltage` hops (Voltage 0-15 -> 8-38).
 
-It is saved, and it is passed to `createSim({ level: tier })`. Tiers keep the podium reachable for new players and
-harder for good ones (bots only; no real players are affected).
+## The chain algorithm (deterministic, seeded; runs in the fixed-step sim)
+- **Hop:** a bolt at building i with energy e > 0 jumps to the **nearest unlit antenna within range R**, measured in 3D
+  between antenna tips. So tall towers are hubs, and a tall neighbour can be out of reach.
+  - `R = 16 m + 0.5 m x Voltage` (16 -> 23.5 m).
+  - Each hop costs 1 energy and lights that building.
+  - If no unlit antenna is within R, the bolt **grounds out**: a spark into the street, and that bolt ends.
+- **Hop timing:** `0.08 s + 0.07 s x (1 - e / e_strike)`. Fresh bolts leap fast; the last hops slow down (the
+  "running out of juice" read).
+  - A cascade of 20-40 hops with forks lasts ~2-5 s.
+  - Bolts advance in parallel; each hop is an event the view animates (jagged ribbon from tip to tip, halo at arrival).
+- **Fork:** on each hop, with chance `F = 5% + 3% x Fork` (5% -> 35%), the bolt splits in two.
+  - **Both children carry `ceil(0.6 x (e - 1))`**, so a fork adds ~20% energy and doubles the spread.
+  - Bolts on screen go 1 -> 2 -> 4 -> 8.
+- **Gold rods** (Gold rods upgrade: 1-5 per city, from city 3): a gold antenna pays **x10**, always forks, and gives
+  **+4 energy** to the arriving bolt.
+- **"+N" per lit building:** `N = round((1 + floors / 8) x 1.06^(city-1) x min(2, 1 + 0.02 x depth)) x (10 if gold)`.
+  - `floors = height / 4 m` (3-15).
+  - `depth` = hops since the strike's impact, so deep chains pay more. The numbers climb visibly within a cascade.
+- **BLOCK POWERED:** when every building of a district is lit, that district pays **+25% of its buildings' value**,
+  plays a major chord, and its streetlights come on.
+- **% powered** = lit buildings / all buildings (count).
 
-| Tier | `aggression` (chase chance) | bot `startMass` pool | `capStart` | `capDoubleSec` | `capVsPlayer` | `thinkSec` | design target: median human rank |
-|---|---|---|---|---|---|---|---|
-| 1 | 0.30 | [6, 10, 14] | 8 | 60 | 1.5 | 0.30 | #2-3 (most first rounds end on the podium) |
-| 5 | 0.40 | [6, 10, 14, 22, 30] | 8 | 50 | 2 | 0.24 | #3-4 |
-| 10 | 0.525 | [10, 14, 22, 30, 46] | 16 | 45 | 2 | 0.20 | #4-5 |
-| 20 | 0.775 | [14, 22, 30, 46, 62] | 32 | 40 | 2.5 | 0.18 | #5-6 |
+## City generation (3D, procedural, seeded per city)
+
+| City | Buildings | Districts | Avenue extra gap | Park chance | Tallest | Theme |
+|---|---|---|---|---|---|---|
+| 1 | 24 | 2x2 | 4.0 m | 10% | 24 m | Downtown |
+| 5 | 35 | 3x3 | 4.8 m | 11.5% | 28 m | Downtown |
+| 10 | 57 | 3x3 | 5.8 m | 13.5% | 32 m | Harbour |
+| 20 | 147 | 4x4 | 7.9 m | 17% | 41 m | Hill Towers |
+| 40 | 300 | 5x5 | 12 m | 25% | 60 m | Sky Port |
 
 Formulas:
-- `aggression = 0.30 + 0.025 x (tier - 1)`, which replaces today's 0.45 + 0.07/level (that would pass 1.0 by tier 9).
-- The other columns interpolate linearly between the rows.
+- **Buildings:** `N = min(300, round(24 x 1.10^(city-1)))`.
+- **Districts:** blocks of 3x3 lots (N <= 40) or 4x4 lots; the district count is `ceil(sqrt(N / (lots² x (1 - park))))`
+  per side.
+- **Lots:** 9 m apart with +-1.2 m jitter. **Avenues** between districts add `4 + 8 x (city-1)/39` m (4 -> 12 m). This
+  is the key difficulty knob: wide avenues stop bolts, so strikes must be placed per district.
+- **Parks** (empty lots, trees): `10% -> 25%`.
+- **Heights:** uniform 12 m to `24 + 36 x (city-1)/39` m. **Antenna tip** = roof + 3 m.
+- **Themes (8 x 5 cities):** Downtown, Harbour, Old Town, Hill Towers, Neon Bay, Snow Peak, Desert Spires, Sky Port.
+  Each has its own window colour and skyline silhouettes; the rules stay the same.
 
-**Measured ceiling:** the engine's own autopilot plays with perfect information and is superhuman. Driven for 12 rounds
-of 90 s per tier in Node on 2026-09-26, it ended with a median mass of 2,100-3,500 and median rank #1-2. Human numbers
-come from the first playtest; these tier numbers are the starting point.
+## Run structure
+- **Strikes per city:** 3 (+1 per Strikes level, max 6). The city ends after the last cascade, or earlier when 100%
+  is reached.
+- **Jackpot plate** on the run's coins:
 
-## The planet ladder (the visible evolve axis; `values.base = 2`)
-The size comes from the engine's `blockSize`: `1.0 + 0.08 x (step - 1)` world units, max 2.3. The value is a small
-badge under the planet: >= 12 px at 800x450, white with a dark outline. There are no numbered cubes and no dark grid.
+  | % powered | Plate |
+  |---|---|
+  | < 60% | x1 (retry this city, with the true near-miss line "57% - 3% short of the next city") |
+  | >= 60% | **x2**, city cleared |
+  | >= 80% | **x3** |
+  | >= 95% | **x5** |
+  | 100% | **x10 FULL POWER** |
 
-| Step | Value | World | Colour (body) | Size (u) | Ring / glow | Geometry |
-|---|---|---|---|---|---|---|
-| 1 | 2 | Pebble | `#b8b2c9` | 1.00 | - | `Icosahedron(r,0)` 20 tris |
-| 2 | 4 | Moon | `#f1e9d2` | 1.08 | - | `Icosahedron(r,1)` 80 |
-| 3 | 8 | Ice world | `#9fe7ff` | 1.16 | - | 80 |
-| 4 | 16 | Desert world | `#ffc27a` | 1.24 | - | 80 |
-| 5 | 32 | Ocean world | `#3fb6ff` | 1.32 | - | 80 |
-| 6 | 64 | Jungle world | `#6fdc6a` | 1.40 | - | 80 |
-| 7 | 128 | Lava world | `#ff6b4a` (emissive 0.3) | 1.48 | faint glow | 80 + halo quad 2 |
-| 8 | 256 | Ringed giant | `#c9a0ff` | 1.56 | ring `#ffe8a3` | 80 + `Torus(6x16)` 192 |
-| 9 | 512 | Storm giant | `#7a8cff` | 1.64 | ring `#d6f1ff` | 80 + 192 |
-| 10 | 1,024 | Sun | `#ffd23f` (emissive) | 1.72 | glow halo | 80 + 2 |
-| 11 | 2,048 | Red giant | `#ff5a5f` (emissive) | 1.80 | big glow | 80 + 2 |
-| 12 | 4,096 | Blue giant | `#6fb8ff` (emissive) | 1.88 | glow + ring | 80 + 192 + 2 |
-| 13 | 8,192 | Neutron star | `#ffffff` | 1.96 | pulsing ring | 80 + 192 |
-| 14 | 16,384 | Nebula heart | `#ff3fa4` | 2.04 | glow + ring | 80 + 192 + 2 |
-| 15+ | 32,768+ | Galaxy | `#fff0ff` core | 2.12-2.30 | two crossed rings | 80 + 384 |
+- The pass threshold `passPct = 0.60` is the main tuning knob. Raising it to 0.80 lengthens the mid-game (see Risks).
 
-The head (the biggest planet) wears the **comet coma**: a white-cyan glow `#bff6ff` plus a ribbon trail tinted by the
-equipped skin. The rest of the chain trails behind it.
+## Progression and difficulty (average player, from the Monte Carlo)
+| City | Buildings | Typical upgrades on arrival (Volt/Fork/Strikes/Cap/Gold) | E0 / SUPERCHARGE per bolt | R | Fork | Strikes | % powered (novice / avg / skilled) | Avg plate (avg) | Tries to clear (novice / avg) |
+|---|---|---|---|---|---|---|---|---|---|
+| 1 | 24 | 0/0/0/0/0 | 8 / 10 | 16 m | 5% | 3 | 80 / 90 / 96% | x4.8 | 1.1 / 1.0 |
+| 5 | 35 | 4/2/0/1/0 | 16 / 20 | 18 m | 11% | 3 | 84 / 93 / 96% | x5.3 | 1.0 / 1.0 |
+| 10 | 57 | 7/5/0/3/1 | 22 / 28 | 19.5 m | 20% | 3 | 75 / 94 / 99% | x5.0 | 1.3 / 1.0 |
+| 20 | 147 | 11/8/2/5/4 | 30 / 39 | 21.5 m | 29% | 5 | 70 / 92 / 96% | x3.9 | 1.4 / 1.0 |
+| 40 | 300 | max 15/10/3/5/5 | 38 / 49 | 23.5 m | 35% | 6 | 45 / 56 / 60% | x1.3 | 13.6 / 3.3 ("Legend City", the campaign's final wall) |
 
-## Fail, retry, reward
-- **How the player loses, and how they know why within 0.5 s:**
-  - Being swallowed by a bigger head: freeze-frame 80 ms, the eater flashes red, and "Swallowed by Mango (1,024)" shows.
-  - The chain bursts into stardust, and a 2 s respawn ring counts down in place. The round does **not** end.
-  - The only "loss" is a lower rank at 0:00.
-- **Retry time:**
-  - Respawn: 2 s, automatic.
-  - Between rounds: result count-up 1.2 s (skippable), then "Next round", then play <= 1.5 s later. The arena is
-    already live behind the overlay.
-- **What a weak round still gives:** coins for its mass and swallows (x1 crate at worst), XP toward the arena tier,
-  progress on "biggest world reached". There are no zero-coin rounds.
-
-## Progression and difficulty
-- **Curve:**
-  - The arena tier ramp above: bot aggression 0.30 -> 0.775, bot cap start 8 -> 32, cap doubling 60 -> 40 s.
-  - Upgrades raise the player's mass per round (Start size, Magnet, Boost tank).
-  - Within each round: bot caps double every 40-60 s, so the last 30 s are the most dangerous, and the golden finale
-    is the richest.
+- **Runs to reach:** city 10 after ~9 runs (novice ~10), city 20 after ~19 (novice ~21), city 40 after ~41 (novice
+  ~69). One run is ~25-40 s including the result, so city 20 comes at ~10-12 min.
 - **New idea introduced at:**
-  - round 1: steer + eat + fuse;
-  - round 1, ~20 s: boost;
-  - round 2: the upgrade cards appear;
-  - round 3: the shop and "Start bigger" appear;
-  - the first time the player reaches each new world: a "NEW WORLD: Ringed giant!" card, then the silhouette of the
-    next one.
+  - city 1: hold / release, SUPERCHARGE;
+  - city 2: upgrades;
+  - city 3: gold rods (if bought) and the shop;
+  - city 4: the first midgame break, try-skin;
+  - city 6: the first 3x3 city with wide avenues ("strike each district");
+  - every 5th city: a new theme.
 - **Peaks and relief:**
-  - Peaks: the golden finale (last 15 s), a swallow, each new world step.
-  - Relief: the respawn (2 s protected), and the result/podium pause every 90 s.
+  - Peaks: every SUPERCHARGE, the first fork, BLOCK POWERED, FULL POWER, and each theme's 5th city (the widest
+    avenues of that theme).
+  - Relief: the first city of each theme is smaller (x0.85 buildings).
 
 ## Economy (numbers)
-**Round payout:**
-- `coins = (mass at 0:00 / 20 + 3 x swallows) x rank crate`.
-- Rank crates: **#1 x5 · #2-3 x3 · #4-6 x2 · #7-13 x1**. Skill-based, never random.
-- Also 1 XP per 10 coins.
-- Human targets below; calibrate at the first playtest.
+**Coins per run:** the plate is included; no ads; from the Monte Carlo.
 
-| Round (typical state) | Mass at 0:00 | Swallows | Base | #1 | #2-3 | #4-6 | #7-13 |
-|---|---|---|---|---|---|---|---|
-| 1 (tier 1, no upgrades) | ~700 | 4 | ~47 | 235 | 141 | 94 | 47 |
-| 5 (tier ~3, Start 2 / Magnet 1) | ~1,000 | 6 | ~68 | 340 | 204 | 136 | 68 |
-| 20 (tier ~8, upgrades ~5 each) | ~1,800 | 9 | ~117 | 585 | 351 | 234 | 117 |
+| City | Novice | Average | Skilled |
+|---|---|---|---|
+| 1 | 118 | 174 | 270 |
+| 5 | 272 | 394 | 545 |
+| 10 | 482 | 1,043 | 1,771 |
+| 20 | 1,776 | 4,044 | 5,960 |
+| 40 | 3,811 | 6,065 | 7,203 |
 
-**Upgrades** (rounded to 5; 3 cards on the result/home panel):
+**Upgrades** (rounded to 5 below 1,000, to 50 above; shown as objects on the storm-control rooftop in the result screen):
 
 | Upgrade | Effect per level | Price | Max | Prices | Total |
 |---|---|---|---|---|---|
-| **Start size** | start chain mass: 6 -> 10 -> 14 -> 22 -> 30 -> 46 -> 62 -> 94 -> 126 -> 190 -> 254 (also the respawn mass if bigger than 14) | 50 x 1.45^n | 10 | 50, 70, 105, 150, 220, 320, 465, 675, 975, 1,400 | 4,430 |
-| **Magnet** | `snake.magnetRadius` 1.7 -> +0.25 u per level (4.2 at max) | 40 x 1.40^n | 10 | 40, 55, 80, 110, 155, 215, 300, 420, 590, 825 | 2,790 |
-| **Boost tank** | full bar 2.4 s -> +0.3 s per level (5.4 s at max), regen +0.01/s per level | 40 x 1.40^n | 10 | same as Magnet | 2,790 |
+| **Voltage** | +2 hops per bolt (E0), +0.5 m range | 60 x 1.45^n | 15 | 60, 85, 125, 185, 265, 385, 560, 810, 1,150, 1,700, 2,450, 3,550, 5,200, 7,500, 10,900 | 34,925 |
+| **Fork** | +3% fork chance (5% -> 35%) | 100 x 1.55^n | 10 | 100, 155, 240, 370, 575, 895, 1,400, 2,150, 3,350, 5,150 | 14,385 |
+| **Strikes** | +1 strike per city (3 -> 6) | 600 x 3^n | 3 | 600, 1,800, 5,400 | 7,800 |
+| **Capacitor** | SUPERCHARGE band +3 points wider (80-95% -> 65-95%) | 150 x 1.9^n | 5 | 150, 285, 540, 1,050, 1,950 | 3,975 |
+| **Gold rods** | +1 gold antenna per city (x10 pay, always fork, +4 energy) | 300 x 2.1^n | 5 | 300, 630, 1,300, 2,800, 5,850 | 10,880 |
 
-**12 trail skins** (cosmetic only: coma tint, ribbon, fusion sparkle):
-- Classic Stardust (owned), Ember, Mint, Candy, Frost, Neon, Solar, Aurora Pink, Void, Rainbow, Galaxy, Legend.
-- "Unlock random" always gives a new skin, for earned coins only. Price `150 x 1.4^(n-1)`: 150, 210, 295, 410, 575,
-  805, 1,150, 1,600, 2,200, 3,100, 4,350 (total 14,845).
+**Bolt skins** (12, cosmetic only: bolt core/glow colour, spark shape, crackle timbre; no stat changes):
+- Storm Cyan (owned), Magenta, Solar Gold, Plasma Green, Ember, Frost, Violet, Ruby, Neon Rainbow, Void, Aurora,
+  Legend White-Gold.
+- "Unlock random" (always new) at `250 x 1.45^(n-1)`: 250, 365, 525, 760, 1,105, 1,600, 2,320, 3,365, 4,880, 7,075,
+  10,260 (total ~32,500).
 
-**Pace (no ads):**
-- The first upgrade is affordable after round 1 (47-235 coins vs 40-50).
-- Rounds 1-5: an upgrade every round. Rounds 10-20: every ~2 rounds.
-- A skin every ~3-6 rounds if saved for.
-- All upgrades maxed (10,010 coins) after ~40-50 rounds; everything owned after ~90 rounds (~2.5 h). Claiming x3 on
-  ~30% of results cuts that by about a third.
+**Pace:**
+- The first upgrade (Voltage 60) is affordable after city 1.
+- Cities 1-10: an upgrade after almost every run. Cities 10-20: every 1-2 runs. All upgrades max near city 30 for an
+  average player.
+- A skin every ~3-5 runs if saved for.
+- The model's buyer spends only on upgrades; skins, daily gifts and videos are not in it.
 
-**What one video is worth:**
+**What one video is worth (average player):**
 
-| Offer | Rounds 1-3 | Round ~5 | Round ~20 |
-|---|---|---|---|
-| Claim x3 (extra over Claim) | +94 to +470 (1-5 upgrade levels) | +136 to +680 | +234 to +1,170 |
-| Free upgrade (one level) | 40-70 | 80-150 | 300-1,100 |
-| Shop cash (22% of the next skin) | +35 to +45 | +65 to +90 | +250 to +680 |
-| Start bigger (this round) | start with mass max(62, 4 x Start size mass): a Ringed-giant-ready 32-head chain, ~the first 20-30 s of growth | same | same (at Start size 7+: 4x the upgraded start) |
-| Keep your chain (revive) | respawn with the full chain you died with (typically 300-2,000 mass) instead of 14 | same | same |
-| Daily gift x2 | base = 2 x average round coins at your tier x streak factor 1.0-2.0 (~100-300) | ~150-400 | ~250-700 |
+| Offer | City 1-3 | City ~5 | City ~10 | City ~20 |
+|---|---|---|---|---|
+| Claim x3 (extra over Claim) | +350 | +790 | +2,090 | +8,090 |
+| Free upgrade (the cheapest unaffordable level) | 60-125 | 185-240 | 560-600 | 2,450-3,350 |
+| Shop cash (22% of the next skin) | +55 | +80-115 | +165-240 | +510-740 |
+| Supercharged start (+2 strikes this city) | +67% energy: typically one plate step up (e.g. x3 -> x5), worth +40-100% of the run | same | same | same (+40% at 5 strikes) |
+| One more strike (>= 85% powered) | usually lifts to x5 or FULL POWER x10 | same | same | same |
+| Daily gift x2 (base = 2 x average run coins at the best city x streak 1.0-2.0) | +350 | +790 | +2,090 | +8,090 |
 
 ## Hook cadence (default target: references/design/hypercasual-hits.md)
 | Scale | Interval | What happens | Feedback |
 |---|---|---|---|
-| micro | 0.3-1 s | stardust eaten (+2 / +4 / +8), magnet pull | "+N" float at the head, tick on a pentatonic ladder that climbs while pickups come within 1.5 s, chain grows |
-| streak | 3-8 s | fusion cascades (2+2 -> 4 -> 8 ...), "x3 FUSION" when 3+ fusions chain | each fusion pops with its own pitch, the planet morphs into the next world, the leaderboard slice moves |
-| peak | 15-40 s | swallowing a comet; a new world step (first time: "NEW WORLD" card); the golden finale | 80 ms hit-stop, camera punch, burst of stardust, kill-feed line |
-| run end | 90 s, fixed | podium: rank reveal #13 -> #1 in 1.2 s, crate multiplier slams onto the coin number | podium jingle by rank, confetti on #1, coins fly into the pill, **Claim / Claim x3** |
-| meta | every 1-3 rounds | an upgrade level, a skin, a new tier, a new biggest world | card level pop, skin silhouette -> colour reveal |
-| return | daily | gift by the PLAY button, streak day 1-7 | **Collect / Collect x2** |
+| micro | 0.08-0.15 s per hop during cascades; the charge between | a building lights, "+N" | crackle on a pentatonic ladder that climbs with depth, windows fill gold, the % meter ticks |
+| streak | every fork (several per cascade from Fork 3+) | "FORK x2 / x4 / x8", bolt count doubles | a fork zap one step up the ladder, the bolt colour brightens |
+| peak | every strike (3-8 s) | SUPERCHARGE impact, BLOCK POWERED, gold rod x10 | 60 ms hit-stop, flash, camera kick; chord; a big gold "+N x10" |
+| run end | 15-35 s | % powered -> jackpot plate x2 / x3 / x5 / **x10 FULL POWER** | camera orbit of the lit city, the plate slams, coin fly-in, **Claim / Claim x3** |
+| meta | every 1-2 runs | an upgrade visibly changes the storm (more hops, more forks, gold rods, more strikes); a new city every run; a theme every 5 | upgrade pop on the storm-control rooftop; the next city builds itself |
+| return | daily | gift and streak | **Collect / Collect x2** |
 
-- **First reward after the first input:** "+2" within ~1 s of PLAY (<= 4 s target).
-- **Near-miss moment:** the result shows the true gap, "#4 - 212 mass short of the podium"; and mid-round "Swallowed
-  by a comet only one world bigger".
-- **The 3-second clip:** a comet with a glowing chain of planets sweeps through pastel stardust; two ice worlds fuse
-  into a bigger world with a flash; it swallows a smaller comet, whose planets scatter as sparkles.
+- **First reward after the first input:** "+N" ~1 s after the first release (release at ~3 s): <= 4 s from load.
+- **Near-miss:** "57% - 3% short of the next city", "96% - one building from FULL POWER" (true values); the One-more-strike
+  offer appears only then (>= 85%).
+- **The 3-second clip:** a finger holds, the cloud crackles, release -> a white-cyan bolt slams a rooftop, splits and
+  splits again across the 3D skyline, and a wave of gold windows lights up behind it, "+8 +8 +16 +32, FORK x8".
 
 ## Reason to come back tomorrow (D1)
-- **Unfinished business:**
-  - The arena tier and best rank ("Tier 6 · best #1").
-  - The next unreached world shown as a silhouette ("Next: Red giant").
-  - An upgrade 70-90% paid at session end (the result card shows its bar).
-- **The skin collection** ("4/12").
-- **The daily gift** with a forgiving 7-day streak (x1.0, 1.15, 1.3, 1.45, 1.6, 1.8, 2.0): a missed day steps back
-  one day, never to 0.
-- **Save:** everything in the Data module, so a guest keeps progress.
+- **Unfinished business:** the next theme's silhouette ("Neon Bay at city 21"), the next upgrade 70-90% paid (shown on
+  the result), the best plate per city (a star row: x2 / x3 / x5 / x10, "FULL POWER 12/20").
+- **The skin collection** ("3/12").
+- **The daily gift** with a forgiving 7-day streak (x1.0, 1.15, 1.3, 1.45, 1.6, 1.8, 2.0; a missed day steps back one
+  day).
+- **Save:** all progress in the Data module.
 
-## Art direction
-- **Style profile:** M minimal-poly (`project.json` budgets: <= 2,000 tris per geometry, <= 60,000 tris and <= 60 draw
-  calls per frame, no model files, canvas textures only).
-- **Primitives:**
-  - planets: `IcosahedronGeometry(r,1)`, 80 tris, flat-shaded, one InstancedMesh with per-instance colour;
-  - pebbles and loose stardust: `(r,0)`, 20;
-  - rings: `TorusGeometry(r, t, 6, 16)`, 192, instanced;
-  - glow halos and value badges: instanced quads from a canvas atlas, 2;
-  - comet ribbon: a strip of <= 64 quads per comet;
-  - asteroid-belt edge: instanced `(r,0)` rocks, ~160;
-  - background: one gradient plane + star points.
-  - Heaviest geometry: the ring, 192 tris.
-  - Frame estimate: 13 chains x ~12 planets + ~250 loose + rings/halos, ~35k tris, ~15 draw calls.
-- **Palette (hex):**
-  - background nebula gradient lilac `#e9dcff` -> peach `#ffe6d9` -> sky `#d6f1ff`; stars `#ffffff` at 60%;
-  - arena edge rocks `#9a8fb5` with a soft boundary glow `#ff9ff3`;
-  - planets per the ladder table;
-  - player coma `#bff6ff` with an arrow marker;
-  - danger rim `#ff5a5f` on heads bigger than yours; prey rim `#6fdc6a` on smaller heads;
-  - UI: Lilita One (bundled, OFL), white with `#2a2350` outline, accent `#ff3fa4`, coins `#ffd23f`.
-- **Shape language:** everything round (worlds, rings, halos) on a soft gradient. The only angular shapes are the
-  asteroid rocks at the edge (the wall).
-- **Camera** (engine `ARENA.camera`):
-  - pitch 60°; exponential follow 6/s; look-ahead 1.2 u (2.0 u while boosting);
-  - zoom out 4.5% per head doubling (max x1.6);
-  - **landscape:** half-width 12.5 u at the head;
-  - **portrait:** half-width 7.6 u (the tall screen shows more ahead);
-  - HUD in `env(safe-area-inset-*)`: clock ring top centre, coin pill top-left, leaderboard slice top-right (landscape)
-    or under the clock (portrait), pause + sound top-right, boost button bottom-right on touch.
-- **Reference games and what we take (not copy):**
-  - Cubes 2048.io: the proven loop, bots, leaderboard slice, kill feed, equal-button revive. Not its cubes, numbers,
-    navy grid, UI or name.
-  - Harvest.io: the lesson that a complete fantasy change works.
-  - Slice Master: a multiplier jackpot at the end (our rank crates).
+## Art direction (3D)
+- **Style profile:** M minimal-poly with a premium light kit (the look kit being built in WP-20).
+  - Budgets (`project.json`): <= 2,000 tris per geometry, <= 60,000 tris and <= 60 draw calls per frame, no model
+    files, canvas textures only.
+- **Geometry:**
+  - buildings: instanced `BoxGeometry` (12 tris) with per-instance scale; ~300 max;
+  - roof details: parapet boxes and antenna cylinders (6 segments, 24 tris);
+  - streets: one ground plane with a canvas road texture; parks: instanced cone trees;
+  - skyline backdrop: large low boxes;
+  - bolts: camera-facing ribbons along jagged 3D polylines (6-10 kinks per hop), regenerated every 50 ms for flicker;
+  - halos: instanced additive quads at every arrival point;
+  - sparks: instanced particles (<= 250).
+  - Estimate: ~20-25k tris, <= 20 draw calls before post.
+- **Look kit (WP-20):**
+  - tone mapping (the kit's choice, Neutral or AgX), exposure ~1.1;
+  - `HemisphereLight` (sky `#3a3f8f`, ground `#0b0d1f`) plus a cool moonlight `DirectionalLight` `#9fb7ff` with one soft
+    PCF shadow map (1024) over the city (buildings cast, ground receives); the low tier uses blob shadows;
+  - **emissive window texture**: a canvas atlas of window grids (lit `#ffd166`, dark `#1a1d33`). The lit state is per
+    instance (two instanced meshes or a per-instance attribute), so a building "fills" from the ground up over
+    0.3 s;
+  - **bloom on the high quality tier only**: half-resolution UnrealBloom, strength ~0.9, radius ~0.4, threshold ~0.75.
+    Medium and low tiers get the glow from **additive halo sprites** and bright emissive colours.
+- **Palette:**
+  - sky gradient `#0a0e2a` -> `#2a1a5e` with a magenta horizon glow `#ff3fa4`;
+  - wet streets `#12152b` (roughness 0.3);
+  - unlit buildings `#1b1f3b`, lit facades `#2b2f55` with windows gold `#ffd166`, with per-theme accents (coral
+    `#ff8a5b`, cyan `#7cf3ff`);
+  - bolt core `#ffffff`, glow `#4df3ff` (skin colour);
+  - gold rods `#ffcc33` with an emissive tip;
+  - plates: x2 `#4df3ff`, x3 `#7cff7a`, x5 `#ffcc33`, x10 `#ff3fa4`;
+  - UI: bold white numerals with a cyan outer glow; the big % meter at the top centre.
+- **Camera (perspective):**
+  - **Landscape:** FOV 45°, elevated 3/4 (pitch 38° down, yaw 35°), distance so the city's bounding radius x 1.15
+    fills the frame.
+  - **Portrait:** FOV 55° (vertical), pitch 48°, the city framed taller, the % meter top, strikes left and upgrades at
+    the bottom.
+  - Idle: a slow 2°/s drift.
+  - On impact: FOV punch -4° for 120 ms + trauma 0.15 shake.
+  - During cascades: exponential follow (3/s) toward the centroid of the active bolt fronts, a 15% dolly-in, and a
+    small tilt toward forks.
+  - Result: a 20°/s orbit around the lit city for 3 s while the plate counts.
+  - Comfort: no roll, shake capped at trauma 0.3.
+- **Hero frame (cover and the first second):** an elevated 3/4 view of a dense 3D downtown at night. The left half
+  blazes gold, window by window, with streetlights on; the right half is still dark. A forked white-cyan bolt is
+  mid-leap between two tall towers under a purple storm cloud, with glowing halos on the antennas and "97% POWERED" huge
+  on top. It reads at 200 px as "lightning lights up a city".
+- **Reference games and what we take:**
+  - Slice Master: a number every hit, a jackpot multiplier at the end, a silhouette collection.
+  - Chain-reaction clickers (Boomshine family): one trigger -> a cascade. Nothing else is taken; there is no game with
+    this fantasy to copy.
 
 ## Audio direction
-Procedural ZzFX, zero files. **Claude cannot hear: the owner auditions every sound** before it ships.
-- **Stardust tick:** short bright blip on a major-pentatonic ladder, `pitch = 2^(step/12)` over steps 0, 2, 4, 7, 9,
-  12, 14, 16, 19, 21, 24. It climbs one step per pickup inside a 1.5 s window and falls back after. +-2% detune, max 4
-  voices, 45 ms min gap.
-- **Fusion pop by ladder step:** pitch `1.5 x 0.93^step`, so bigger worlds sound deeper. Suns and up add a shimmer
-  layer. A cascade plays its pops 70 ms apart.
-- **Swallow crunch:** a crunch + rising whoosh when you eat. Being swallowed: a low thud + reversed whoosh.
-- **Boost:** a quiet airy loop while held.
-- **Countdown:** soft ticks from 0:10, louder at 3-2-1. A "golden finale" sting at 0:15.
-- **Podium jingle:** #1 a full fanfare, #2-3 short, #4+ a friendly chord. Coin fly-in ticks. UI clicks.
-- **Music:** none in v1 (Should: one CC0 loop at -12 dB after the first interaction).
+Procedural ZzFX, zero files. **Claude cannot hear: the owner auditions every sound** in the ZzFX designer and in game.
+- **Charge hum:** a looped low tone whose pitch rises 1.0 -> 2.0 and volume 0.3 -> 0.8 with the charge.
+- **Supercharge ding:** a bright bell + shimmer when entering the band. **Overcharge:** a warning buzz. **Fizzle:** a
+  sputter.
+- **Strike boom:** a thunder crack (noise + low sine + slide) with the hit-stop.
+- **Per-hop crackle:** a short electric zap on a **major-pentatonic ladder**, climbing one step per depth (steps 0, 2,
+  4, 7, 9, 12, 14, 16, 19, 21, 24), +-3% detune, <= 6 voices, 30 ms min gap. The cascade sounds like a rising arpeggio.
+- **Fork zap:** a double zap one ladder step above.
+- **Block powered:** a 3-note major chord + a streetlight hum.
+- **Gold rod:** a bell ping.
+- **Full power fanfare:** a swell + fanfare over the orbit.
+- **Coin count:** ticks.
+- **Music:** none in v1 (Should: a CC0 synthwave loop at -12 dB after the first interaction).
 - **Mute priority:** platform `muteAudio` > ad > hidden tab > the player's toggle. iOS resume on touchend.
 
 ## Monetization plan - ad-surface plan (must work with ads off and with an ad blocker)
 At most **2 video buttons per screen** (`OFFERS.maxVideoOffersPerScreen = 2`). Every offer has a coin or play path.
 
-| # | Moment | Ad type | Reward and size (vs next goal) | Cap / cooldown | Non-ad path | Template mapping | Rules |
+| # | Moment | Ad type | Reward (vs next goal) | Cap / cooldown | Non-ad path | Template mapping | Rules |
 |---|---|---|---|---|---|---|---|
-| 1 | Home/between rounds, before PLAY | rewarded **Start bigger** + a coin button of the same style | this round starts with mass max(62, 4 x Start size mass) | hidden in rounds 1-2; then every 2nd round or 120 s | buy it for coins (price = the next Start size level), or upgrade Start size | `boostOffer`: `boostAfterRuns 2`, `boostCooldownSec 120`; `boostFactor 2 -> 4` with a floor of 62 (`setPlayerMass`); coin price new | 009, 011, 012 |
-| 2 | Death after >= 30 s of the round | rewarded **Keep your chain** vs **Respawn** (same size), 5 s ring that picks Respawn at 0 | respawn with the full chain instead of 14 | **once per session** | the free 2 s respawn | `reviveOffer`: `revivesPerSession 1`, `reviveMinProgress 0.2 -> 0.33` (progress = t/90), `reviveCountdownSec 6 -> 5`; engine `revive()` already restores `deathMass` | 009, 014, 015 |
-| 3 | Round result, after the count-up | rewarded **Claim x3** next to **Claim** | x3 the round's coins (base always granted) | every result from round 2 | "Claim" | level-complete `claim` / `claim_x` flow | 007, 008, 010, 013 |
-| 4 | Shop, next skin not affordable | rewarded **+coins** | +22% of the next skin's price | 180 s with a visible timer | coins from rounds | `cashOffer`: `cashCooldownSec 180`, `cashShare 0.25 -> 0.22` | 011, 012 |
-| 5 | An upgrade card whose price is not affordable | rewarded **FREE** | one level of that upgrade | 180 s | coins | `freeUpgradeOffer`: `freeUpgradeCooldownSec 180`; upgrades Start size / Magnet / Boost tank replace start / income | 011, 012 |
-| 6 | Shop, a locked skin selected, from round 4 | rewarded **Try it** | play one round with that skin | once per skin (`save.tried[]`) | unlock with coins | **new** `trySkinOffer` | 011, 012 |
-| 7 | First session of a local day, a gift icon next to PLAY (opens only when tapped, never before a new player's first round) | rewarded **Collect x2** next to **Collect** | double the daily gift | 1 per day | "Collect" | **new** `dailyGiftOffer`, save `lastGiftDay`, `giftStreak` | 011, 012 |
+| 1 | City intro (before the first strike) | rewarded **Supercharged start** + a coin button of the same style | +2 strikes this city (one plate step, typically) | hidden in runs 1-2; then every 2nd run or 120 s | buy for coins (price = the next Voltage level), or the Strikes upgrade | `boostOffer`: `boostAfterRuns 2`, `boostCooldownSec 120`; new `boostStrikes 2` replaces `boostFactor` | 009, 011, 012 |
+| 2 | After the last strike, powered 85-99% | rewarded **One more strike** vs **Finish** (same size), 5 s ring that picks Finish at 0 | one extra strike, auto-SUPERCHARGE | **once per session** | Finish (the result stands); the Strikes upgrade | `reviveOffer`: `revivesPerSession 1`, `reviveMinProgress 0.2 -> 0.85` (progress = % powered, offered only < 1.0), `reviveCountdownSec 6 -> 5`; `isContinue` blocks the midgame at that break | 009, 014, 015 |
+| 3 | Result, after the plate and count-up | rewarded **Claim x3** next to **Claim** | x3 the run's coins (base always granted) | every result from run 2 | "Claim" | level-complete `claim` / `claim_x` flow | 007, 008, 010, 013 |
+| 4 | An upgrade whose price is not affordable | rewarded **FREE** | one level | 180 s | coins | `freeUpgradeOffer` (`freeUpgradeCooldownSec 180`); `UPGRADES` become Voltage / Fork / Strikes / Capacitor / Gold rods | 011, 012 |
+| 5 | Skin shop, next skin not affordable | rewarded **+coins** | +22% of the next skin's price | 180 s with a visible timer | coins | `cashOffer` (`cashCooldownSec 180`, `cashShare 0.25 -> 0.22`) | 011, 012 |
+| 6 | Skin shop, a locked skin selected, from run 4 | rewarded **Try it** | one city with it | once per skin (`save.tried[]`) | unlock with coins | **new** `trySkinOffer` | 011, 012 |
+| 7 | First session of a local day: a gift icon on the result screen (never before the first strike) | rewarded **Collect x2** next to **Collect** | double the daily gift | 1 per day | "Collect" | **new** `dailyGiftOffer`, save `lastGiftDay`, `giftStreak` | 011, 012 |
 
 **Midgame:**
-- Requested on **"Next round"** from round 3 (`GAME.firstMidgameLevel = 3`, counting rounds): after ~5 minutes of play.
+- Requested on **"Next city"** and **"Retry"** from city 4 (`GAME.firstMidgameLevel 3 -> 4`).
 - Never after a rewarded video at the same break (CG-ADS-015). Never on shop, upgrades, pause or gift.
-- The SDK paces it to at most 1 per 3 min (CG-ADS-006), so about every 2nd round.
+- The SDK caps it at 1 per 3 min (CG-ADS-006), about every 5-6th run with runs of 25-40 s.
 
-**Banners:** none in v1. Menus are open < 5 s on average; banners are off in the CrazyGames app and Basic Launch.
+**Banners:** none in v1 (screens are open < 5 s on average; banners are off in the CrazyGames app and Basic Launch).
 
-**Ads off / adblock / no fill:**
-- All video buttons are hidden (template `rewardedAvailability`), with the notice on the result and in the shop.
-- Coin buttons remain. The game is complete without video.
+**Ads off / adblock / no fill:** every video button is hidden (template `rewardedAvailability`), with the notice on
+the result and in the shop. The coin buttons stay, and the game is complete.
 
 ## Platform profile (mirrors project.json)
 - target stage: full
-- mobile: yes (touch joystick, portrait + landscape)
-- orientation: both (set in the submission, no lock logic)
-- progress save: Data module (coins, upgrades, skins owned/tried, tier, best rank, biggest world, offer timestamps,
-  gift day/streak, mute)
-- accounts: none (guests)
-- multiplayer: no (single-player Offline Arena with bots)
+- mobile: yes (hold / release anywhere; portrait + landscape)
+- orientation: both (set in the submission; no lock logic)
+- progress save: Data module (coins, city, best plate per city, upgrades, skins owned/tried, offer timestamps, gift
+  day/streak, mute)
+- accounts: none
+- multiplayer: no
 - leaderboard (invite-only): no
 - IAP (invite-only): no
 
 ## CrazyGames QA constraints (crazygames-qa skill checklist, BUILD MODE)
-| Item | How Comet Chain meets it | Conflict? |
+| Item | How Volt City meets it | Conflict? |
 |---|---|---|
-| <= 1 click to gameplay | the live arena is the first frame; one click on PLAY starts the round (and requests pointer lock) | none |
-| Readable at DPR 1 at 907x510, 821x462, 800x450 (to 1920x1080) | badges >= 12 px, floats >= 18 px, buttons >= 16 px text / 44 px targets at 800x450; viewport QA screenshots every size | **watch**: value badges on the smallest planets at 800x450 portrait; the camera half-width 7.6 u keeps a 2-block ~50 px wide |
-| Landscape on desktop, portrait on mobile, safe areas | both designed; HUD and boost button in `env(safe-area-inset-*)` | none |
-| Mouse-gesture control (CG-QUAL-008) | pointer lock + confinement during rounds, custom cursor ring, unlock on P / Tab / native Escape, pause overlay on unlock, keyboard access to pause and mute | **watch**: pointer lock can fail inside the iframe or be refused. Fallback: unlocked mouse-follow with pointer capture plus the same cursor ring, and a "Click to lock" hint. Must never break play |
+| <= 1 click to gameplay | the city is the first frame; the first hold is the first strike | none |
+| Readable at DPR 1 at 907x510, 821x462, 800x450 (to 1920x1080) | % meter >= 28 px, "+N" floats >= 18 px, buttons >= 16 px text / 44 px targets; viewport QA screenshots every size | **watch**: "+N" floats over a busy lit city need a dark outline and must be capped at ~12 visible at once (older ones fade) |
+| Landscape on desktop, portrait on mobile, safe areas | both framings designed; HUD in `env(safe-area-inset-*)` | none |
+| Mouse control (CG-QUAL-008) | click-to-target; no gesture following, so no lock needed (the rule exempts click-on-screen games); pointer capture during the hold | none |
 | No custom fullscreen button | none | none |
-| No Escape / Ctrl+W bindings | Escape is only the browser's own pointer-lock release; never bound. No Ctrl combos | none |
-| `event.code` / AZERTY | all keys by code (WASD = ZQSD positions on AZERTY) | none |
+| No Escape / Ctrl+W | never bound | none |
+| `event.code` / AZERTY | all keys by code | none |
 | iOS audio resume | template AudioService | none |
-| Consistent physics 60/144/165 Hz | engine fixed-step sim + sim-health (rates x dt, seeded RNG) | none |
-| Midgame only at natural breaks | only on "Next round" from round 3; never on navigation, shop or pause | none |
+| Consistent physics 60/144/165 Hz | the chain runs in the fixed-step sim with seeded RNG; the charge uses sim time; hop timing in sim seconds; sim-health covers a scripted strike at several step sizes | none |
+| Midgame only at natural breaks | only on Next city / Retry from city 4 | none |
 | Paused + muted on adStarted | template ads.js / pause.js / AudioService | none |
-| Rewarded: decline same size/font/colour, video icon | all pairs use the template `.btn` pair (Claim / Claim x3, Keep your chain / Respawn, Collect / Collect x2; Start bigger video + coin buttons) | none |
-| Rewarded not on active gameplay | offers only between rounds, on death (the round is paused for that dialog) and in menus; none during a round | **watch**: the Keep-your-chain dialog pauses the sim while it is open (the clock stops), so it is not on an active screen |
-| Revive not on every death | once per session, only after >= 30 s of a round | none |
-| Coin alternative for every reward | every row above has a coin or play path | none |
+| Rewarded: decline same size/font/colour, video icon | template `.btn` pairs (Claim / Claim x3, One more strike / Finish, Collect / Collect x2; Supercharged start video + coins) | none |
+| Rewarded not on active gameplay | offers at the city intro (before the first strike; gameplayStart fires on the first press), after the last strike, and in menus; never during a cascade | **watch**: the city intro is both "hold anywhere" and the Supercharged-start offer screen. A tap on the offer must never start a charge (DOM buttons stop propagation, offers in a bottom rail). The `ad-ui` QA scenario checks it |
+| Revive-type offer not on every run | once per session, only at 85-99% powered | none |
+| Coin alternative for every reward | every row above | none |
 | Hidden under adblock / Basic Launch | template `rewardedAvailability` | none |
 | Reward only on adFinished; no chaining | template ads.js | none |
 | Data-module save | template save.js | none |
-| English + SDK locale fallback | English strings; `systemInfo.locale` with English fallback | none |
-| PEGI 12 / not aimed at kids | cartoon space, no gore; "swallow" is a star-eats-planet sparkle; pastel but with a sleek teen-friendly UI (not nursery) | none |
-| Bots honest | the mode is "Offline Arena" on the home, HUD, leaderboard header, kill feed and podium; bots are never called players or friends | owner decision: no per-name tag; the label must be visible wherever names appear |
-| Original name and assets | `docs/ORIGINALITY.md`; primitives + ZzFX + OFL font | none |
+| English + SDK locale fallback | English strings; `systemInfo.locale` fallback | none |
+| PEGI 12 / not aimed at kids | no violence: lightning powers a city (restoring light), no people harmed, no gambling visuals. The plate is earned by % powered, never random | **watch**: the name collides with a casino brand (see Risks) |
+| Original name and assets | `docs/ORIGINALITY.md`; primitives + canvas textures + ZzFX + OFL font | **conflict: the name.** "Volt City" is an existing Volt Casino meta-game (2019-20), so CG-QUAL-006 ("not easily confused ... identifiers you do not own") argues for a rename |
 | No cross-promotion / app-store links | none | none |
-| gameplayStart / Stop | start at PLAY (round start) and on resume; stop at the result, pause, pointer-lock pause and the revive dialog | none |
-| Completion % | `reportGameCompletedPercentage(round(bestTier / 20 x 100))`, forward only | none |
-| happytime sparingly | first ever #1 finish, first Sun reached, tier 20 | none |
+| gameplayStart / Stop | start at the first press in a city; stop at the result, pause and the One-more-strike dialog | none |
+| Completion % | `reportGameCompletedPercentage(round((bestCity-1)/40 x 100))`, forward only | none |
+| happytime sparingly | first ever FULL POWER, city 20, city 40 | none |
 
 ## Scope
-| Area | Must (upload-ready v1, buildable in a few hours on the engine) | Should | Nice | Cut (stays cut) |
+| Area | Must (upload-ready v1 today) | Should | Nice | Cut (stays cut) |
 |---|---|---|---|---|
-| Round | timed 90 s (`round.mode "timed"`), player respawn 2 s with 14, rank at 0:00, golden finale, circle arena with asteroid edge | adaptive-tier fine tuning after playtest | daily challenge arena | shrinking zone / battle royale, last-one-standing |
-| Controls | pointer lock + cursor ring + unlock/pause overlay (+ unlocked fallback), WASD/arrows, Space/Shift/hold-click boost, touch joystick + second-finger/boost button | haptics on Android | - | aim-by-drag without lock on desktop |
-| Look | planet ladder visuals (colours, sizes, rings, halos, coma, ribbon), pastel nebula, value badges, danger/prey rims | more world steps art (glow polish) | photo mode | numbered cubes, a dark dot grid |
-| Bots | tier ramp table, "Offline Arena" labels everywhere names appear, `bots.prefix ""` | smarter bot personalities | - | presenting bots as real players, real multiplayer |
-| Meta | coins payout with rank crates, 3 upgrades, 12 skins with unlock random, Data-module save, tier + best rank, daily gift with streak | XP titles, "biggest world" collection page | seasonal skins | loot boxes, paid randomness, IAP |
-| Monetization | all 7 surfaces with caps; midgame on Next round from round 3; ads-off paths; <= 2 video buttons per screen | per-surface funnel review | - | banners in v1, pressure tactics |
-| Platform/launch | SDK events, completion %, happytime rules, English, safe areas, covers (1920x1080, 800x1200, 800x800) + 15-20 s preview video (landscape + portrait) | DE/FR/ES/PT strings | - | login, leaderboards, custom fullscreen |
-| Update 1 | - | R2's cut rule: your comet cuts a smaller comet's tail and steals the planets | - | - |
+| Core | charge meter (fill, band, overcharge fizzle), target snap, strike, chain algorithm (range in 3D, hop timing, forks, grounding, gold rods), BLOCK POWERED, % powered, plates, pass 60% | "One more strike" tuning after playtest | - | aiming by drag-steer, real-time avoidance |
+| City | procedural 3D city (lots, districts, avenues, parks, heights), 40 cities, 8 theme palettes (colour sets only) | theme silhouettes/props per theme | night-to-dawn result sky | hand-made levels |
+| Look | WP-20 look kit: tone mapping, soft shadow, emissive windows filling up, bolt ribbons, halos, sparks, bloom on the high tier, camera kick/follow/orbit | per-theme skyline backdrops | rain particles | flat outlined polygons, pastel wash-out |
+| Meta | coins, 5 upgrades, 12 skins with unlock random, Data-module save, best plate per city, daily gift | Storm Season endless after city 40 | skin trails in the menu | IAP, loot boxes, paid randomness |
+| Monetization | all 7 surfaces with caps; midgame from city 4; ads-off paths; <= 2 video buttons per screen | per-surface funnel review | - | banners in v1, pressure tactics |
+| Platform/launch | SDK events, completion %, happytime rules, English, safe areas, readable at 800x450, covers 1920x1080 / 800x1200 / 800x800 + 15-20 s preview video (landscape + portrait) | DE/FR/ES/PT strings | - | login, leaderboards, custom fullscreen |
+| Audio | the ZzFX set above | synthwave loop | - | - |
 
 ## Risks
 | Risk | Type | Mitigation |
 |---|---|---|
-| Bot difficulty is off for humans (the autopilot is superhuman, so there is no human data) | design | adaptive tier (+1 top 3 / -1 rank >= 8); watch the first playtest's ranks and deaths; tune `aggression` and `capVsPlayer` first |
-| Pointer lock UX in the CrazyGames iframe (refusals, lost lock, Safari) | tech / platform | lock only on a click; pause overlay on unlock; unlocked fallback with pointer capture; QA on Chrome, Edge, Safari |
-| Still perceived as a Cubes 2048.io clone | originality | complete fantasy swap (planets, nebula, comet coma), the evolve ladder, 90 s rounds with respawn and rank crates, our own UI; side-by-side check in ORIGINALITY.md at the first build |
-| Planet types less readable than numbers when judging "can I eat that?" | design | value badge on every planet + red/green rims on heads; playtest question "which comet could you eat?" |
-| Dying is cheap with respawns, so play becomes reckless | design | respawn resets to mass 14 and scatters your chain for others; rank uses the final mass |
-| Performance with 13 chains + ~250 loose + halos on a 4 GB Chromebook | performance | single InstancedMesh per shape, halos as instanced quads, poly-budget QA; drop rings/halos on the low tier |
-| Economy numbers are human targets, not measured | design | calibrate after the first playtest (mass at 0:00 by tier); the payout formula has one knob (`/ 20`) |
-| "Offline Arena" only (no per-name tag) is judged too subtle | platform / honesty | the label shows on every screen with names; if a reviewer asks, add the tag (one config switch, `bots.prefix`) |
-| The name "Comet Chain" evokes crypto ("chain"; several "Comet" crypto/software brands) | originality / naming | no game of that name found (ORIGINALITY.md); the cover and art make the space-merge game obvious; alternates listed there. Not legal advice |
-| Scope for one session | schedule | Must is config + presentation on top of the engine; everything else is Should |
+| **The name "Volt City" is taken by Volt Casino's "Volt City" meta-game** (2019-20, same "blackout" premise), a gambling brand | originality / platform | **NEEDS USER: rename.** Proposed "Storm Grid" (no game or brand of that exact name found; CrazyGames search and slug clear; Poki clear). See ORIGINALITY.md. Not legal advice |
+| An itch.io game "City Surge" (sammyvaughan86) also lights buildings with electricity (speed-tap clicker) | originality | ours is a charged strike + 3D chain lightning with forks; documented in ORIGINALITY.md; avoid "Surge" in the name |
+| The chain may not feel exciting in 3D (bolts hard to follow, cascade too fast or slow) | design | a prototype of one city + one strike first; tune hop time (0.08-0.15 s), camera follow, halos; the look test with the owner (WP-20) |
+| The campaign is short for an average player (~41 runs to city 40, about 25 min), and passing is easy (1 try per city until ~30) | design / retention | the plates carry the skill (FULL POWER stars per city); `passPct` 0.60 -> 0.80 would lengthen the mid-game; Storm Season endless (Should) |
+| Bloom and shadows on a 4 GB Chromebook | performance | bloom only on the high tier; halos elsewhere; shadow map 1024 on high, blob on low; ~20-25k tris |
+| The economy is model numbers (the Monte Carlo has no skins, daily or video income) | design | port the model as a Node balance test; calibrate with the playtest |
+| Busy "+N" floats hurt readability at 800x450 | platform | cap visible floats, outline, merge floats per cascade ("+312" at the end) |
+| Portrait framing of a wide city | design | pitch 48°, FOV 55°, the camera frames by bounding radius; the QA viewport check |
+| Scope today | schedule | Must = one algorithm + generator + look kit + existing meta/offers; the rest is Should |
 
 ## Evidence
-- `docs/RESEARCH.md` "Hit list: popular and simple (MEASURED 2026-09-26)":
-  - Cubes 2048.io: 128,226 likes, 38,795 plays/day.
-  - Numbered-cube clones get 2-13% of that.
-  - Harvest.io, a full re-skin, gets 11,346 plays/day (29%).
-- `docs/CONCEPTS.md` "Round 2": R1 87/100 (R2 84, R3 83); the owner's pick on 2026-09-26.
-- Engine ceiling measured 2026-09-26: the engine's autopilot in timed 90 s rounds (12 seeds x tiers 1/5/20) ended with
-  a median mass of 2,100-3,500 and median rank #1-2. That is an upper bound for the economy table.
+- `docs/CONCEPTS.md` "Round 3": T1 scored 91 (weighted 110) against 87 / 81. The owner's pick is recorded there.
+- Originality checks: CrazyGames search API and Poki sitemap show no chain-lightning / light-up-the-city game
+  (CONCEPTS Round 3; ORIGINALITY.md).
+- The economy and difficulty tables above come from the Monte Carlo of this chain rule (2026-09-26), with 20-30 seeded
+  campaigns per player profile.

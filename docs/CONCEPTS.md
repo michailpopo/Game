@@ -1024,3 +1024,11 @@ ladder. Does a first-timer laugh or say "whoa" at the first fork, and hold again
 **NEEDS USER:**
 - Pick T1, T2 or T3.
 - Approve the name.
+
+### Round 3 decision
+**Owner's pick, 2026-09-26: T1 Volt City**, name kept. Owner's constraint added the same day: **"It must be 3d game"**.
+Planner's reading of that constraint for every package: a real 3D scene, not a side-on skyline silhouette - a 3D city
+(blocks of buildings with depth, streets, rooftops, lit window facades, soft shadows) seen through a perspective
+camera from an elevated 3/4 angle; bolts travel through 3D space between rooftop antennas; the camera kicks, tilts
+and swoops to follow the chain; the result sweep can orbit the lit city. Next: brief, a 3D look test the owner
+approves, then the build.

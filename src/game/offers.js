@@ -12,7 +12,7 @@
  */
 
 import { OFFERS } from "../config.js";
-import { skinUnlockCost, startCount, upgradeCost } from "./meta.js";
+import { skinUnlockCost, startMass, upgradeCost } from "./meta.js";
 
 const left = (lastAt, cooldownSec, now) => Math.max(0, Math.ceil((lastAt + cooldownSec * 1000 - now) / 1000));
 const nice = (n) => (n >= 100 ? Math.round(n / 10) * 10 : Math.max(5, Math.round(n / 5) * 5));
@@ -22,11 +22,11 @@ export function reviveOffer({ available, revivesUsed, progress }) {
   return available && revivesUsed < OFFERS.revivesPerSession && progress >= OFFERS.reviveMinProgress;
 }
 
-/** Ready screen: "Start xN" for one run. */
+/** Ready screen: "Start xN" for one round (the round starts with N x the start mass). */
 export function boostOffer(save, { available, now, boostedThisRun }) {
   const cooldown = left(save.lastBoostAt, OFFERS.boostCooldownSec, now);
   const visible = available && !boostedThisRun && save.runs >= OFFERS.boostAfterRuns && cooldown === 0;
-  return { visible, factor: OFFERS.boostFactor, units: startCount(save) * OFFERS.boostFactor, cooldown };
+  return { visible, factor: OFFERS.boostFactor, mass: startMass(save) * OFFERS.boostFactor, cooldown };
 }
 
 /** Upgrade card: "FREE" instead of coins, only when the upgrade is out of reach. */

@@ -14,16 +14,20 @@ export const THEMES = [
   {
     name: "nebula",
     // stage.js: sky gradient, fog and hemisphere light
-    skyTop: "#2a2166", skyBottom: "#171236", fog: "#211a4d",
-    hemiSky: "#ffffff", hemiGround: "#8a7fc4",
-    // arena: a pastel nebula disc in deep space, a glowing rim
-    nebula: ["#b7a8f0", "#f2a9d2", "#a5d4f5", "#f7c8a8", "#b8ecd8"],   // blob colours, first = base
-    space: "#241c55",
-    spaceStars: "#ffffff",
-    nebulaStars: "#ffffff",
-    rim: "#fff0fb",
-    // the player's accent (floor ring, name tag); a skin replaces it
-    crowd: "#ffe45c",
+    skyTop: "#8d7fd0", skyBottom: "#5d4f9e", fog: "#7a6cc0",
+    hemiSky: "#ffffff", hemiGround: "#9d93cc",
+    // arena: a pastel nebula disc (GAME_BRIEF "Art direction") in deeper space, an asteroid belt edge
+    nebula: ["#e9dcff", "#ffe6d9", "#d6f1ff", "#f6d9f4", "#dcd3ff"],   // base, then soft blobs
+    space: "#6f60b8",
+    stars: "#ffffff",
+    rocks: "#9a8fb5",
+    rim: "#ff9ff3",
+    outline: "#2a2350",       // dark hull around planets and stardust: they read on the light nebula
+    coma: "#bff6ff",          // every head wears the coma glow
+    danger: "#ff5a5f",        // rim under heads bigger than yours
+    prey: "#6fdc6a",          // rim under heads smaller than yours
+    // the player's accent (arrow marker, cursor ring, ribbon, name tag); a skin replaces it
+    crowd: "#39c6ff",
     enemy: "#ff4d5e",
   },
 ];
@@ -33,39 +37,46 @@ export function themeFor(index) {
 }
 
 /**
- * Planet look per ladder key (ARENA.values.ladder): body colour, optional ring and glow.
- * Keys past the table fall back to the last entry.
+ * Planet look per ladder key (ARENA.values.ladder, GAME_BRIEF "The planet ladder"):
+ *   color    body colour
+ *   rock     true: the 20-triangle icosahedron (pebbles) instead of the 80-triangle one
+ *   emissive 0..1 self-light
+ *   glow     halo colour (a billboard behind the planet), glowScale its size x diameter
+ *   ring     ring colour; rings = 2 for two crossed rings; pulse = the ring breathes
  */
 export const PLANETS = {
-  pebble: { color: "#8c7f78" },
-  moon: { color: "#e6e9f2" },
-  ice: { color: "#5fd2ee" },
-  desert: { color: "#e89a4e" },
-  ocean: { color: "#2e6fe0" },
-  ringed: { color: "#e2b884", ring: "#fff0d2" },
-  sun: { color: "#ffc62e", glow: "#ffd95a" },
-  bluegiant: { color: "#4aa2ff", glow: "#a8d6ff" },
-  redgiant: { color: "#ff5040", glow: "#ff9a80" },
-  pulsar: { color: "#f4f1ff", ring: "#b393ff", glow: "#d9ccff" },
-  blackhole: { color: "#1d1633", ring: "#ff9a36", glow: "#ffb46a" },
-  quasar: { color: "#ff4dcf", ring: "#ffe266", glow: "#ff9ae4" },
+  pebble: { color: "#b8b2c9", rock: true },
+  moon: { color: "#f1e9d2" },
+  ice: { color: "#9fe7ff" },
+  desert: { color: "#ffc27a" },
+  ocean: { color: "#3fb6ff" },
+  jungle: { color: "#6fdc6a" },
+  lava: { color: "#ff6b4a", emissive: 0.3, glow: "#ff8a5c", glowScale: 1.7 },
+  ringed: { color: "#c9a0ff", ring: "#ffe8a3" },
+  storm: { color: "#7a8cff", ring: "#d6f1ff" },
+  sun: { color: "#ffd23f", emissive: 0.55, glow: "#ffe27a", glowScale: 2.3 },
+  redgiant: { color: "#ff5a5f", emissive: 0.5, glow: "#ff8a8c", glowScale: 2.7 },
+  bluegiant: { color: "#6fb8ff", emissive: 0.5, glow: "#a8d6ff", glowScale: 2.3, ring: "#e6f4ff" },
+  neutron: { color: "#ffffff", emissive: 0.4, ring: "#bfe9ff", pulse: true },
+  nebula: { color: "#ff3fa4", emissive: 0.3, glow: "#ff8fcf", glowScale: 2.3, ring: "#ffd1ec" },
+  galaxy: { color: "#fff0ff", emissive: 0.45, ring: "#d9c2ff", rings: 2, glow: "#f3e2ff", glowScale: 2.2 },
 };
 
 /** Loose pickups. */
 export const STARDUST = {
-  colors: { 2: "#ffffff", 4: "#8ff3ff" },   // by value; other values use the planet colour
+  colors: { 2: "#ffe98a", 4: "#7ff0ff" },   // by value; other values use the planet colour
   gold: "#ffbf1f",
   goldGlow: "#ffd766",
 };
 
-/** Comet nucleus colours for bots (the player's comet uses the theme accent / skin). */
+/** Ribbon tints for bot comets (the player's ribbon uses the theme accent / skin). */
 export const COMET_COLORS = ["#ff7ad9", "#6fe8ff", "#a4ff7a", "#ffa65c", "#c79bff", "#ff6b7d", "#7affd1", "#ffd36b", "#8fa6ff", "#ff9ec0", "#b6ff5c", "#6bc7ff"];
 
-/** Value badges (instanced, billboarded - game/body-mesh.js atlas). */
+/** Value badges (instanced, billboarded under each planet - game/body-mesh.js atlas). */
 export const BADGE_STYLE = {
   fill: "#ffffff",
-  pill: "rgba(28, 18, 64, 0.78)",
-  fontScale: 0.72,          // x cell height
+  pill: "rgba(42, 35, 80, 0.86)",   // #2a2350
+  fontScale: 0.74,          // x cell height
 };
 
 // Enemy colours to fall back on when a player skin sits too close to the theme's enemy hue.

@@ -1,13 +1,16 @@
 /*
-  UI styles.
-  Legibility (CG-GAME-002): the smallest supported iframe is 800x450 at
-  devicePixelRatio 1. The base size below is >= 13px there and scales to ~24px
-  at 1920x1080. Check every screen at 800x450 before calling it done.
+  UI styles - Comet Chain.
+  Legibility (CG-GAME-002): the smallest supported iframe is 800x450 at devicePixelRatio 1.
+  The base size below is >= 13px there and scales to ~24px at 1920x1080. Nothing that carries
+  text goes below 12px. Check every screen at 800x450 and in portrait before calling it done.
 */
 
 #ui {
   --font: "Lilita One", "Arial Black", system-ui, sans-serif;
-  --ink: rgba(42, 26, 84, 0.62);
+  --ink: #2a2350;
+  --accent: #ff3fa4;
+  --gold: #ffd23f;
+  --panel: rgba(42, 35, 80, 0.62);
   position: absolute;
   inset: 0;
   pointer-events: none;
@@ -27,77 +30,141 @@
     0 -0.05em 0 var(--ink), 0.05em 0.06em 0 var(--ink), -0.05em 0.06em 0 var(--ink),
     0 0.16em 0.12em rgba(0, 0, 0, 0.18);
 }
+#ui .hidden { display: none !important; }
 
 /* ---------- HUD ---------- */
 .hud {
-  position: absolute; top: 0.6em; left: 0.6em; right: 0.6em;
+  position: absolute; top: 0.6em; left: 0.6em; right: 0.6em; z-index: 46;   /* above the pause overlay: sound / pause stay clickable */
   display: flex; align-items: flex-start; justify-content: space-between; gap: 0.6em;
 }
+.hud-left, .hud-right { flex: 1 1 0; min-width: 0; display: flex; }
+.hud-right { flex-direction: column; align-items: flex-end; gap: 0.45em; }
+.hud-center { flex: 0 0 auto; display: flex; flex-direction: column; align-items: center; gap: 0.15em; }
+.hud-right .btns { display: flex; gap: 0.4em; }
 .icon-btn {
   pointer-events: auto; width: 2.5em; height: 2.5em; border: 0; border-radius: 0.75em;
-  background: rgba(40, 30, 80, 0.35); display: grid; place-items: center; cursor: pointer; padding: 0;
+  background: var(--panel); display: grid; place-items: center; cursor: pointer; padding: 0;
 }
 .icon-btn svg { width: 1.45em; height: 1.45em; fill: #fff; }
-.progress { display: flex; align-items: center; gap: 0.35em; margin-top: 0.25em; }
-.progress .lv {
-  width: 1.9em; height: 1.9em; border-radius: 50%; display: grid; place-items: center;
-  background: #37a8ff; border: 0.16em solid #fff; box-shadow: 0 0.12em 0 rgba(0, 0, 0, 0.18); font-size: 0.95em;
-}
-.progress .lv-b { background: #fff; color: #4a3f86; }
-.progress .bar {
-  width: clamp(7em, 28vw, 15em); height: 0.8em; border-radius: 0.5em; overflow: hidden;
-  background: rgba(40, 30, 80, 0.45); border: 0.13em solid #fff;
-}
-.progress .bar i { display: block; height: 100%; width: 0; border-radius: 0.4em; background: linear-gradient(90deg, #37a8ff, #7fd8ff); }
 .coins {
   display: flex; align-items: center; gap: 0.35em; font-size: 1.15em;
-  background: rgba(40, 30, 80, 0.38); border-radius: 1em; padding: 0.12em 0.22em 0.12em 0.8em;
+  background: var(--panel); border-radius: 1em; padding: 0.14em 0.22em 0.14em 0.8em;
 }
 .coins b { font-weight: normal; }
 .coin svg, .coins .coin svg { width: 1.45em; height: 1.45em; display: block; }
 
-/* ---------- bubbles & floating text ---------- */
+/* round clock ring + chain total + boost meter (round only) */
+.clock { position: relative; width: 3.3em; height: 3.3em; }
+.clock svg { width: 100%; height: 100%; display: block; transform: rotate(-90deg); }
+.clock circle { fill: rgba(42, 35, 80, 0.55); stroke-width: 4.2; }
+.clock .track { stroke: rgba(255, 255, 255, 0.28); }
+.clock .fill { fill: none; stroke: #fff; stroke-dasharray: 100; stroke-dashoffset: 0; stroke-linecap: round; }
+.clock b { position: absolute; inset: 0; display: grid; place-items: center; font-weight: normal; font-size: 0.95em; }
+.clock.gold .fill { stroke: var(--gold); }
+.clock.gold b { color: var(--gold); }
+.score { font-size: 1.9em; line-height: 1; }
+.score b { font-weight: normal; }
+.meter { width: 5.4em; height: 0.42em; border-radius: 0.3em; overflow: hidden; background: rgba(42, 35, 80, 0.5); border: 0.1em solid rgba(255, 255, 255, 0.85); }
+.meter i { display: block; height: 100%; width: 100%; background: linear-gradient(90deg, #39c6ff, #bff6ff); }
+#ui:not(.in-round) .clock, #ui:not(.in-round) .score, #ui:not(.in-round) .meter,
+#ui:not(.in-round) .icon-btn.pause, #ui:not(.in-round) .ranks { display: none; }
+
+/* leaderboard slice */
+.ranks { min-width: 10.5em; background: var(--panel); border-radius: 0.7em; padding: 0.35em 0.55em 0.4em; }
+.ranks-title { margin: 0 0 0.2em; font-size: max(12px, 0.72em); letter-spacing: 0.1em; opacity: 0.9; text-align: center; }
+.ranks ol { list-style: none; margin: 0; padding: 0; }
+.ranks li { display: flex; gap: 0.4em; font-size: max(13px, 0.86em); padding: 0.08em 0.2em; border-radius: 0.35em; }
+.ranks li .r { width: 2.1em; opacity: 0.85; }
+.ranks li .nm { flex: 1; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 6.5em; }
+.ranks li .sc { text-align: right; }
+.ranks li.me { background: rgba(57, 198, 255, 0.55); }
+.ranks li.danger .nm { color: #ffb3b5; }
+
+/* kill feed (under the clock) */
+.feed { position: absolute; left: 50%; top: 7.6em; transform: translateX(-50%); text-align: center; max-width: 46%; opacity: 0; transition: opacity 0.3s; }
+.feed.on { opacity: 1; }
+.feed-title { margin: 0 0 0.15em; font-size: max(12px, 0.7em); letter-spacing: 0.1em; opacity: 0.85; }
+.feed-lines p { margin: 0.1em 0 0; font-size: max(13px, 0.92em); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.feed-lines p.you { color: #b9ffb2; }
+.feed-lines p.bad { color: #ffb3b5; }
+#ui:not(.in-round) .feed { display: none; }
+
+/* ---------- name tags & floating text ---------- */
 .bubbles, .floats { position: absolute; inset: 0; overflow: hidden; }
 .bubble {
   position: absolute; left: 0; top: 0; will-change: transform; white-space: nowrap;
-  padding: 0.12em 0.55em 0.08em; border-radius: 0.8em; font-size: 1.1em;
-  background: #3aa0ff; box-shadow: 0 0.12em 0 rgba(0, 0, 0, 0.16);
+  padding: 0.1em 0.5em 0.08em; border-radius: 0.8em; font-size: max(12px, 0.85em);
+  background: rgba(42, 35, 80, 0.55);
 }
-.bubble::after {
-  content: ""; position: absolute; left: 50%; bottom: -0.34em; transform: translateX(-50%);
-  border: 0.38em solid transparent; border-bottom: 0; border-top-color: #3aa0ff;
-}
-.bubble.enemy { background: #ff4d5e; }
-.bubble.enemy::after { border-top-color: #ff4d5e; }
-.float { position: absolute; left: 0; top: 0; font-size: 2.1em; opacity: 0; white-space: nowrap; will-change: transform, opacity; }
-.float.good { color: #d6f6ff; }
+.bubble.you { background: #1fa8e8; }
+.bubble.danger { background: #e8424f; }
+.float { position: absolute; left: 0; top: 0; font-size: 1.7em; opacity: 0; white-space: nowrap; will-change: transform, opacity; }
+.float.good { color: #ffffff; }
+.float.merge { color: #bff6ff; font-size: 2.1em; }
 .float.bad { color: #ffd3d8; }
-.float.gold { color: #ffe066; }
+.float.gold { color: #ffe066; font-size: 2.2em; }
 
-/* ---------- hint ---------- */
-.hint { position: absolute; left: 50%; top: 40%; transform: translate(-50%, -50%); text-align: center; transition: opacity 0.25s; width: 90%; }
-.hint.hidden { opacity: 0; }
-.hint .hand { width: 3.4em; height: 3.4em; margin: 0 auto 0.35em; animation: swipe 1.5s ease-in-out infinite; }
-.hint .hand svg { width: 100%; height: 100%; }
+/* ---------- home (the live arena is the home) ---------- */
+.home { position: absolute; left: 50%; top: 9%; transform: translateX(-50%); display: flex; flex-direction: column; align-items: center; text-align: center; width: 92%; }
+.home .logo { margin: 0; font-size: clamp(2.2em, 11vmin, 5.6em); font-weight: normal; line-height: 1; transform: rotate(-3deg); }
+.home .mode { margin: 0.35em 0 0; padding: 0.2em 0.8em; border-radius: 1em; background: var(--panel); font-size: max(13px, 0.95em); letter-spacing: 0.14em; }
+.btn.play { font-size: 1.6em; min-width: 6.5em; margin-top: 0.55em; }
+.hint { margin-top: 0.7em; text-align: center; }
 .hint p { margin: 0; }
-.hint .main { font-size: 1.6em; }
-.hint .sub { font-size: 0.95em; margin-top: 0.25em; }
-@keyframes swipe { 0%, 100% { transform: translateX(-2.4em) rotate(-10deg); } 50% { transform: translateX(2.4em) rotate(10deg); } }
+.hint .main { font-size: 1.15em; display: inline-flex; align-items: center; gap: 0.35em; }
+.hint .main .ico svg { width: 1.3em; height: 1.3em; display: block; }
+.hint .sub { font-size: max(13px, 0.9em); margin-top: 0.3em; opacity: 0.95; }
+
+/* ---------- onboarding pill, death message, new-world card ---------- */
+.pill {
+  position: absolute; left: 50%; bottom: 13%; transform: translateX(-50%); display: flex; align-items: center; gap: 0.45em;
+  background: var(--panel); border-radius: 1.2em; padding: 0.4em 0.9em; font-size: 1.1em; white-space: nowrap;
+}
+.pill-icon svg { width: 1.3em; height: 1.3em; display: block; fill: #fff; }
+.death { position: absolute; left: 50%; top: 30%; transform: translateX(-50%); text-align: center; width: 90%; }
+.death p { margin: 0 0 0.4em; font-size: 1.5em; }
+.respawn-ring { width: 2.8em; height: 2.8em; margin: 0 auto; }
+.respawn-ring svg { width: 100%; height: 100%; transform: rotate(-90deg); }
+.respawn-ring circle { fill: none; stroke-width: 4; }
+.respawn-ring .track { stroke: rgba(255, 255, 255, 0.3); }
+.respawn-ring .fill { stroke: #fff; stroke-dasharray: 100; stroke-linecap: round; }
+.world-card { position: absolute; left: 50%; top: 29%; transform: translate(-50%, -50%); text-align: center; white-space: nowrap; }
+.world-card p { margin: 0; }
+.world-card .small { font-size: max(13px, 0.9em); letter-spacing: 0.16em; color: #bff6ff; }
+.world-card .big { font-size: 1.9em; color: #ffe066; }
+
+/* ---------- touch: joystick + boost button ---------- */
+.stick { position: absolute; left: 0; top: 0; width: 7.2em; height: 7.2em; border-radius: 50%; border: 0.2em solid rgba(255, 255, 255, 0.7); background: rgba(42, 35, 80, 0.25); }
+.stick i { position: absolute; left: 50%; top: 50%; width: 2.8em; height: 2.8em; margin: -1.4em 0 0 -1.4em; border-radius: 50%; background: rgba(255, 255, 255, 0.85); }
+.boost-touch {
+  pointer-events: auto; position: absolute; width: 72px; height: 72px; border-radius: 50%; border: 3px solid #fff;
+  right: calc(16px + env(safe-area-inset-right, 0px)); bottom: calc(16px + env(safe-area-inset-bottom, 0px));
+  background: rgba(255, 63, 164, 0.75); display: grid; place-items: center; touch-action: none; padding: 0;
+}
+.boost-touch svg { width: 34px; height: 34px; }
+.boost-touch.on { background: #ff3fa4; transform: scale(0.94); }
+
+/* ---------- pause overlay (pointer released) ---------- */
+.paused { position: absolute; inset: 0; z-index: 45; display: grid; place-items: center; background: rgba(30, 20, 60, 0.45); pointer-events: auto; cursor: pointer; }
+.paused[hidden] { display: none; }
+.paused-card { text-align: center; background: var(--panel); border-radius: 1em; padding: 0.9em 1.4em 1em; border: 0.15em solid #fff; }
+.paused-card h2 { margin: 0 0 0.25em; font-size: 2em; font-weight: normal; }
+.paused-card .sub { margin: 0; font-size: 1.2em; }
+.paused-card .keys { margin: 0.55em 0 0; font-size: max(13px, 0.85em); opacity: 0.9; }
 
 /* ---------- upgrades ---------- */
 .upgrades { position: absolute; left: 50%; bottom: 0.9em; transform: translateX(-50%); display: flex; gap: 0.9em; transition: opacity 0.2s; }
-.upgrades.hidden { opacity: 0; visibility: hidden; }
 .upgrade { display: flex; flex-direction: column; gap: 0.35em; width: 7.6em; }
 .card {
   pointer-events: auto; position: relative; font: inherit; color: #fff; cursor: pointer; text-align: center;
   border-radius: 0.8em; padding: 0.5em 0.45em 0.4em; border: 0.13em solid rgba(255, 255, 255, 0.9);
-  background: linear-gradient(180deg, rgba(255, 255, 255, 0.36), rgba(255, 255, 255, 0.12));
+  background: linear-gradient(180deg, rgba(90, 76, 170, 0.75), rgba(60, 48, 130, 0.75));
   box-shadow: 0 0.24em 0 rgba(40, 30, 80, 0.28); display: flex; flex-direction: column; align-items: center;
 }
 .card:active { transform: translateY(0.12em); box-shadow: 0 0.1em 0 rgba(40, 30, 80, 0.28); }
-.card .lvl { position: absolute; left: 0.45em; top: 0.35em; font-size: 0.9em; }
+.card .lvl { position: absolute; left: 0.45em; top: 0.35em; font-size: max(12px, 0.9em); }
 .card .icon svg { width: 2.8em; height: 2.8em; display: block; margin: 0.35em auto 0.1em; }
-.card .title { font-size: 0.86em; white-space: nowrap; }
+.card .title { font-size: max(12px, 0.86em); white-space: nowrap; }
 .card .cost {
   display: flex; align-items: center; justify-content: center; gap: 0.25em; font-size: 1.15em;
   width: 100%; margin-top: 0.3em; padding-top: 0.25em; border-top: 0.1em solid rgba(255, 255, 255, 0.6);
@@ -113,33 +180,45 @@
   pointer-events: auto; font: inherit; font-size: 1.25em; color: #fff; cursor: pointer;
   display: inline-flex; align-items: center; justify-content: center; gap: 0.4em;
   min-height: 2.8em; padding: 0.4em 0.8em; border: 0; border-radius: 0.6em;
-  background: linear-gradient(180deg, #ff6fe1, #e13ccc);
-  box-shadow: 0 0.22em 0 #9b1f8c, 0 0.4em 0.7em rgba(0, 0, 0, 0.16);
-  text-shadow: 0 0.07em 0 rgba(80, 10, 70, 0.55);
+  background: linear-gradient(180deg, #ff6fc4, #ff3fa4);
+  box-shadow: 0 0.22em 0 #b01f6e, 0 0.4em 0.7em rgba(0, 0, 0, 0.16);
+  text-shadow: 0 0.07em 0 rgba(80, 10, 50, 0.55);
 }
-.btn:active { transform: translateY(0.14em); box-shadow: 0 0.08em 0 #9b1f8c; }
+.btn:active { transform: translateY(0.14em); box-shadow: 0 0.08em 0 #b01f6e; }
 .btn svg { width: 1.2em; height: 1.2em; fill: #fff; flex: none; }
-.btn.free { font-size: 0.9em; min-height: 2.3em; padding: 0.25em 0.5em; }
+.btn.free { font-size: max(12px, 0.9em); min-height: 2.3em; padding: 0.25em 0.5em; }
 
-/* ---------- result dialog ---------- */
-.modal { position: absolute; inset: 0; display: grid; place-items: center; background: rgba(30, 20, 60, 0.34); pointer-events: auto; }
+/* ---------- result dialog (round podium, death offer) ---------- */
+.modal { position: absolute; inset: 0; display: grid; place-items: center; background: rgba(30, 20, 60, 0.38); pointer-events: auto; z-index: 30; }
 .modal[hidden] { display: none; }
 .dialog {
-  width: min(22em, 88vw); text-align: center; box-sizing: border-box; padding: 1em 1em 1.1em;
+  width: min(23em, 90vw); max-height: 96%; overflow: auto; text-align: center; box-sizing: border-box; padding: 0.8em 1em 1em;
   border-radius: 1.1em; border: 0.18em solid #fff;
-  background: linear-gradient(180deg, #a9aef3, #7f86da);
+  background: linear-gradient(180deg, #9b8cf0, #6f5fd0);
   box-shadow: 0 0.4em 0 rgba(40, 30, 80, 0.35), 0 1em 2.2em rgba(0, 0, 0, 0.22);
 }
-.dialog.fail { background: linear-gradient(180deg, #f3a2b0, #d56c83); }
-.dialog h2 { margin: 0 0 0.3em; font-size: 2em; font-weight: normal; }
-.dialog .amount { display: flex; align-items: center; justify-content: center; gap: 0.3em; font-size: 2.1em; margin: 0 0 0.55em; }
+.dialog.fail { background: linear-gradient(180deg, #f39ab8, #cf5d8a); }
+.dialog-mode { margin: 0 0 0.2em; font-size: max(12px, 0.75em); letter-spacing: 0.14em; opacity: 0.95; }
+.dialog-mode:empty { display: none; }
+.dialog h2 { margin: 0 0 0.3em; font-size: 1.9em; font-weight: normal; }
+.podium { display: flex; flex-direction: column; gap: 0.18em; margin: 0 0 0.5em; }
+.podium:empty { display: none; }
+.pod { display: flex; gap: 0.5em; align-items: center; padding: 0.18em 0.6em; border-radius: 0.5em; background: rgba(42, 35, 80, 0.35); font-size: max(13px, 0.95em); }
+.pod .r { width: 2.3em; text-align: left; }
+.pod .nm { flex: 1; text-align: left; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.pod.p1 .r { color: #ffe066; }
+.pod.me { background: rgba(57, 198, 255, 0.6); }
+.stats { display: flex; justify-content: center; gap: 0.9em; flex-wrap: wrap; margin: 0 0 0.35em; font-size: max(13px, 0.9em); }
+.stats:empty { display: none; }
+.dialog .amount { display: flex; align-items: center; justify-content: center; gap: 0.3em; font-size: 2em; margin: 0 0 0.5em; }
 .dialog .amount b { font-weight: normal; }
 .dialog .amount svg { width: 1.1em; height: 1.1em; }
+.dialog .amount .crate { font-size: 0.55em; color: #ffe066; }
 .dialog .row { display: grid; grid-auto-flow: column; grid-auto-columns: 1fr; gap: 0.6em; }
-.dialog .note { min-height: 1.15em; margin: 0.6em 0 0; font-size: 0.92em; }
+.dialog .note { min-height: 1.15em; margin: 0.6em 0 0; font-size: max(13px, 0.92em); }
 .dialog.locked .btn { pointer-events: none; opacity: 0.8; }
 /* Revive countdown ring: it only ever removes the offer (main.js / ui.js tickCountdown). */
-.dialog .ring { position: relative; width: 3.3em; height: 3.3em; margin: -0.15em auto 0.55em; }
+.dialog .ring { position: relative; width: 3.2em; height: 3.2em; margin: -0.15em auto 0.5em; }
 .dialog .ring[hidden] { display: none; }
 .dialog .ring svg { width: 100%; height: 100%; display: block; transform: rotate(-90deg); }
 .dialog .ring circle { fill: none; stroke-width: 4; }
@@ -149,7 +228,6 @@
 
 /* ---------- ready screen: start boost + shop button ---------- */
 .boost { position: absolute; right: 0.9em; bottom: 0.9em; }
-.boost.hidden, .shop-btn.hidden { display: none; }
 .shop-btn { position: absolute; left: 0.9em; bottom: 0.9em; width: 3.2em; height: 3.2em; border-radius: 0.9em; }
 .shop-btn svg { width: 2.2em; height: 2.2em; }
 .btn b { font-weight: normal; }
@@ -160,9 +238,11 @@
 /* ---------- skins shop ---------- */
 .shop-modal { position: absolute; inset: 0; z-index: 40; display: grid; place-items: center; background: rgba(30, 20, 60, 0.42); pointer-events: auto; }
 .shop-modal[hidden] { display: none; }
+/* Bot names only appear next to an "Offline Arena" label; the shop has none, so the tags hide behind it. */
+#ui.shop-open .bubbles { display: none; }
 .shop {
   position: relative; width: min(21em, 92vw); box-sizing: border-box; padding: 0.9em 1em 1em; text-align: center;
-  border-radius: 1.1em; border: 0.18em solid #fff; background: linear-gradient(180deg, #a9aef3, #7f86da);
+  border-radius: 1.1em; border: 0.18em solid #fff; background: linear-gradient(180deg, #9b8cf0, #6f5fd0);
   box-shadow: 0 0.4em 0 rgba(40, 30, 80, 0.35), 0 1em 2.2em rgba(0, 0, 0, 0.22);
 }
 .shop h2 { margin: 0 0 0.45em; font-size: 1.8em; font-weight: normal; }
@@ -170,14 +250,14 @@
 .shop .grid { display: grid; grid-template-columns: repeat(3, 3.6em); gap: 0.45em; justify-content: center; }
 .swatch {
   pointer-events: auto; width: 3.6em; height: 3.6em; padding: 0.2em; cursor: pointer; border-radius: 0.75em;
-  border: 0.14em solid rgba(255, 255, 255, 0.75); background: rgba(255, 255, 255, 0.28);
+  border: 0.14em solid rgba(255, 255, 255, 0.75); background: rgba(255, 255, 255, 0.2);
 }
 .swatch svg { width: 100%; height: 100%; display: block; }
 .swatch.locked { background: rgba(40, 30, 80, 0.3); border-color: rgba(255, 255, 255, 0.35); cursor: default; }
 .swatch.selected { border-color: #ffe066; box-shadow: 0 0 0 0.14em #ffe066; }
 .shop .row { display: grid; grid-auto-flow: column; grid-auto-columns: 1fr; gap: 0.5em; margin-top: 0.8em; }
 .shop .row .btn { font-size: 1em; min-height: 2.6em; padding: 0.3em 0.5em; gap: 0.3em; }
-.shop .note { min-height: 1.15em; margin: 0.55em 0 0; font-size: 0.92em; }
+.shop .note { min-height: 1.15em; margin: 0.55em 0 0; font-size: max(13px, 0.92em); }
 
 /* ---------- toast, ad blocker, coin fly ---------- */
 .toast {
@@ -192,19 +272,24 @@
 .fly-coin { position: absolute; left: 0; top: 0; width: 1.6em; height: 1.6em; pointer-events: none; z-index: 60; }
 .fly-coin svg { width: 100%; height: 100%; }
 
+/* ---------- portrait ---------- */
 @media (max-aspect-ratio: 1/1) {
-  .hint { top: 42%; }
   .upgrades { bottom: 1.4em; }
   /* Portrait: the upgrade cards take the bottom centre, so the boost sits above them. */
   .boost { right: 50%; translate: 50% 0; bottom: 11.6em; }
   .shop-btn { bottom: 1.4em; }
+  /* The leaderboard slice moves under the clock; the kill feed below it. */
+  .ranks { position: absolute; left: 50%; top: 7.2em; transform: translateX(-50%); min-width: 11em; background: rgba(42, 35, 80, 0.4); padding: 0.25em 0.5em 0.3em; }
+  .feed { top: auto; bottom: 22%; max-width: 86%; }
+  .home { top: 7%; }
 }
 
 /* ---------- marketing captures (?cover=, ?capture=1) ---------- */
 #ui.marketing .hint, #ui.marketing .upgrades, #ui.marketing .modal, #ui.marketing .toast, #ui.marketing .icon-btn,
-#ui.marketing .boost, #ui.marketing .shop-modal { display: none !important; }
+#ui.marketing .boost, #ui.marketing .shop-modal, #ui.marketing .home, #ui.marketing .pill, #ui.marketing .paused,
+#ui.marketing .boost-touch, #ui.marketing .stick { display: none !important; }
 /* Covers: the title is the ONLY text allowed (docs /requirements/game-covers). */
-#ui.cover .hud, #ui.cover .bubbles, #ui.cover .floats { display: none; }
+#ui.cover .hud, #ui.cover .bubbles, #ui.cover .floats, #ui.cover .feed { display: none; }
 #ui .cover-title {
   position: absolute; left: 50%; top: 7%; transform: translateX(-50%) rotate(-4deg);
   font-size: min(13vw, 17vh); line-height: 1; white-space: nowrap; color: #fff;

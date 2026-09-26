@@ -26,24 +26,26 @@ const makeState = () => {
   startRun(s);
   return s;
 };
-// Continuous scripted input expressed as a RATE (key turn axis + boost), so it is step-size independent itself.
+// Continuous scripted input: a target direction that sweeps round (mouse / joystick / 8-way keys
+// all arrive as a direction) plus a boost burst - smooth in time, so step-size independent itself.
 const input = makeInput();
 const scripted = (fn) => (s, dt) => {
-  input.hasDir = false;
-  input.turn = Math.sin(s.t * 2.1);
+  input.hasDir = true;
+  input.dirX = Math.cos(0.9 * s.t + 0.5 * Math.sin(1.6 * s.t));
+  input.dirZ = Math.sin(0.9 * s.t + 0.5 * Math.sin(1.6 * s.t));
   input.boost = s.t > 0.8 && s.t < 1.4;
   return fn(s, dt, input);
 };
 // Player head (continuous), its heading as a unit vector (no +-PI wrap artefact), its mass (discrete
-// eats - the same blocks in the window at every rate), its tail block (path following), and one bot
-// (its decisions are scheduled in sim seconds, not steps). Positions are measured from the arena's
-// corner (+halfSize): the check divides by |value|, and a position's natural scale is the arena,
-// not its distance from the origin (x = 0.01 vs 0.02 is not a "100% drift").
+// eats - the same pickups in the window at every rate, thanks to the swept pickup test) and its tail
+// planet (path following). Bots are left out on purpose: their choices are discrete decisions (like
+// the template's gates) that legitimately flip at a coarser step; the determinism check above replays
+// them exactly. Positions are measured from the arena's corner (+halfSize): the check divides by
+// |value|, and a position's natural scale is the arena, not its distance from the origin.
 const H = ARENA.arena.halfSize;
-const bot = (s) => s.snakes[1];
 const sample = (s) => {
   const p = s.player;
-  return [p.x + H, p.z + H, Math.cos(p.heading), Math.sin(p.heading), p.mass, p.segX[p.n - 1] + H, p.segZ[p.n - 1] + H, bot(s).x + H, bot(s).z + H];
+  return [p.x + H, p.z + H, Math.cos(p.heading), Math.sin(p.heading), p.mass, p.segX[p.n - 1] + H, p.segZ[p.n - 1] + H];
 };
 
 // Window: inside the player's 2 s spawn protection, so no contact can end the run at one rate and not another.

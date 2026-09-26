@@ -9,12 +9,20 @@
  *  - a visible collection (skins grid, locked ones as silhouettes) is a goal between upgrades
  */
 
-import { GAME } from "../config.js";
+import { ARENA } from "../config.js";
 
 // New fields need no migration: SaveService merges saved data over these defaults.
 export const DEFAULT_SAVE = {
-  level: 1,
+  level: 1,          // round number (the next round to play)
   bestLevel: 1,
+  tier: 1,           // arena tier 1-20: bot difficulty, adapts to results (GAME_BRIEF "Bot AI difficulty ramp")
+  bestTier: 1,
+  bestRank: 0,       // 0 = no finished round yet
+  bestScore: 0,
+  bestWorld: 0,      // highest ladder level ever reached ("NEW WORLD" cards)
+  swallows: 0,
+  firstWin: false,   // first #1 finish (happytime, once)
+  lastSeenAt: 0,
   coins: 0,
   upStart: 0,
   upIncome: 0,
@@ -28,7 +36,7 @@ export const DEFAULT_SAVE = {
   owned: ["classic"],
 };
 
-/** Crowd skins. `classic` keeps each theme's own crowd colour; the rest override it. */
+/** Comet trail skins. `classic` keeps the theme's accent; the rest override it. (12 named trails: next package.) */
 export const SKINS = [
   { id: "classic", color: null },
   { id: "blue", color: "#3a7bff" },
@@ -60,12 +68,15 @@ export function pickRandomSkin(save, rand) {
 }
 
 export const UPGRADES = {
-  start: { key: "upStart", max: 30, base: 45, growth: 1.32 },
+  start: { key: "upStart", max: 10, base: 50, growth: 1.45 },
   income: { key: "upIncome", max: 30, base: 70, growth: 1.38 },
 };
 
-export function startCount(save) {
-  return 5 + save.upStart * 2;
+/** "Start size" levels (GAME_BRIEF "Economy"): the chain mass a round starts with. */
+const START_MASS = [6, 10, 14, 22, 30, 46, 62, 94, 126, 190, 254];
+
+export function startMass(save) {
+  return START_MASS[Math.min(START_MASS.length - 1, save.upStart)] ?? ARENA.snake.startMass;
 }
 
 export function incomeFactor(save) {
@@ -79,14 +90,28 @@ export function upgradeCost(kind, save) {
   return Math.round((u.base * u.growth ** lvl) / 5) * 5;
 }
 
-export function levelReward(level, multiplier, save) {
-  return Math.round((20 + level * 7) * multiplier * incomeFactor(save));
+/** Rank crate (skill-based, never random): #1 x5, #2-3 x3, #4-6 x2, #7-13 x1. */
+export function crateFor(rank) {
+  for (const [upTo, x] of ARENA.rewards.rankCrates) if (rank <= upTo) return x;
+  return 1;
 }
 
-export function failReward(level, progress, save) {
-  return Math.round((6 + level * 2) * progress * incomeFactor(save));
+/** Coins for a finished round: (chain total / massPerCoin + coinsPerSwallow x swallows) x crate x income. */
+export function roundReward(mass, swallows, rank, save) {
+  const r = ARENA.rewards;
+  const base = mass / r.massPerCoin + r.coinsPerSwallow * swallows;
+  return Math.max(r.minCoins, Math.round(base * crateFor(rank) * incomeFactor(save)));
 }
 
-export function completionPercent(level) {
-  return Math.min(100, ((level - 1) / GAME.completionLevel) * 100);
+/** Arena tier after a finished round: +1 after a top-3 finish, -1 after rank 8 or worse (floor 1). */
+export function nextTier(tier, rank) {
+  const max = ARENA.bots.maxTier;
+  if (rank <= 3) return Math.min(max, tier + 1);
+  if (rank >= 8) return Math.max(1, tier - 1);
+  return tier;
+}
+
+/** reportGameCompletedPercentage: the best arena tier reached, forward only. */
+export function completionPercent(bestTier) {
+  return Math.min(100, Math.round((Math.max(1, bestTier) / ARENA.bots.maxTier) * 100));
 }

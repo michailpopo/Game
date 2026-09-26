@@ -43,7 +43,7 @@ The `crazygames-qa` skill is applied in two modes on every round, next to the ga
 |---|---|---|---|---|---|
 | WP-00 | Market research + competitor teardowns | game-market-researcher | docs/RESEARCH.md, qa/research/** | - | done (teardowns in progress) |
 | WP-01 | Concepts, brief, originality, project profile | game-concept-designer | docs/CONCEPTS.md, GAME_BRIEF.md, ORIGINALITY.md, project.json | WP-00 | in progress (brief) |
-| WP-10 | Merge-snake arena core: steer a chain of value blocks, pickups, equal-value merge x2, eat smaller head / die to bigger, boost, labelled bots, ranks - grey-box, theme-neutral | threejs-game-engineer | src/game/**, src/main.js, src/ui/ui.js, src/ui/styles.css, src/config.js, src/core/i18n.js, src/render/palette.js, tools/qa/sim-health.mjs, tools/qa/browser-qa.mjs (adapters only) | owner's direction 2026-09-26 | in progress |
+| WP-10 | Merge-snake arena core + Comet Chain rules (planets, 90 s rounds, respawn, rank payout, pointer lock, Offline Arena) | threejs-game-engineer | src/game/**, src/main.js, src/ui/ui.js, src/ui/styles.css, src/config.js, src/core/i18n.js, src/render/palette.js, tools/qa/sim-health.mjs, tools/qa/browser-qa.mjs (adapters only) | owner's direction 2026-09-26 | done |
 | WP-02 | (SHELVED with Skip Legend) Grey-box prototype of the core verb: throw, tap-per-skip timing judge, micro reward, shore bins, retry | threejs-game-engineer | src/** (game, view, main, ui, config, i18n), tools/qa/sim-health.mjs, tools/qa/browser-qa.mjs (phase/hook adapters only) | WP-01 | todo |
 | WP-03 | Cold playtest of the prototype (blind, fresh context) | gauntlet-critic | docs/QA_REPORT.md (playtest section) | WP-02 | todo |
 | WP-04 | Playtest build for the owner (Gate 2: the owner plays on PC and phone) | planner | dist/ -> published playtest page | WP-02 | todo |
@@ -78,6 +78,8 @@ Gate 2, when the owner has played the prototype and the fun moment is named.
   boot,sdk-events,no-sdk,touch,poly-budget,dead-air,tab-hidden,viewports PASS; screenshots at 1280x720 and
   450x800 of: start, mid-run with merges popping, a bot eaten, death/result; a 20-s autopilot run where the
   chain visibly grows.
+
+- **Planner review (2026-09-26):** re-ran `npm run build` (exit 0), `sim-health --selftest` (PASS, drift 0.45%, planted bug caught at 20%), browser-qa boot, sdk-events, no-sdk, touch, poly-budget (19.9k tris / 19 draw calls), dead-air (longest silence 1.1 s), tab-hidden, viewports, ads-basic-launch, adblock, revive-offer, ad-ui -> 0 FAIL, 2 UNVERIFIED (looked: viewport-800x450 legible; ad-ui revive and result buttons equal size with video icon). Looked at ready/auto20/result at 1280x720 and auto20 at 450x800. Verdict: done. Carry-overs to WP-11/12: Magnet + Boost tank upgrades, remove template Income, 12 named trails, start boost x4 floor 62, daily gift, try-a-trail, revive ring 5 s with auto Respawn at 0 and only when the chain is worth keeping, planets should read more like planets (surface bands/craters, atmosphere), brighter comet head, fewer NEW WORLD cards in round 1.
 
 ## WP-02 - (shelved) Grey-box prototype of the core verb
 

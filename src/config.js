@@ -44,71 +44,50 @@ export const OFFERS = {
 };
 
 /**
- * The arena ("Comet Chain", concept R1 in docs/CONCEPTS.md). Units: world units, seconds,
- * radians. Rates are per second and multiplied by dt in the simulation (CG-GAME-003).
- * Colours, rings and glows per ladder step live in src/render/palette.js (PLANETS).
+ * The arena ("Comet Chain", docs/GAME_BRIEF.md is the source of truth for these numbers).
+ * Units: world units, seconds, radians. Rates are per second and multiplied by dt in the
+ * simulation (CG-GAME-003). Colours, rings and glows per planet live in src/render/palette.js.
  */
 export const ARENA = {
   arena: {
     shape: "circle",          // "circle" | "square"
     halfSize: 40,             // circle: the radius; square: half the side
-    wall: "block",            // "block": comets slide along the edge | "kill": touching it is a death
-    wallMargin: 0.6,          // how far inside the edge a comet centre is kept
+    wall: "block",            // "block": heads slide along the asteroid belt | "kill": touching it is a death
+    wallMargin: 0.6,          // how far inside the edge a head centre is kept
   },
 
   // Value ladder: base, base*2, base*4 ... Equal neighbours fuse into one of double value.
-  // The chain is kept sorted, biggest planet right behind the comet, so a chain is the binary
-  // form of its total. One ladder entry per step: `key` names the planet (palette + i18n),
-  // `size` is its diameter in world units (drawing AND collision). Steps past the end grow by
-  // sizeAfter per step up to sizeMax.
+  // The chain is kept sorted, the biggest planet is the head (it wears the comet coma), so a
+  // chain is the binary form of its total. One `ladder` key per step names the world (palette
+  // look + i18n name); steps past the table reuse the last key.
   values: {
     base: 2,
     maxChain: 32,
-    ladder: [
-      { key: "pebble", size: 0.72 },      // 2
-      { key: "moon", size: 0.86 },        // 4
-      { key: "ice", size: 1.0 },          // 8
-      { key: "desert", size: 1.12 },      // 16
-      { key: "ocean", size: 1.24 },       // 32
-      { key: "ringed", size: 1.36 },      // 64   torus ring
-      { key: "sun", size: 1.5 },          // 128  glow
-      { key: "bluegiant", size: 1.62 },   // 256  glow
-      { key: "redgiant", size: 1.74 },    // 512  glow
-      { key: "pulsar", size: 1.84 },      // 1024 ring + glow
-      { key: "blackhole", size: 1.94 },   // 2048 ring + glow
-      { key: "quasar", size: 2.04 },      // 4096 ring + glow
-    ],
-    sizeAfter: 0.08,
-    sizeMax: 2.3,
+    ladder: ["pebble", "moon", "ice", "desert", "ocean", "jungle", "lava", "ringed", "storm", "sun", "redgiant", "bluegiant", "neutron", "nebula", "galaxy"],
   },
 
-  // The comet leads its chain; its size follows the head value (the biggest planet it carries).
-  comet: {
-    size: 1.05,               // diameter with a pebble-headed chain
-    sizePerLevel: 0.07,
-    sizeMax: 2.0,
-  },
-
-  // Loose pickups: fresh spawns are stardust (small), dropped planets keep their size.
+  // Planet size (diameter, world units): size + sizePerLevel x (step - 1), capped. Drawing AND collision.
   blocks: {
-    stardustSize: 0.55,       // diameter of a loose value-2/4 pickup
-    looseScale: 0.8,          // a dropped planet is drawn and collides this much smaller
+    size: 1.0,
+    sizePerLevel: 0.08,
+    sizeMax: 2.3,
+    stardustSize: 0.5,        // fresh stardust (loose) - grows 12% per step (golden finale values)
+    looseScale: 0.84,         // a dropped planet is drawn and collides this much smaller
     spacing: 1.02,            // centre distance along a chain = mean diameter x this
   },
 
   snake: {
     speed: 6.8,               // u/s
-    turnRate: 3.8,            // rad/s max heading change for a small head (mouse / touch target)
-    turnRateBig: 2.6,         // rad/s at comet.sizeMax (big comets turn wider)
-    keyTurnRate: 3.4,         // rad/s with A/D or the arrow keys
+    turnRate: 3.8,            // rad/s max heading change for a small head (mouse / touch / keys target)
+    turnRateBig: 2.6,         // rad/s at blocks.sizeMax (big heads turn wider)
     idleTurnRate: 0.9,        // rad/s: the ready-screen comet circles on the spot
     idleSpeed: 2.6,
-    startMass: 14,            // the starter chain: 8-4-2 (fresh round and every respawn)
-    protectSec: 2,            // spawn / respawn protection: cannot kill or be killed, blinks
-    eatReach: 0.95,           // a pickup is eaten within (comet + pickup) / 2 x this
-    magnetRadius: 1.7,        // pickups this far beyond the comet's edge slide into it
+    startMass: 6,             // round start: moon head + pebble ("Start size" upgrade raises it)
+    protectSec: 2,            // spawn / respawn protection: cannot eat others or be eaten, blinks
+    eatReach: 0.95,           // a pickup is eaten within (head + pickup) / 2 x this
+    magnetRadius: 1.7,        // pickups this far beyond the head's edge slide into it
     magnetSpeed: 8,           // u/s
-    pathStep: 0.2,            // the comet's path is recorded every this many units (the chain follows it)
+    pathStep: 0.2,            // the head's path is recorded every this many units (the chain follows it)
   },
 
   boost: {
@@ -121,9 +100,9 @@ export const ARENA = {
   },
 
   contact: {
-    // "headVsAny": a comet touching ANY part of another chain compares the two HEAD values
-    //              (biggest planets) - bigger swallows, the loser's planets scatter as pickups.
-    // "headVsHead": only comet-to-comet touches count; comets pass through chains.
+    // "headVsAny": a head touching ANY planet of another chain compares the two HEAD values -
+    //              bigger swallows (the loser's planets scatter as pickups), smaller dies.
+    // "headVsHead": only head-to-head touches count; heads pass through chains.
     rule: "headVsAny",
     equal: "bounce",          // equal heads: "bounce" (both turn away) | "none" (pass through)
     reach: 0.82,              // contact when centre distance < (a + b) / 2 x this
@@ -133,56 +112,64 @@ export const ARENA = {
   },
 
   loose: {
-    target: 230,              // pickups the spawner keeps on the floor
+    target: 300,              // pickups the spawner keeps on the floor
     spawnPerSec: 30,          // refill rate
     capacity: 720,            // pool size; dropped planets fit on top of the target
     weights: [[2, 0.85], [4, 0.15]],   // [value, weight] for fresh stardust
-    minDistFromHead: 2.5,     // no spawn right under a comet
+    minDistFromHead: 2.5,     // no spawn right under a head
     // Food floor around the player: when fewer than nearMin pickups lie within nearRadius,
     // fresh stardust spawns in a ring nearInner..nearRadius away (a reward in reach every second).
     nearRadius: 13,
     nearInner: 7,
-    nearMin: 14,
+    nearMin: 18,
   },
 
   bots: {
-    count: 11,
-    prefix: "",               // the mode is labelled "Offline Arena" (HUD, home, leaderboard, result); names stay plain
+    count: 12,
+    prefix: "",               // the mode is labelled "Offline Arena" wherever names appear; names stay plain
     names: ["Kiwi", "Mango", "Plum", "Pixel", "Fizz", "Taco", "Blip", "Olive", "Zest", "Mochi", "Rusty", "Juno", "Biscuit", "Noodle", "Pepper"],
-    respawnSec: 2,
-    startMass: [6, 10, 14, 22, 30],   // picked at random, never above the bot's cap
-    thinkSec: 0.22,           // decision interval (sim time); steering in between is continuous
+    respawnSec: 2.5,
+    // Arena tier 1-20 (saved; +1 after a top-3 finish, -1 after rank 8 or worse): numeric columns
+    // interpolate linearly between rows, startMass uses the row at or below the tier.
+    // aggression = aggressionBase + aggressionPerTier x (tier - 1) (chance to chase a smaller head it sees).
+    tierTable: [
+      { tier: 1, startMass: [6, 10, 14], capStart: 8, capDoubleSec: 60, capVsPlayer: 1.5, thinkSec: 0.30 },
+      { tier: 5, startMass: [6, 10, 14, 22, 30], capStart: 8, capDoubleSec: 50, capVsPlayer: 2, thinkSec: 0.24 },
+      { tier: 10, startMass: [10, 14, 22, 30, 46], capStart: 16, capDoubleSec: 45, capVsPlayer: 2, thinkSec: 0.20 },
+      { tier: 20, startMass: [14, 22, 30, 46, 62], capStart: 32, capDoubleSec: 40, capVsPlayer: 2.5, thinkSec: 0.18 },
+    ],
+    aggressionBase: 0.30,
+    aggressionPerTier: 0.025,
+    maxTier: 20,
+    capMax: 8192,
+    // Each spawn draws a share of the arena cap, so there are always small comets to eat and a few big threats.
+    capShares: [0.125, 0.25, 0.25, 0.5, 0.5, 1],
     seekRadius: 14,
     fleeRadius: 6,
     chaseRadius: 10,
-    aggression: 0.45,         // chance a bot chases a smaller head it sees (round 1)
-    aggressionPerLevel: 0.05,
     boostWhenClose: 3.2,      // flee/chase boost distance
-    // Difficulty ramp: arena cap = min(capMax, max(capStart * 2^(t/capDoubleSec), playerHead * capVsPlayer));
-    // each spawn draws a tier (its share of the cap), so there are always small comets to eat and a few big threats.
-    capStart: 8,
-    capDoubleSec: 30,
-    capVsPlayer: 2,
-    capMax: 8192,
-    tiers: [0.125, 0.25, 0.25, 0.5, 0.5, 1],
+    chaseMaxSec: 2,           // a hunt that has not paid off by then is dropped...
+    chaseRestSec: 3,          // ...for this long (bots and the QA autopilot)
   },
 
   round: {
     mode: "timed",            // "timed": the round ends after durationSec, rank = chain total | "target": reach winValue | "endless"
     durationSec: 90,
-    respawnSec: 2,            // a death respawns the player with the starter chain after this long (timed mode)
-    finaleSec: 15,            // the last seconds spawn golden stardust...
-    finaleFactor: 2,          // ...worth this many times more
+    respawnSec: 2,            // a death respawns the player after this long (timed mode); the clock keeps running
+    respawnMass: 14,          // 8-4-2 (or the start mass if the Start size upgrade made it bigger)
+    finaleSec: 15,            // the last seconds spawn golden stardust from finaleWeights
+    finaleWeights: [[4, 0.6], [8, 0.3], [16, 0.1]],
     winValue: 1024,           // "target" mode only; x winValueGrowth per round
     winValueGrowth: 2,
     winValueMax: 65536,
   },
 
   rewards: {
-    // Coins at the end of a round = chain total / scorePerCoin x the rank's multiplier (skill-based, never random).
-    scorePerCoin: 8,
-    rankMultipliers: [[1, 5], [3, 3], [6, 2], [99, 1]],   // [up to rank, x]: #1 x5, #2-3 x3, #4-6 x2, rest x1
-    minCoins: 5,
+    // coins = (chain total at 0:00 / massPerCoin + coinsPerSwallow x swallows) x rank crate (skill-based, never random)
+    massPerCoin: 20,
+    coinsPerSwallow: 3,
+    rankCrates: [[1, 5], [3, 3], [6, 2], [99, 1]],   // [up to rank, x]: #1 x5, #2-3 x3, #4-6 x2, #7-13 x1
+    minCoins: 3,
   },
 
   camera: {
@@ -192,6 +179,15 @@ export const ARENA = {
     zoomPerLevel: 0.045,      // + per doubling of the head value
     zoomMax: 1.6,
     follow: 6,                // 1/s exponential follow
-    lookAhead: 1.2,           // units ahead of the comet
+    lookAhead: 1.2,           // units ahead of the head
+    lookAheadBoost: 2.0,
+  },
+
+  controls: {
+    cursorRadius: 6,          // the mouse cursor ring is kept within this many units of the head
+    deadZone: 0.5,            // closer than this to the head: keep the heading
+    joystickRadiusPx: 56,     // touch joystick knob travel
+    joystickDeadPx: 8,
+    joystickArea: 0.7,        // the first finger opens the joystick on the left 70% of the screen
   },
 };

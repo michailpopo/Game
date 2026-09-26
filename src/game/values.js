@@ -26,33 +26,27 @@ export function valueAt(level) {
 
 const LADDER = ARENA.values.ladder;
 
-/** The ladder entry for a level (steps past the table reuse the last entry's key). */
-export function ladderAt(level) {
+/** The ladder key (world name) for a level; steps past the table reuse the last key. */
+export function ladderKey(level) {
   return LADDER[Math.min(LADDER.length, Math.max(1, level)) - 1];
 }
 
-/** Diameter of a planet of value v (world units) - drawing and collision. */
+/** Diameter of a planet of value v (world units) - drawing and collision. The head is its biggest planet. */
 export function blockSize(v) {
-  const lv = Math.max(1, levelOf(v));
-  if (lv <= LADDER.length) return LADDER[lv - 1].size;
-  const vals = ARENA.values;
-  return Math.min(vals.sizeMax, LADDER[LADDER.length - 1].size + vals.sizeAfter * (lv - LADDER.length));
+  const b = ARENA.blocks;
+  return Math.min(b.sizeMax, b.size + b.sizePerLevel * (Math.max(1, levelOf(v)) - 1));
 }
 
-/** Diameter of the comet that leads a chain whose biggest planet is worth v. */
-export function headSize(v) {
-  const c = ARENA.comet;
-  return Math.min(c.sizeMax, c.size + c.sizePerLevel * (Math.max(1, levelOf(Math.max(v, ARENA.values.base))) - 1));
-}
-
-/** Fresh stardust (and the small values) look like stardust; bigger dropped values stay planets. */
-export function isStardust(v, gold) {
-  return gold || v < ARENA.values.base * 4;
-}
+/** Loose pickup kinds: a planet dropped by a dead chain, fresh stardust, golden finale stardust. */
+export const DROPPED = 0;
+export const DUST = 1;
+export const GOLD = 2;
 
 /** Diameter of a loose pickup. */
-export function looseSize(v, gold) {
-  return isStardust(v, gold) ? ARENA.blocks.stardustSize : blockSize(v) * ARENA.blocks.looseScale;
+export function looseSize(v, kind) {
+  const b = ARENA.blocks;
+  if (kind === DROPPED) return blockSize(v) * b.looseScale;
+  return b.stardustSize * (1 + 0.12 * (Math.max(1, levelOf(v)) - 1));
 }
 
 /** Short label for a value: 2 ... 8192, then 16K, 32K ... 1M. */

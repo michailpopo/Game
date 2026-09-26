@@ -31,3 +31,33 @@
 |---|---|---|---|---|
 Severity: P0 blocker (crash, softlock, lost progress, compliance fail) · P1 major · P2 ordinary · P3 polish.
 No P0/P1 may be open at the launch package gate.
+
+## WP-10 dev notes (threejs-game-engineer, 2026-09-26)
+Comet Chain core on the merge-snake engine (`src/game/`), numbers from docs/GAME_BRIEF.md in `ARENA` (src/config.js).
+- **Mouse control (CG-QUAL-008):** pointer lock is requested on the PLAY / arena click (a user gesture) and on any later
+  arena click while a round runs unlocked. Mouse movement moves a virtual cursor ring kept within 6 u of the head
+  (`ARENA.controls.cursorRadius`), drawn in the arena. Unlock: P or Tab (event.code), or the browser's native Escape
+  (never bound) -> "Paused - click to resume" overlay. Lock lost while the page has focus (P/Tab/Escape/pause button)
+  holds `Reason.DIALOG` (a gameplay break: gameplayStop); lost with the window focus holds a custom `"lock"` reason
+  (sim paused, no gameplayStop - CrazyGames handles focus). Menus (death offer, result, shop) always run unlocked.
+  Fallback when the lock is refused/unavailable: the plain pointer steers (same ring), the OS cursor is a crosshair
+  and a "Click the arena to lock the mouse" pill shows. HUD sound/pause stay above the pause overlay; M = mute.
+  Headless Chromium grants the lock, so the harness exercises the locked path.
+- **Timed rounds:** a death is not the end of the round. Without an allowed revive the player respawns after 2 s with
+  8-4-2 (no dialog, gameplay keeps reporting); with one (once per session, >= 30 s into the round) the "Keep chain"
+  (video) / "Respawn" dialog pauses the round (MENU -> gameplayStop). The round ends at 0:00 -> phase `won` ->
+  podium + Claim / Claim x3 -> next round (midgame from round 3).
+- **Harness adapters (tools/qa/browser-qa.mjs, scenarios kept):** `revive-offer` - an early death and the second death
+  of a session now assert "no revive dialog + automatic respawn to phase run" instead of a Retry dialog; after
+  "Respawn" (still `data-id="retry"`) it waits for phase `run`, not `ready`. `mute-priority` - presses P first when
+  the pointer is locked (HUD buttons cannot receive clicks under pointer lock), then clicks the sound button.
+- **tab-hidden fix:** `main.js` onHide now always marks the save dirty (lastSeenAt + best chain) before `save.flush()`,
+  so the hide flush writes even when the debounced write already went out. `save.js` unchanged.
+- **Loop:** `GameLoop({ maxStepsPerFrame: 8 })` keeps the 90 s clock real-time down to ~8 fps (this container renders
+  with SwiftShader at ~9 fps; the template demo runs at 3 fps here - environment, not a Chromebook measurement).
+- **Measured here (SwiftShader, 1280x720, DPR 1):** 19-20 draw calls, max 15.5k triangles/frame over 6 s of play,
+  heaviest geometry 930 tris (ribbons strip), 18 geometries / 7 textures stable over 4 rounds; dead-air longest
+  silence 1.2 s (13 feedback events/s autopiloted).
+- **Sim:** `sim-health --selftest` samples the player's head, heading, mass and tail planet at 30/60/120/240 Hz
+  (0.45% drift); bots are covered by the exact determinism replay (their decisions are discrete events). Pickups use
+  a swept test so a pickup grazed between two steps counts at every step size.

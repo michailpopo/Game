@@ -18,25 +18,25 @@
  * The arena lives in every phase: bots roam and eat on the ready screen and behind menus.
  *
  * Rules (numbers and switches in ARENA, src/config.js):
- *  - a comet leads a chain of planets, biggest right behind it (values.js merge rule);
- *    the comet steers toward a target direction with a max turn rate, the planets follow
- *    its recorded path at fixed spacing
- *  - a comet eats pickups it touches (magnet pull just before); bots only under their cap
- *  - contact: a comet touching another comet or its planets compares HEAD values
- *    (the biggest planets, contact.rule) - bigger swallows: the loser's planets scatter as
- *    pickups and the loser dies (bots and the player respawn); equal heads bounce
+ *  - a comet is a chain of planets, the biggest one is the head (it wears the coma;
+ *    values.js merge rule); the head steers toward a target direction with a max turn
+ *    rate, the other planets follow its recorded path at fixed spacing
+ *  - a head eats pickups it touches (magnet pull just before); bots only under their cap
+ *  - contact: a head touching any planet of another chain compares HEAD values
+ *    (contact.rule) - bigger swallows: the loser's planets scatter as pickups and the
+ *    loser dies (bots and the player respawn); equal heads bounce
  *  - boost: x boost.factor speed for a cost (boost.cost: meter or dropTail)
  */
 
 import { ARENA as A } from "../config.js";
 import { createRng } from "../core/rng.js";
 import { steerBot, think } from "./ai.js";
-import { blockSize, headAfterEat, headOfMass, headSize, insertAndMerge, looseSize, massToChain } from "./values.js";
+import { DROPPED, DUST, GOLD, blockSize, headAfterEat, headOfMass, insertAndMerge, looseSize, massToChain } from "./values.js";
 
 const TAU = Math.PI * 2;
 const PATH_CAP = 512;
 const MAXC = A.values.maxChain;
-const HEAD0 = A.comet.size;
+const SIZE0 = A.blocks.size;
 
 const wrap = (a) => a - TAU * Math.round(a / TAU);
 const clamp = (v, lo, hi) => (v < lo ? lo : v > hi ? hi : v);
@@ -53,14 +53,14 @@ function makeSnake(id, name, isPlayer) {
     id, name, isPlayer,
     alive: false, respawn: 0, protect: 0, bounceCd: 0, killedBy: -1,
     x: 0, z: 0, heading: 0, prevX: 0, prevZ: 0, prevHeading: 0,
-    // planets, biggest first; seg* = planet centres (the comet itself is at x, z)
+    // planets, biggest (the head) first; seg* = planet centres, seg 0 = the head at (x, z)
     chain: new Float64Array(MAXC), n: 0, prevN: 0, mass: 0, head: 0, len: 0,
     segX: new Float32Array(MAXC), segZ: new Float32Array(MAXC), segYaw: new Float32Array(MAXC),
     prevSegX: new Float32Array(MAXC), prevSegZ: new Float32Array(MAXC), prevSegYaw: new Float32Array(MAXC),
     path: new Float32Array(PATH_CAP * 2), pathTop: 0, pathLen: 0, pathAcc: 0,
     boosting: false, meter: 1, meterDry: false, dropAcc: 0,
-    kills: 0, deaths: 0, peakMass: 0, tier: 1, rng: null,
-    ai: { next: 0, mode: "wander", tx: 0, tz: 0, target: -1, boost: false },
+    kills: 0, deaths: 0, peakMass: 0, share: 1, rng: null,
+    ai: { next: 0, mode: "wander", tx: 0, tz: 0, target: -1, boost: false, chaseStart: 0, noChase: 0 },
   };
 }
 
@@ -70,19 +70,41 @@ function makeLoose(cap) {
     x: new Float32Array(cap), z: new Float32Array(cap),
     px: new Float32Array(cap), pz: new Float32Array(cap),
     vx: new Float32Array(cap), vz: new Float32Array(cap),
-    v: new Float64Array(cap), age: new Float32Array(cap), alive: new Uint8Array(cap), gold: new Uint8Array(cap),
+    v: new Float64Array(cap), age: new Float32Array(cap), alive: new Uint8Array(cap), kind: new Uint8Array(cap),
     count: 0, cursor: 0,
   };
 }
 
+/** Bot difficulty for an arena tier (ARENA.bots.tierTable, linear between rows). */
+export function tierParams(tier) {
+  const B = A.bots;
+  const t = clamp(Math.round(tier) || 1, 1, B.maxTier);
+  const rows = B.tierTable;
+  let lo = rows[0], hi = rows[rows.length - 1];
+  for (let i = 0; i < rows.length - 1; i++) if (t >= rows[i].tier && t <= rows[i + 1].tier) { lo = rows[i]; hi = rows[i + 1]; break; }
+  const k = hi.tier > lo.tier ? (t - lo.tier) / (hi.tier - lo.tier) : 0;
+  const mix = (key) => lo[key] + (hi[key] - lo[key]) * k;
+  return {
+    tier: t,
+    aggression: Math.min(1, B.aggressionBase + B.aggressionPerTier * (t - 1)),
+    startMass: (t >= hi.tier ? hi : lo).startMass,
+    capStart: mix("capStart"),
+    capDoubleSec: mix("capDoubleSec"),
+    capVsPlayer: mix("capVsPlayer"),
+    thinkSec: mix("thinkSec"),
+  };
+}
+
 /**
- * @param {{ level?:number, seed?:string, startMass?:number, bots?:number, looseTarget?:number }} [o]
- *        bots / looseTarget override the config (tests and captures)
+ * @param {{ level?:number, tier?:number, seed?:string, startMass?:number, bots?:number, looseTarget?:number }} [o]
+ *        level = round number, tier = arena tier (bot difficulty); bots / looseTarget override
+ *        the config (tests and captures)
  */
-export function createSim({ level = 1, seed = "arena", startMass = A.snake.startMass, bots = A.bots.count, looseTarget = A.loose.target } = {}) {
+export function createSim({ level = 1, tier = 1, seed = "arena", startMass = A.snake.startMass, bots = A.bots.count, looseTarget = A.loose.target } = {}) {
   const r = A.round;
   const s = {
     level,
+    tier: tierParams(tier),
     phase: "ready",
     t: 0,                 // round time (difficulty ramp, the round clock)
     clock: 0,             // world time (bot thinking)
@@ -131,15 +153,15 @@ export function collidable(s, sn) {
 
 /** Highest head value a bot may reach right now (difficulty ramp). */
 export function botCap(s) {
-  const b = A.bots;
+  const b = s.tier;
   const byTime = b.capStart * 2 ** (s.t / b.capDoubleSec);
   const byPlayer = Math.max(s.player.head, headOfMass(s.startMass)) * b.capVsPlayer;
-  return Math.min(b.capMax, Math.max(byTime, byPlayer));
+  return Math.min(A.bots.capMax, Math.max(byTime, byPlayer));
 }
 
-/** A bot's own ceiling: its tier's share of the arena cap, never below two ladder steps. */
+/** A bot's own ceiling: its share of the arena cap, never below two ladder steps. */
 export function capOf(s, sn) {
-  return Math.max(A.values.base * 2, headOfMass(botCap(s) * sn.tier));
+  return Math.max(A.values.base * 2, headOfMass(botCap(s) * sn.share));
 }
 
 export function canEat(s, sn, v) {
@@ -153,7 +175,7 @@ export function timeLeft(s) {
 }
 
 export function inFinale(s) {
-  return A.round.mode === "timed" && s.phase === "run" && timeLeft(s) <= A.round.finaleSec;
+  return A.round.mode === "timed" && (s.phase === "run" || s.phase === "failed") && timeLeft(s) <= A.round.finaleSec;
 }
 
 /** 0..1 for the QA contract and the revive rule: how far this round got. */
@@ -170,21 +192,24 @@ export function progress(s) {
   return span > 0 ? clamp((Math.log2(Math.max(head, 1)) - h0) / span, 0, 1) : 1;
 }
 
-/** The player's chain total for ranking: their chain, or the starter chain while a respawn is pending. */
+/** The player's chain total for ranking: their chain, or the mass they died with while a respawn is pending. */
 export function playerScore(s) {
-  return s.player.alive ? s.player.mass : s.phase === "failed" && A.round.mode === "timed" ? s.startMass : s.deathMass;
+  return s.player.alive ? s.player.mass : s.deathMass;
 }
+const playerHead = (s) => (s.player.alive ? s.player.head : s.deathHead);
 
-/** Rank by chain total among the living comets (and the player). */
+/**
+ * Rank by chain total among every comet in the arena (you + all bots; a bot waiting to respawn
+ * counts with nothing). Ties: the bigger head ranks higher.
+ */
 export function playerRank(s) {
-  const mine = playerScore(s);
-  let rank = 1, of = 1;
+  const mine = playerScore(s), head = playerHead(s);
+  let rank = 1;
   for (const sn of s.snakes) {
     if (sn.isPlayer || !sn.alive) continue;
-    of++;
-    if (sn.mass > mine) rank++;
+    if (sn.mass > mine || (sn.mass === mine && sn.head > head)) rank++;
   }
-  return { rank, of };
+  return { rank, of: s.snakes.length };
 }
 
 export const massOf = (s, sn) => (sn.isPlayer ? playerScore(s) : sn.alive ? sn.mass : 0);
@@ -217,10 +242,10 @@ export function revive(s) {
   return true;
 }
 
-/** The normal respawn: the starter chain at a safe spot (timed rounds; also the revive decline). */
+/** The normal respawn: the respawn chain (8-4-2) at a safe spot (timed rounds; also the revive decline). */
 export function respawn(s) {
   if (s.phase !== "failed") return false;
-  respawnPlayer(s, s.startMass, "respawned");
+  respawnPlayer(s, Math.max(A.round.respawnMass, s.startMass), "respawned");
   return true;
 }
 
@@ -324,7 +349,8 @@ export function step(s, dt, input = NO_INPUT) {
       think(s, b, b.rng);
       // Scheduled on the ideal timeline (not "now + interval"), so decisions happen at the
       // same sim times whatever the step size (CG-GAME-003).
-      b.ai.next = Math.max(b.ai.next + A.bots.thinkSec * (0.8 + 0.4 * b.rng.next()), s.clock - A.bots.thinkSec);
+      const think_ = s.tier.thinkSec;
+      b.ai.next = Math.max(b.ai.next + think_ * (0.8 + 0.4 * b.rng.next()), s.clock - think_);
     }
     steerBot(s, b, _botIn);
     moveSnake(s, b, dt, _botIn);
@@ -352,11 +378,7 @@ export function step(s, dt, input = NO_INPUT) {
 
 function endRound(s) {
   const p = s.player;
-  if (!p.alive && s.phase === "failed" && A.round.mode === "timed") {
-    // Dead at the whistle: the pending respawn still counts (the starter chain), quietly.
-    const at = safeSpot(s, 10, 0.3);
-    spawnSnake(s, p, s.startMass, at.x, at.z, 0);
-  }
+  // Dead at the whistle: ranked by the mass they died with (playerScore).
   s.phase = "won";
   s.holdRespawn = false;
   s.finalRank = playerRank(s).rank;
@@ -392,10 +414,10 @@ function spawnSnake(s, sn, mass, x, z, heading) {
   sn.bounceCd = 0;
   sn.meter = 1; sn.meterDry = false; sn.boosting = false; sn.dropAcc = 0;
   sn.killedBy = -1;
-  sn.ai.mode = "wander"; sn.ai.next = s.clock; sn.ai.target = -1; sn.ai.boost = false;
+  sn.ai.mode = "wander"; sn.ai.next = s.clock; sn.ai.target = -1; sn.ai.boost = false; sn.ai.noChase = 0;
   // A straight path behind the comet, long enough for the whole chain.
   const st = A.snake.pathStep;
-  const cnt = Math.min(PATH_CAP, Math.ceil((sn.n + 2) * A.values.sizeMax * A.blocks.spacing / st) + 2);
+  const cnt = Math.min(PATH_CAP, Math.ceil((sn.n + 2) * A.blocks.sizeMax * A.blocks.spacing / st) + 2);
   const c = Math.cos(sn.heading), sn_ = Math.sin(sn.heading);
   for (let k = 0; k < cnt; k++) {
     const back = (cnt - k) * st;
@@ -407,7 +429,6 @@ function spawnSnake(s, sn, mass, x, z, heading) {
   sn.pathAcc = 0;
   computeSegments(sn);
   copyPrev(sn);
-  if (sn.isPlayer) return;
 }
 
 /** A spot at least `clear` units from every living comet, `margin` (fraction of halfSize) inside the edge. */
@@ -431,16 +452,16 @@ function safeSpot(s, clear, margin) {
 
 function respawnBot(s, b, clear) {
   const at = safeSpot(s, clear, 0.2);
-  b.tier = s.rngSpawn.pick(A.bots.tiers);
+  b.share = s.rngSpawn.pick(A.bots.capShares);
   const cap = capOf(s, b);
-  let mass = s.rngSpawn.pick(A.bots.startMass);
+  let mass = s.rngSpawn.pick(s.tier.startMass);
   while (mass > A.values.base && headOfMass(mass) > cap) mass = Math.floor(mass / 2);
   spawnSnake(s, b, mass, at.x, at.z, s.rngSpawn.range(-Math.PI, Math.PI));
   s.events.push({ type: "spawn", sid: b.id });
 }
 
 function turnRate(sn) {
-  const k = clamp((headSize(sn.head) - HEAD0) / Math.max(1e-6, A.comet.sizeMax - HEAD0), 0, 1);
+  const k = clamp((blockSize(sn.head) - SIZE0) / Math.max(1e-6, A.blocks.sizeMax - SIZE0), 0, 1);
   return A.snake.turnRate + (A.snake.turnRateBig - A.snake.turnRate) * k;
 }
 
@@ -455,7 +476,7 @@ function moveSnake(s, sn, dt, input) {
     const max = turnRate(sn) * dt;
     sn.heading = wrap(sn.heading + clamp(diff, -max, max));
   } else if (input.turn) {
-    sn.heading = wrap(sn.heading + clamp(input.turn, -1, 1) * A.snake.keyTurnRate * dt);
+    sn.heading = wrap(sn.heading + clamp(input.turn, -1, 1) * turnRate(sn) * dt);
   }
   boostStep(s, sn, input.boost, dt);
   advance(s, sn, dt, A.snake.speed * (sn.boosting ? A.boost.factor : 1));
@@ -519,7 +540,7 @@ function advance(s, sn, dt, speed) {
 /** Returns true when the edge killed the comet. */
 function wall(s, sn) {
   const ar = A.arena;
-  const lim = ar.halfSize - ar.wallMargin - headSize(sn.head) / 2;
+  const lim = ar.halfSize - ar.wallMargin - blockSize(sn.head) / 2;
   let dx = Math.cos(sn.heading), dz = Math.sin(sn.heading);
   let hit = false;
   if (ar.shape === "circle") {
@@ -546,16 +567,18 @@ function wall(s, sn) {
   return false;
 }
 
-/** Place every planet along the comet's recorded path at fixed arc spacing behind it. */
+/** Place every planet along the head's recorded path at fixed arc spacing (planet 0 is the head). */
 function computeSegments(sn) {
   const sp = A.blocks.spacing;
   const n = sn.n;
   if (n === 0) { sn.len = 0; return; }
+  sn.segX[0] = sn.x;
+  sn.segZ[0] = sn.z;
+  sn.segYaw[0] = sn.heading;
   let curX = sn.x, curZ = sn.z, walked = 0, want = 0, k = 0;
   let lastDX = -Math.cos(sn.heading), lastDZ = -Math.sin(sn.heading);
-  let prevSize = headSize(sn.head);
-  let px0 = sn.x, pz0 = sn.z;
-  for (let i = 0; i < n; i++) {
+  let prevSize = blockSize(sn.chain[0]);
+  for (let i = 1; i < n; i++) {
     const size = blockSize(sn.chain[i]);
     want += (prevSize + size) * 0.5 * sp;
     prevSize = size;
@@ -586,15 +609,23 @@ function computeSegments(sn) {
     }
     sn.segX[i] = x;
     sn.segZ[i] = z;
-    sn.segYaw[i] = Math.atan2(pz0 - z, px0 - x);
-    px0 = x; pz0 = z;
+    sn.segYaw[i] = Math.atan2(sn.segZ[i - 1] - z, sn.segX[i - 1] - x);
   }
   sn.len = want;
 }
 
+/** Read-only access to the head's recorded path for the view (ribbon trail): the k-th point back. */
+export function pathPoint(sn, k, out) {
+  if (k >= sn.pathLen) return false;
+  const idx = ((sn.pathTop - k + PATH_CAP) % PATH_CAP) * 2;
+  out.x = sn.path[idx];
+  out.z = sn.path[idx + 1];
+  return true;
+}
+
 // ------------------------------------------------------------------ pickups
 
-function spawnLoose(s, x, z, v, vx = 0, vz = 0, gold = 0) {
+function spawnLoose(s, x, z, v, vx = 0, vz = 0, kind = DROPPED) {
   const L = s.loose;
   for (let k = 0; k < L.cap; k++) {
     const i = (L.cursor + k) % L.cap;
@@ -606,7 +637,7 @@ function spawnLoose(s, x, z, v, vx = 0, vz = 0, gold = 0) {
     L.vx[i] = vx;
     L.vz[i] = vz;
     L.v[i] = v;
-    L.gold[i] = gold;
+    L.kind[i] = kind;
     L.age[i] = 0;
     L.count++;
     return i;
@@ -614,8 +645,7 @@ function spawnLoose(s, x, z, v, vx = 0, vz = 0, gold = 0) {
   return -1;
 }
 
-function pickValue(rs) {
-  const w = A.loose.weights;
+function pickValue(rs, w) {
   let total = 0;
   for (const [, p] of w) total += p;
   let r = rs.next() * total;
@@ -623,14 +653,13 @@ function pickValue(rs) {
   return w[0][0];
 }
 
-/** Fresh stardust; in the round's finale it is golden and worth finaleFactor times more. */
+/** Fresh stardust; in the round's finale it is golden (round.finaleWeights). */
 function freshValue(s, out) {
-  const v = pickValue(s.rngSpawn);
-  const gold = inFinale(s) ? 1 : 0;
-  out.gold = gold;
-  return gold ? v * A.round.finaleFactor : v;
+  const gold = inFinale(s);
+  out.kind = gold ? GOLD : DUST;
+  return pickValue(s.rngSpawn, gold ? A.round.finaleWeights : A.loose.weights);
 }
-const _fresh = { gold: 0 };
+const _fresh = { kind: DUST };
 
 function spawnFresh(s) {
   const rs = s.rngSpawn;
@@ -650,7 +679,7 @@ function spawnFresh(s) {
     }
     if (ok) break;
   }
-  return spawnLoose(s, x, z, v, 0, 0, _fresh.gold);
+  return spawnLoose(s, x, z, v, 0, 0, _fresh.kind);
 }
 
 /** Food floor around the player (ARENA.loose.near*): top up a ring just off the comet. */
@@ -672,7 +701,7 @@ function nearStep(s) {
   let x = clamp(p.x + Math.cos(a) * d, -lim, lim), z = clamp(p.z + Math.sin(a) * d, -lim, lim);
   if (A.arena.shape === "circle") { const r = Math.hypot(x, z); if (r > lim) { x *= lim / r; z *= lim / r; } }
   const v = freshValue(s, _fresh);
-  spawnLoose(s, x, z, v, 0, 0, _fresh.gold);
+  spawnLoose(s, x, z, v, 0, 0, _fresh.kind);
 }
 
 function spawnStep(s, dt) {
@@ -709,11 +738,11 @@ function looseStep(s, dt) {
       if (L.vx[i] * L.vx[i] + L.vz[i] * L.vz[i] < 1e-4) { L.vx[i] = 0; L.vz[i] = 0; }
     }
     const v = L.v[i];
-    const ls = looseSize(v, L.gold[i]);
+    const ls = looseSize(v, L.kind[i]);
     let best = null, bd2 = Infinity, bhs = 0, swept2 = Infinity;
     for (const sn of s.snakes) {
       if (!sn.alive) continue;
-      const hs = headSize(sn.head);
+      const hs = blockSize(sn.head);
       const r = hs * 0.5 + mag + ls * 0.5;
       const dx = sn.x - L.x[i], dz = sn.z - L.z[i];
       const d2 = dx * dx + dz * dz;
@@ -746,7 +775,7 @@ function eat(s, sn, i) {
   sn.n = insertAndMerge(sn.chain, sn.n, v, merges);
   recount(sn);
   computeSegments(sn);
-  s.events.push({ type: "eat", sid: sn.id, value: v, gold: L.gold[i], x: L.x[i], z: L.z[i] });
+  s.events.push({ type: "eat", sid: sn.id, value: v, kind: L.kind[i], x: L.x[i], z: L.z[i] });
   for (let m = 0; m < merges.length; m += 2) {
     s.events.push({ type: "merge", sid: sn.id, value: merges[m], index: merges[m + 1], step: m / 2 + 1 });
   }
@@ -759,16 +788,13 @@ function contacts(s) {
   const headOnly = A.contact.rule === "headVsHead";
   for (const a of s.snakes) {
     if (!collidable(s, a)) continue;
-    const ha = headSize(a.head);
+    const ha = blockSize(a.head);
     for (const b of s.snakes) {
       if (b === a || !collidable(s, b)) continue;
-      const broad = b.len + ha + A.values.sizeMax;
+      const broad = b.len + ha + A.blocks.sizeMax;
       if ((a.x - b.x) ** 2 + (a.z - b.z) ** 2 > broad * broad) continue;
-      // comet vs comet
-      const rh = (ha + headSize(b.head)) * 0.5 * reach;
-      if ((a.x - b.x) ** 2 + (a.z - b.z) ** 2 < rh * rh) { resolve(s, a, b, -1); if (!a.alive) break; continue; }
-      if (headOnly) continue;
-      for (let j = 0; j < b.n; j++) {
+      const n = headOnly ? Math.min(1, b.n) : b.n;
+      for (let j = 0; j < n; j++) {
         const r = (ha + blockSize(b.chain[j])) * 0.5 * reach;
         const dx = a.x - b.segX[j], dz = a.z - b.segZ[j];
         if (dx * dx + dz * dz >= r * r) continue;
@@ -780,16 +806,15 @@ function contacts(s) {
   }
 }
 
-/** j = -1: comet touched comet; j >= 0: comet touched planet j of b. */
+/** a's head touched planet j of b (j = 0: head to head). */
 function resolve(s, a, b, j) {
   if (a.head > b.head) return kill(s, b, a, "eaten");
   if (a.head < b.head) return kill(s, a, b, "eaten");
   if (A.contact.equal !== "bounce" || a.bounceCd > 0) return;
-  const bx = j < 0 ? b.x : b.segX[j], bz = j < 0 ? b.z : b.segZ[j];
-  const ang = Math.atan2(a.z - bz, a.x - bx);
+  const ang = Math.atan2(a.z - b.segZ[j], a.x - b.segX[j]);
   a.heading = ang;
   a.bounceCd = A.contact.bounceCooldown;
-  if (j < 0 && b.bounceCd <= 0) { b.heading = wrap(ang + Math.PI); b.bounceCd = A.contact.bounceCooldown; }
+  if (j === 0 && b.bounceCd <= 0) { b.heading = wrap(ang + Math.PI); b.bounceCd = A.contact.bounceCooldown; }
   if (a.isPlayer || b.isPlayer) s.events.push({ type: "bounce", a: a.id, b: b.id, x: a.x, z: a.z });
 }
 

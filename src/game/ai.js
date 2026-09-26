@@ -14,34 +14,32 @@
 import { ARENA as A } from "../config.js";
 // sim.js imports this module too; the cycle is safe because these are only called at run time.
 import { canEat, collidable } from "./sim.js";
-import { headSize } from "./values.js";
+import { blockSize } from "./values.js";
 
 /**
  * @param {object} s simulation state
  * @param {object} me the snake that thinks
  * @param {{ next:()=>number } | null} rng the bot's own seeded stream, or null for the deterministic autopilot
- * @param {{ flee?:number, chase?:number, seek?:number, aggression?:number }} [o] overrides (autopilot)
+ * @param {{ flee?:number, chase?:number, seek?:number, aggression?:number, chaseMax?:number }} [o] overrides (autopilot)
  */
 export function think(s, me, rng, o = {}) {
   const B = A.bots;
   const ai = me.ai;
-  const hs = headSize(me.head);
+  const hs = blockSize(me.head);
   const flee = (o.flee ?? B.fleeRadius) + hs * 0.5;
   const chase = o.chase ?? B.chaseRadius;
   const seek = o.seek ?? B.seekRadius;
-  const aggression = o.aggression ?? Math.min(1, B.aggression + B.aggressionPerLevel * (s.level - 1));
+  const aggression = o.aggression ?? s.tier.aggression;
   // Always the same number of draws per think, so a different branch never shifts later decisions.
   const roll = rng ? rng.next() : 0;
   const bend = rng ? (rng.next() - 0.5) * 2.2 : 0.4;
 
-  // 1. flee the nearest part (comet or planet) of any chain with a bigger head
+  // 1. flee the nearest planet of any chain with a bigger head
   let td2 = flee * flee, tx = 0, tz = 0, threat = false;
   for (const other of s.snakes) {
     if (other === me || !collidable(s, other) || other.head <= me.head) continue;
-    const broad = other.len + flee + A.values.sizeMax;
-    const h2 = (other.x - me.x) ** 2 + (other.z - me.z) ** 2;
-    if (h2 > broad * broad) continue;
-    if (h2 < td2) { td2 = h2; tx = other.x; tz = other.z; threat = true; }
+    const broad = other.len + flee + A.blocks.sizeMax;
+    if ((other.x - me.x) ** 2 + (other.z - me.z) ** 2 > broad * broad) continue;
     for (let j = 0; j < other.n; j++) {
       const dx = other.segX[j] - me.x, dz = other.segZ[j] - me.z;
       const d2 = dx * dx + dz * dz;
@@ -54,8 +52,8 @@ export function think(s, me, rng, o = {}) {
     return;
   }
 
-  // 2. chase a smaller head
-  if (roll < aggression) {
+  // 2. chase a smaller head - for at most chaseMaxSec, then leave that hunt for chaseRestSec
+  if (roll < aggression && s.clock >= ai.noChase) {
     let best = null, bd2 = chase * chase;
     for (const other of s.snakes) {
       if (other === me || !collidable(s, other) || other.head >= me.head) continue;
@@ -63,9 +61,13 @@ export function think(s, me, rng, o = {}) {
       if (d2 < bd2) { bd2 = d2; best = other; }
     }
     if (best) {
-      ai.mode = "chase"; ai.target = best.id; ai.tx = best.x; ai.tz = best.z;
-      ai.boost = Math.sqrt(bd2) < B.boostWhenClose * 2;
-      return;
+      if (ai.mode !== "chase" || ai.target !== best.id) ai.chaseStart = s.clock;
+      if (s.clock - ai.chaseStart <= (o.chaseMax ?? B.chaseMaxSec)) {
+        ai.mode = "chase"; ai.target = best.id; ai.tx = best.x; ai.tz = best.z;
+        ai.boost = Math.sqrt(bd2) < B.boostWhenClose * 2;
+        return;
+      }
+      ai.noChase = s.clock + B.chaseRestSec;
     }
   }
 
@@ -116,7 +118,7 @@ export function steerBot(s, me, out) {
   dx /= d; dz /= d;
 
   // Wall: when the look-ahead point is outside the safe zone, bend toward the middle.
-  const hs = headSize(me.head);
+  const hs = blockSize(me.head);
   const ahead = 3.5 + hs;
   const fx = me.x + Math.cos(me.heading) * ahead, fz = me.z + Math.sin(me.heading) * ahead;
   const safe = A.arena.halfSize - 3 - hs;
@@ -145,7 +147,7 @@ export function autopilot(s, out) {
   const p = s.player;
   if (!p.alive) { out.hasDir = false; out.turn = 0; out.boost = false; return; }
   if (s.clock >= p.ai.next) {
-    think(s, p, null, { flee: A.bots.fleeRadius + 2.5, chase: 7, aggression: 1 });
+    think(s, p, null, { flee: A.bots.fleeRadius + 2, chase: 6, aggression: 1, chaseMax: 1.2 });
     p.ai.next = s.clock + 0.15;
   }
   steerBot(s, p, out);

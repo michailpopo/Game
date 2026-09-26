@@ -570,7 +570,7 @@ ideas for the others (CrazyGames search API, no hits): Blob Barrage, Grazeline, 
    originality review. For C4, record **Galactic Drill**; for C2, **Mob Rush**.
 4. Accept a prototype gate before production: C1's feel is a HYPOTHESIS until testers play the grey box.
 
-User approval: _open - the owner has not picked yet (Gate 1)_
+User approval: **2026-09-26 - the owner picked C1 Skip Legend** ("C1 Skip Legend (Recommended)") and kept "Skip Legend" as the working title. The planner announced the grey-box prototype gate (Gate 2, the owner plays it) with the question.
 
 ## Evidence added in this pass (DESIGNER, MEASURED 2026-09-26)
 Commands: `NODE_USE_ENV_PROXY=1 node <skill>/scripts/research/cg-game.mjs <slugs> --md --json`; the

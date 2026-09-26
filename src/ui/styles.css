@@ -1,0 +1,216 @@
+/*
+  UI styles.
+  Legibility (CG-GAME-002): the smallest supported iframe is 800x450 at
+  devicePixelRatio 1. The base size below is >= 13px there and scales to ~24px
+  at 1920x1080. Check every screen at 800x450 before calling it done.
+*/
+
+#ui {
+  --font: "Lilita One", "Arial Black", system-ui, sans-serif;
+  --ink: rgba(42, 26, 84, 0.62);
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  color: #fff;
+  font-family: var(--font);
+  font-size: clamp(13px, calc(0.95vmin + 8.2px), 24px);
+  letter-spacing: 0.02em;
+  line-height: 1.1;
+  /* CrazyGames App opens games fullscreen: keep UI out of notches/rounded corners. */
+  padding: env(safe-area-inset-top, 0px) env(safe-area-inset-right, 0px) env(safe-area-inset-bottom, 0px) env(safe-area-inset-left, 0px);
+  box-sizing: border-box;
+}
+
+#ui .stroke {
+  text-shadow:
+    0 0.08em 0 var(--ink), 0.06em 0 0 var(--ink), -0.06em 0 0 var(--ink),
+    0 -0.05em 0 var(--ink), 0.05em 0.06em 0 var(--ink), -0.05em 0.06em 0 var(--ink),
+    0 0.16em 0.12em rgba(0, 0, 0, 0.18);
+}
+
+/* ---------- HUD ---------- */
+.hud {
+  position: absolute; top: 0.6em; left: 0.6em; right: 0.6em;
+  display: flex; align-items: flex-start; justify-content: space-between; gap: 0.6em;
+}
+.icon-btn {
+  pointer-events: auto; width: 2.5em; height: 2.5em; border: 0; border-radius: 0.75em;
+  background: rgba(40, 30, 80, 0.35); display: grid; place-items: center; cursor: pointer; padding: 0;
+}
+.icon-btn svg { width: 1.45em; height: 1.45em; fill: #fff; }
+.progress { display: flex; align-items: center; gap: 0.35em; margin-top: 0.25em; }
+.progress .lv {
+  width: 1.9em; height: 1.9em; border-radius: 50%; display: grid; place-items: center;
+  background: #37a8ff; border: 0.16em solid #fff; box-shadow: 0 0.12em 0 rgba(0, 0, 0, 0.18); font-size: 0.95em;
+}
+.progress .lv-b { background: #fff; color: #4a3f86; }
+.progress .bar {
+  width: clamp(7em, 28vw, 15em); height: 0.8em; border-radius: 0.5em; overflow: hidden;
+  background: rgba(40, 30, 80, 0.45); border: 0.13em solid #fff;
+}
+.progress .bar i { display: block; height: 100%; width: 0; border-radius: 0.4em; background: linear-gradient(90deg, #37a8ff, #7fd8ff); }
+.coins {
+  display: flex; align-items: center; gap: 0.35em; font-size: 1.15em;
+  background: rgba(40, 30, 80, 0.38); border-radius: 1em; padding: 0.12em 0.22em 0.12em 0.8em;
+}
+.coins b { font-weight: normal; }
+.coin svg, .coins .coin svg { width: 1.45em; height: 1.45em; display: block; }
+
+/* ---------- bubbles & floating text ---------- */
+.bubbles, .floats { position: absolute; inset: 0; overflow: hidden; }
+.bubble {
+  position: absolute; left: 0; top: 0; will-change: transform; white-space: nowrap;
+  padding: 0.12em 0.55em 0.08em; border-radius: 0.8em; font-size: 1.1em;
+  background: #3aa0ff; box-shadow: 0 0.12em 0 rgba(0, 0, 0, 0.16);
+}
+.bubble::after {
+  content: ""; position: absolute; left: 50%; bottom: -0.34em; transform: translateX(-50%);
+  border: 0.38em solid transparent; border-bottom: 0; border-top-color: #3aa0ff;
+}
+.bubble.enemy { background: #ff4d5e; }
+.bubble.enemy::after { border-top-color: #ff4d5e; }
+.float { position: absolute; left: 0; top: 0; font-size: 2.1em; opacity: 0; white-space: nowrap; will-change: transform, opacity; }
+.float.good { color: #d6f6ff; }
+.float.bad { color: #ffd3d8; }
+.float.gold { color: #ffe066; }
+
+/* ---------- hint ---------- */
+.hint { position: absolute; left: 50%; top: 40%; transform: translate(-50%, -50%); text-align: center; transition: opacity 0.25s; width: 90%; }
+.hint.hidden { opacity: 0; }
+.hint .hand { width: 3.4em; height: 3.4em; margin: 0 auto 0.35em; animation: swipe 1.5s ease-in-out infinite; }
+.hint .hand svg { width: 100%; height: 100%; }
+.hint p { margin: 0; }
+.hint .main { font-size: 1.6em; }
+.hint .sub { font-size: 0.95em; margin-top: 0.25em; }
+@keyframes swipe { 0%, 100% { transform: translateX(-2.4em) rotate(-10deg); } 50% { transform: translateX(2.4em) rotate(10deg); } }
+
+/* ---------- upgrades ---------- */
+.upgrades { position: absolute; left: 50%; bottom: 0.9em; transform: translateX(-50%); display: flex; gap: 0.9em; transition: opacity 0.2s; }
+.upgrades.hidden { opacity: 0; visibility: hidden; }
+.upgrade { display: flex; flex-direction: column; gap: 0.35em; width: 7.6em; }
+.card {
+  pointer-events: auto; position: relative; font: inherit; color: #fff; cursor: pointer; text-align: center;
+  border-radius: 0.8em; padding: 0.5em 0.45em 0.4em; border: 0.13em solid rgba(255, 255, 255, 0.9);
+  background: linear-gradient(180deg, rgba(255, 255, 255, 0.36), rgba(255, 255, 255, 0.12));
+  box-shadow: 0 0.24em 0 rgba(40, 30, 80, 0.28); display: flex; flex-direction: column; align-items: center;
+}
+.card:active { transform: translateY(0.12em); box-shadow: 0 0.1em 0 rgba(40, 30, 80, 0.28); }
+.card .lvl { position: absolute; left: 0.45em; top: 0.35em; font-size: 0.9em; }
+.card .icon svg { width: 2.8em; height: 2.8em; display: block; margin: 0.35em auto 0.1em; }
+.card .title { font-size: 0.86em; white-space: nowrap; }
+.card .cost {
+  display: flex; align-items: center; justify-content: center; gap: 0.25em; font-size: 1.15em;
+  width: 100%; margin-top: 0.3em; padding-top: 0.25em; border-top: 0.1em solid rgba(255, 255, 255, 0.6);
+}
+.card .cost b { font-weight: normal; }
+.card .cost svg { width: 1.2em; height: 1.2em; }
+.card.cant .cost { color: #ffd0d6; }
+.card[disabled] { cursor: default; opacity: 0.85; }
+.free-spacer { display: block; min-height: 2.3em; }
+
+/* ---------- buttons ---------- */
+.btn {
+  pointer-events: auto; font: inherit; font-size: 1.25em; color: #fff; cursor: pointer;
+  display: inline-flex; align-items: center; justify-content: center; gap: 0.4em;
+  min-height: 2.8em; padding: 0.4em 0.8em; border: 0; border-radius: 0.6em;
+  background: linear-gradient(180deg, #ff6fe1, #e13ccc);
+  box-shadow: 0 0.22em 0 #9b1f8c, 0 0.4em 0.7em rgba(0, 0, 0, 0.16);
+  text-shadow: 0 0.07em 0 rgba(80, 10, 70, 0.55);
+}
+.btn:active { transform: translateY(0.14em); box-shadow: 0 0.08em 0 #9b1f8c; }
+.btn svg { width: 1.2em; height: 1.2em; fill: #fff; flex: none; }
+.btn.free { font-size: 0.9em; min-height: 2.3em; padding: 0.25em 0.5em; }
+
+/* ---------- result dialog ---------- */
+.modal { position: absolute; inset: 0; display: grid; place-items: center; background: rgba(30, 20, 60, 0.34); pointer-events: auto; }
+.modal[hidden] { display: none; }
+.dialog {
+  width: min(22em, 88vw); text-align: center; box-sizing: border-box; padding: 1em 1em 1.1em;
+  border-radius: 1.1em; border: 0.18em solid #fff;
+  background: linear-gradient(180deg, #a9aef3, #7f86da);
+  box-shadow: 0 0.4em 0 rgba(40, 30, 80, 0.35), 0 1em 2.2em rgba(0, 0, 0, 0.22);
+}
+.dialog.fail { background: linear-gradient(180deg, #f3a2b0, #d56c83); }
+.dialog h2 { margin: 0 0 0.3em; font-size: 2em; font-weight: normal; }
+.dialog .amount { display: flex; align-items: center; justify-content: center; gap: 0.3em; font-size: 2.1em; margin: 0 0 0.55em; }
+.dialog .amount b { font-weight: normal; }
+.dialog .amount svg { width: 1.1em; height: 1.1em; }
+.dialog .row { display: grid; grid-auto-flow: column; grid-auto-columns: 1fr; gap: 0.6em; }
+.dialog .note { min-height: 1.15em; margin: 0.6em 0 0; font-size: 0.92em; }
+.dialog.locked .btn { pointer-events: none; opacity: 0.8; }
+/* Revive countdown ring: it only ever removes the offer (main.js / ui.js tickCountdown). */
+.dialog .ring { position: relative; width: 3.3em; height: 3.3em; margin: -0.15em auto 0.55em; }
+.dialog .ring[hidden] { display: none; }
+.dialog .ring svg { width: 100%; height: 100%; display: block; transform: rotate(-90deg); }
+.dialog .ring circle { fill: none; stroke-width: 4; }
+.dialog .ring .track { stroke: rgba(255, 255, 255, 0.32); }
+.dialog .ring .fill { stroke: #fff; stroke-dasharray: 100; stroke-dashoffset: 0; stroke-linecap: round; }
+.dialog .ring b { position: absolute; inset: 0; display: grid; place-items: center; font-weight: normal; font-size: 1.45em; }
+
+/* ---------- ready screen: start boost + shop button ---------- */
+.boost { position: absolute; right: 0.9em; bottom: 0.9em; }
+.boost.hidden, .shop-btn.hidden { display: none; }
+.shop-btn { position: absolute; left: 0.9em; bottom: 0.9em; width: 3.2em; height: 3.2em; border-radius: 0.9em; }
+.shop-btn svg { width: 2.2em; height: 2.2em; }
+.btn b { font-weight: normal; }
+.btn .coin svg { width: 1.15em; height: 1.15em; }
+/* Unaffordable purchase: the price turns pink (as on the upgrade cards); the button itself keeps the shared look. */
+.btn.cant b { color: #ffd0d6; }
+
+/* ---------- skins shop ---------- */
+.shop-modal { position: absolute; inset: 0; z-index: 40; display: grid; place-items: center; background: rgba(30, 20, 60, 0.42); pointer-events: auto; }
+.shop-modal[hidden] { display: none; }
+.shop {
+  position: relative; width: min(21em, 92vw); box-sizing: border-box; padding: 0.9em 1em 1em; text-align: center;
+  border-radius: 1.1em; border: 0.18em solid #fff; background: linear-gradient(180deg, #a9aef3, #7f86da);
+  box-shadow: 0 0.4em 0 rgba(40, 30, 80, 0.35), 0 1em 2.2em rgba(0, 0, 0, 0.22);
+}
+.shop h2 { margin: 0 0 0.45em; font-size: 1.8em; font-weight: normal; }
+.shop .close { position: absolute; top: -0.7em; right: -0.7em; width: 2.3em; height: 2.3em; border-radius: 50%; background: #ff5a6e; box-shadow: 0 0.15em 0 #b52a3e; }
+.shop .grid { display: grid; grid-template-columns: repeat(3, 3.6em); gap: 0.45em; justify-content: center; }
+.swatch {
+  pointer-events: auto; width: 3.6em; height: 3.6em; padding: 0.2em; cursor: pointer; border-radius: 0.75em;
+  border: 0.14em solid rgba(255, 255, 255, 0.75); background: rgba(255, 255, 255, 0.28);
+}
+.swatch svg { width: 100%; height: 100%; display: block; }
+.swatch.locked { background: rgba(40, 30, 80, 0.3); border-color: rgba(255, 255, 255, 0.35); cursor: default; }
+.swatch.selected { border-color: #ffe066; box-shadow: 0 0 0 0.14em #ffe066; }
+.shop .row { display: grid; grid-auto-flow: column; grid-auto-columns: 1fr; gap: 0.5em; margin-top: 0.8em; }
+.shop .row .btn { font-size: 1em; min-height: 2.6em; padding: 0.3em 0.5em; gap: 0.3em; }
+.shop .note { min-height: 1.15em; margin: 0.55em 0 0; font-size: 0.92em; }
+
+/* ---------- toast, ad blocker, coin fly ---------- */
+.toast {
+  position: absolute; left: 50%; bottom: 13%; transform: translate(-50%, 0.8em); opacity: 0; transition: opacity 0.25s, transform 0.25s;
+  background: rgba(30, 20, 60, 0.82); padding: 0.5em 0.9em; border-radius: 0.8em; max-width: 80%; text-align: center; font-size: 0.95em;
+}
+.toast.show { opacity: 1; transform: translate(-50%, 0); }
+.ad-block { position: absolute; inset: 0; z-index: 100; display: grid; place-items: center; background: rgba(20, 14, 40, 0.55); pointer-events: auto; }
+.ad-block[hidden] { display: none; }
+.spinner { width: 3em; height: 3em; border-radius: 50%; border: 0.35em solid rgba(255, 255, 255, 0.3); border-top-color: #fff; animation: spin 0.8s linear infinite; }
+@keyframes spin { to { transform: rotate(360deg); } }
+.fly-coin { position: absolute; left: 0; top: 0; width: 1.6em; height: 1.6em; pointer-events: none; z-index: 60; }
+.fly-coin svg { width: 100%; height: 100%; }
+
+@media (max-aspect-ratio: 1/1) {
+  .hint { top: 42%; }
+  .upgrades { bottom: 1.4em; }
+  /* Portrait: the upgrade cards take the bottom centre, so the boost sits above them. */
+  .boost { right: 50%; translate: 50% 0; bottom: 11.6em; }
+  .shop-btn { bottom: 1.4em; }
+}
+
+/* ---------- marketing captures (?cover=, ?capture=1) ---------- */
+#ui.marketing .hint, #ui.marketing .upgrades, #ui.marketing .modal, #ui.marketing .toast, #ui.marketing .icon-btn,
+#ui.marketing .boost, #ui.marketing .shop-modal { display: none !important; }
+/* Covers: the title is the ONLY text allowed (docs /requirements/game-covers). */
+#ui.cover .hud, #ui.cover .bubbles, #ui.cover .floats { display: none; }
+#ui .cover-title {
+  position: absolute; left: 50%; top: 7%; transform: translateX(-50%) rotate(-4deg);
+  font-size: min(13vw, 17vh); line-height: 1; white-space: nowrap; color: #fff;
+}
+#ui .cover-title.stroke {
+  text-shadow: 0 0.06em 0 #5a2fa0, 0.045em 0 0 #5a2fa0, -0.045em 0 0 #5a2fa0, 0 -0.04em 0 #5a2fa0,
+    0.04em 0.05em 0 #5a2fa0, -0.04em 0.05em 0 #5a2fa0, 0 0.12em 0.06em rgba(40, 10, 80, 0.45);
+}
+@media (max-aspect-ratio: 1/1) { #ui .cover-title { top: 5%; font-size: 15vw; } }

@@ -1,0 +1,41 @@
+{
+  "name": "Working Title",
+  "slug": "cg-game",
+  "status": "new project - concept phase",
+  "targetStage": "full",
+  "orientation": "both",
+  "style": "minimal-poly",
+  "budgets": {
+    "trianglesPerGeometry": 2000,
+    "heroTriangles": 5000,
+    "trianglesPerFrame": 60000,
+    "drawCalls": 60,
+    "modelTriangles": 5000,
+    "maxDeadAirSec": 3
+  },
+  "features": {
+    "sdk": true,
+    "ads": true,
+    "rewarded": true,
+    "banners": false,
+    "has-progress": true,
+    "has-accounts": false,
+    "multiplayer": false,
+    "chat": false,
+    "ugc": false,
+    "leaderboard": false,
+    "iap": false,
+    "mobile": true,
+    "keyboard": true,
+    "mouse-gesture": false,
+    "first-person": false,
+    "sitelock": false,
+    "external-assets": false,
+    "collects-personal-data": false
+  },
+  "notes": {
+    "mouse-gesture": "Steering is hold-and-drag with pointer capture, so releasing outside the frame cannot click the page. If QA treats it as mouse-gesture movement, enable Input({ pointerLock: true }) and set this to true.",
+    "budgets": "Profile M (skill references/threejs/visual-style.md). Enforced by tools/qa/browser-qa.mjs (poly-budget, dead-air) and tools/qa/check-poly.mjs. heroTriangles: at most ONE geometry may exceed trianglesPerGeometry, up to this. Raise a budget only with a written reason in docs/PROJECT_STATUS.md."
+  },
+  "createdAt": "2026-09-26"
+}

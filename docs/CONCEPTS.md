@@ -816,3 +816,10 @@ moves R1 further from Cubes 2048.io. Together, R1 + cut would score highest, but
 - Approve the name.
 - Say whether the bot arena is labelled "Offline Arena" or with per-name "BOT" tags (both are honest; the tags keep the
   leaderboard slice readable).
+
+### Round 2 decision
+**Owner's pick, 2026-09-26: R1 Comet Chain** ("R1 Comet Chain (Recommended)"), working title "Comet Chain" kept.
+Bot labelling chosen by the owner: **"Offline Arena" only** - the mode is named "Offline Arena" (home, HUD and
+the leaderboard header say so); bot names look like normal names without a per-name BOT tag. The planner's note:
+the "Offline Arena" label must be visible wherever bot names appear (leaderboard slice, kill feed context, result
+podium), so bots are never presented as real players.

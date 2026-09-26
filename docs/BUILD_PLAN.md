@@ -15,6 +15,28 @@ Last updated: 2026-09-26
 - Environment (cloud container, 2026-09-26): run the browser harness with
   `PW_CHROMIUM_PATH=/opt/pw-browsers/chromium`; Node scripts that fetch the web need `NODE_USE_ENV_PROXY=1`.
 
+## CrazyGames QA (owner's instruction, 2026-09-26: "use the CrazyGames QA")
+
+The `crazygames-qa` skill is applied in two modes on every round, next to the game-studio register
+(`tools/qa/requirements.json`) and `npm run qa`:
+
+- **BUILD MODE - constraints in every package brief** (from the skill's checklist and `references/*.md`):
+  land in gameplay in <= 1 click (Full Launch); text readable at devicePixelRatio 1 at 907x510, 821x462,
+  800x450 and up to 1920x1080; landscape on desktop; mouse + keyboard + touch; `user-select: none` and no
+  magnification on mobile; safe areas; no custom fullscreen button; no Escape / Ctrl+W bindings; physical
+  keys via `event.code` (AZERTY); delta-time physics identical at 60/144/165 Hz; iOS AudioContext resume on
+  touchend; relative paths only; `gameplayStart`/`gameplayStop` at the real play boundaries; progress via the
+  Data module; midgame only at natural breaks (never on navigation or shop opening); game paused and muted
+  on `adStarted` (not on request) and resumed on `adFinished`/`adError`; rewarded: reward only on
+  `adFinished`, decline the same size/font/colour, video icon, not on the active gameplay screen, not every
+  death, a coin alternative, hidden (not dead) under adblock / Basic Launch; English + SDK-locale fallback;
+  PEGI 12; original name and assets; no cross-promotion or app-store links.
+- **AUDIT MODE - a compliance report at the gates** (WP-QA below): the skill's report format
+  (PASS / FAIL with FIX / WARNING / CANNOT VERIFY, summary counts), written to `docs/CG_QA_AUDIT.md`,
+  run by `crazygames-compliance-auditor` at Gate 2 (prototype, technical + gameplay only), Gate 3, Gate 6
+  and Gate 8 (Full Launch, every category incl. ads and covers). A FAIL there blocks the gate like a
+  `npm run qa` FAIL.
+
 ## Packages
 
 | ID | Goal | Owner | Files it may touch | Depends on | Status |
@@ -24,6 +46,7 @@ Last updated: 2026-09-26
 | WP-02 | Grey-box prototype of the core verb: throw, tap-per-skip timing judge, micro reward, shore bins, retry | threejs-game-engineer | src/** (game, view, main, ui, config, i18n), tools/qa/sim-health.mjs, tools/qa/browser-qa.mjs (phase/hook adapters only) | WP-01 | todo |
 | WP-03 | Cold playtest of the prototype (blind, fresh context) | gauntlet-critic | docs/QA_REPORT.md (playtest section) | WP-02 | todo |
 | WP-04 | Playtest build for the owner (Gate 2: the owner plays on PC and phone) | planner | dist/ -> published playtest page | WP-02 | todo |
+| WP-QA | CrazyGames QA audit (crazygames-qa skill, audit mode) at each gate | crazygames-compliance-auditor | docs/CG_QA_AUDIT.md, qa/** | per gate | todo (first: Gate 2) |
 
 Status values: todo · in progress · review (returned, planner checking) · done · blocked (why).
 
@@ -58,6 +81,10 @@ Gate 2, when the owner has played the prototype and the fun moment is named.
   - First "+1" within 4 s of the first input; no feedback gap over 3 s (dead-air budget).
   - Profile M budgets from project.json (<= 2,000 tris per geometry, <= 60k per frame, <= 60 draw calls).
   - Controls: tap / left click / Space (event.code) - same verb everywhere; no Escape.
+  - CrazyGames QA build-mode constraints (section above) apply; the ones this package must already meet:
+    <= 1 click to gameplay, readable at DPR 1 at 821x462 and 800x450, no fullscreen button, `user-select: none`,
+    iOS audio resume on touchend, `gameplayStart` on the throw / `gameplayStop` at the result, delta-time
+    physics, relative paths.
   - Landscape 1280x720 and portrait 450x800 both playable; camera look-ahead keeps the next contact on screen.
   - The existing meta (coins, upgrades, skins, offers) may stay wired as-is or be stubbed for the prototype;
     do not build the Skip Legend shop yet. Coins earned per throw must still bank so a retry shows progress.

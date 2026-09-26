@@ -622,10 +622,22 @@ it and names the one core rule it changes. The core:
   is already taken and is *not* used below.
 - Snake.io: 29.2/day. Noob Snake 2048: 4.4/day. (DESIGNER, `cg-game.mjs`.)
 - The family has proven demand. The gap is only in the twist.
+- **Hit list (RESEARCH "Hit list: popular and simple", public plays):**
+  - Cubes 2048.io: 38,795 plays/day.
+  - Numbered-cube clones get 2-13% of that: Noob Snake 2048 13%, Cubes 2048 Royale 4.8%, Numbers Arena 2.5%.
+  - **Harvest.io** (Azur, HTML5, 2026-08-21) re-skins the same loop completely, as a tractor whose hay trailer is the
+    tail. It gets 11,346 plays/day (29%): the best newcomer in the snake tag.
+  - Applied below: keep the loop; change the fantasy and objects completely (no numbered cubes on a dark grid); add a
+    visible merge/evolve axis of our own. A vehicle pulling a trailer is now Harvest.io's fantasy.
 
 ### R1 - Comet Chain (space; 90 s rounds with respawns; a rank jackpot every round)
-- **Pitch:** steer a comet that drags a chain of numbered planets through a star field. Swallow stardust (2s), fuse
-  equal planets into bigger worlds, swallow smaller comets, dodge bigger ones. Every round lasts 90 s: die and you
+- **Pitch:** steer a comet that drags a chain of planets through a bright pastel nebula. Swallow stardust, fuse equal
+  planets into the next bigger kind of world, swallow smaller comets, dodge bigger ones.
+- **The visible evolve axis:** the ladder is the object, not a number: pebble -> moon -> ice world -> desert world ->
+  ocean world -> ringed giant -> sun -> blue giant ...
+  - Each step changes shape, colour, size and adds a ring or glow.
+  - The value (2, 4, 8 ...) is only a small badge.
+  - The world is a light nebula gradient, not a dark dot grid. Every round lasts 90 s: die and you
   respawn small 2 s later. When the clock hits 0, your chain is weighed and your rank pays out.
 - **Core rule it changes:** *game over -> timed round.* Death respawns you after 2 s with a starter chain (2-4-8)
   instead of ending the run. The round ends at 90 s, and rank = chain total at time-out among you + 11 bots.
@@ -637,8 +649,8 @@ it and names the one core rule it changes. The core:
   - 10-20 s: a small bot comet crosses you and you swallow it; its planets burst into stardust.
   - ~25 s: "Hold to boost" pill. The round clock ring counts down at top centre.
   - At 90 s: podium and payout.
-- **3-second clip:** a comet whips a chain of glowing planets through stardust; two 8-planets fuse into a 16 with a
-  flash; it swallows a smaller comet, whose planets scatter as sparkles.
+- **3-second clip:** a comet whips a chain of glowing planets through stardust; two ice worlds fuse into a bigger
+  ringed world with a flash; it swallows a smaller comet, whose planets scatter as sparkles.
 - **Reward cadence:**
 
   | Scale | Interval | What happens |
@@ -665,7 +677,8 @@ it and names the one core rule it changes. The core:
   Midgame on "Next round". Every round is a natural break, and the SDK caps it at about every 2nd round. No midgame
   after a revive or x3 video at the same break (CG-ADS-015).
 - **Poly fit:**
-  - planets: `IcosahedronGeometry(r,1)` (80 tris, flat-shaded, one colour per value) + an instanced number sprite
+  - planets: `IcosahedronGeometry(r,1)` (80 tris, flat-shaded); each ladder step has its own colour, size and an
+    optional torus ring (8x20, 320 tris, only from the ringed-giant step up), plus a small instanced value badge
     (2 tris);
   - comet head: icosahedron + a ribbon tail;
   - stardust: instanced octahedra (8 tris);
@@ -716,7 +729,9 @@ it and names the one core rule it changes. The core:
   - ~20k tris.
 - **Name:** Merge Express. CrazyGames search API "merge express": no hits; "express" matches only MATH EXPRESSions.
 - **Clone risk vs Cubes 2048.io: LOW-MEDIUM.** Cut-and-steal changes the fight: bodies become targets, not walls.
-  Trains read as their own world, and chain-following is literal for trains.
+- **Clone risk vs Harvest.io: MEDIUM.** A locomotive pulling wagons is the same fantasy as a tractor pulling a hay
+  trailer (Harvest.io, 2026-08-21, the family's best newcomer). If R2 were picked, it would need a non-vehicle object.
+  The cut rule itself is ours and can move to another concept.
 - **Build effort on the core: MEDIUM** (~1-1.5 days): chain split at an index, cut segments -> pickups, bounce,
   bot AI that cuts and avoids being cut, cut feedback.
 
@@ -758,7 +773,7 @@ it and names the one core rule it changes. The core:
 | First session | 5 | 4 | 4 | R1 cannot game-over in the first 90 s (respawns); R2/R3 can die early like Cubes |
 | Replayability | 4 | 4 | 4 | bots and emergent fights in all three |
 | Skill headroom | 3 | 5 | 4 | R2: cut, bait, protect your tail; R3: small-and-fast sniping; R1: the core only |
-| Originality | 3 | 4 | 3 | R2 changes combat; R1 changes structure + theme; R3 drifts toward Agar-style blobs |
+| Originality | 3 | 3 | 3 | R2 changes combat but its vehicle + trailer overlaps Harvest.io; R1 changes structure, theme and evolve ladder; R3 drifts toward Agar-style blobs |
 | Thumbnail identity | 4 | 5 | 4 | a train slicing a wagon line is unmistakable; a comet + planets is good; blobs are generic |
 | Hook density | 5 | 4 | 4 | R1 adds a rank jackpot every 90 s; R2/R3 jackpot only at death |
 | 3-second clip | 4 | 5 | 4 | the cut + steal is the most readable payoff |
@@ -772,8 +787,8 @@ it and names the one core rule it changes. The core:
 | Retention hooks | 4 | 4 | 4 | XP, skins, daily in all three |
 | Monetization fit | 5 | 4 | 4 | R1: Claim x3 on every round's jackpot + a start boost per round |
 | Ad-surface count | 5 | 5 | 5 | 7 surfaces each, with caps and coin paths |
-| Market gap evidence | 3 | 3 | 3 | family demand MEASURED (113.9/day, Royale 77.5/day since FL); gap only via the twist (HYPOTHESIS) |
-| **Total (of 100)** | **86** | **85** | **82** | |
+| Market gap evidence | 4 | 3 | 4 | family demand MEASURED (38,795 plays/day). The hit list shows full re-skins with a new fantasy win (Harvest.io 29%) while numbered clones get 2-13%. R1 and R3 are full re-skins; R2's fantasy is the one Harvest.io just took |
+| **Total (of 100)** | **87** | **84** | **83** | |
 
 ### Round 2 decision
 **Recommended: R1 Comet Chain.**
@@ -783,10 +798,13 @@ it and names the one core rule it changes. The core:
   jackpot and a Claim x3 every 90 s.
 - Respawns remove the early game-over, which makes for a better first session.
 - It avoids Cubes 2048 Royale's battle-royale twist.
+- It follows the hit list's lesson: a complete change of fantasy and object, plus a visible evolve ladder (pebble ->
+  moon -> ... -> sun). It is neither a numbered-cube clone (2-13% of the original's plays) nor a second
+  vehicle-with-trailer after Harvest.io.
 
-**R2 Merge Express** is the stronger game on originality, skill and clip (85, close behind). Its cut rule is the best
-**first update** for R1: "comet cuts a smaller comet's tail", which moves R1 further from Cubes 2048.io. Together,
-R1 + cut would score highest, but it doubles the build risk for today.
+**R2 Merge Express** has the best skill and clip (84). Its train fantasy is too close to Harvest.io's tractor, but its
+cut rule is the best **first update** for R1: "your comet cuts a smaller comet's tail and steals the planets", which
+moves R1 further from Cubes 2048.io. Together, R1 + cut would score highest, but it doubles the build risk for today.
 
 **Core rule change each needs:**
 - R1: game over -> 90 s round with 2 s respawns and a rank payout at time-out.

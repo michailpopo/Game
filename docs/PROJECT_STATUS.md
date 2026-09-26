@@ -6,13 +6,13 @@ Updated: 2026-09-26 · Project folder: /home/user/Game (repo michailpopo/Game, b
 - **Phase:** 3 Prototype (core engine WP-10)
 - **Current objective:** Comet Chain (Cubes 2048.io family, full reskin): brief + core engine -> twist -> slice -> QA -> launch package, upload-ready this session.
 - **Next action (one concrete step):** verify WP-10 when the engineer returns (build, sim-health, browser-qa, screenshots), publish a playtest build for the owner, start WP-11 (meta/offers) and WP-12 (juice/audio) in parallel.
-- **Waiting on the user:** nothing right now. Next: play the prototype (Gate 2).
+- **Waiting on the user:** play playtest 1 (https://claude.ai/artifact/CTruCX2mZudU1JvJ5qosaH) on PC and phone; answer: what did you try first, when did it get fun, when did you want to stop.
 
 ## Gates
 | Gate | Status | Date | Evidence |
 |---|---|---|---|
 | 1 Concept | PASS | 2026-09-26 | owner picked R1 Comet Chain; CONCEPTS (8 concepts scored), GAME_BRIEF, ORIGINALITY (name search logged), project.json truthful, BUILD_PLAN WP-10..13, no placeholders (planner checked) |
-| 2 Prototype fun | NOT STARTED | | |
+| 2 Prototype fun | IN PROGRESS | 2026-09-26 | WP-10 verified; playtest 1 published (private page, core engine, no offers polish yet) - waiting for the owner to play on PC + phone |
 | 3 Vertical slice | NOT STARTED | | |
 | 4 Gameplay quality | NOT STARTED | | |
 | 5 Content & polish | NOT STARTED | | |

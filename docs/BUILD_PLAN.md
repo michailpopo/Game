@@ -1,4 +1,4 @@
-# Build plan - Skip Legend
+# Build plan - merge-snake arena (Cubes 2048.io family; working title TBD)
 
 Owner: the planner (game-studio-director / the main session). Builders work only from packages here.
 Last updated: 2026-09-26
@@ -43,7 +43,8 @@ The `crazygames-qa` skill is applied in two modes on every round, next to the ga
 |---|---|---|---|---|---|
 | WP-00 | Market research + competitor teardowns | game-market-researcher | docs/RESEARCH.md, qa/research/** | - | done (teardowns in progress) |
 | WP-01 | Concepts, brief, originality, project profile | game-concept-designer | docs/CONCEPTS.md, GAME_BRIEF.md, ORIGINALITY.md, project.json | WP-00 | in progress (brief) |
-| WP-02 | Grey-box prototype of the core verb: throw, tap-per-skip timing judge, micro reward, shore bins, retry | threejs-game-engineer | src/** (game, view, main, ui, config, i18n), tools/qa/sim-health.mjs, tools/qa/browser-qa.mjs (phase/hook adapters only) | WP-01 | todo |
+| WP-10 | Merge-snake arena core: steer a chain of value blocks, pickups, equal-value merge x2, eat smaller head / die to bigger, boost, labelled bots, ranks - grey-box, theme-neutral | threejs-game-engineer | src/game/**, src/main.js, src/ui/ui.js, src/ui/styles.css, src/config.js, src/core/i18n.js, src/render/palette.js, tools/qa/sim-health.mjs, tools/qa/browser-qa.mjs (adapters only) | owner's direction 2026-09-26 | in progress |
+| WP-02 | (SHELVED with Skip Legend) Grey-box prototype of the core verb: throw, tap-per-skip timing judge, micro reward, shore bins, retry | threejs-game-engineer | src/** (game, view, main, ui, config, i18n), tools/qa/sim-health.mjs, tools/qa/browser-qa.mjs (phase/hook adapters only) | WP-01 | todo |
 | WP-03 | Cold playtest of the prototype (blind, fresh context) | gauntlet-critic | docs/QA_REPORT.md (playtest section) | WP-02 | todo |
 | WP-04 | Playtest build for the owner (Gate 2: the owner plays on PC and phone) | planner | dist/ -> published playtest page | WP-02 | todo |
 | WP-QA | CrazyGames QA audit (crazygames-qa skill, audit mode) at each gate | crazygames-compliance-auditor | docs/CG_QA_AUDIT.md, qa/** | per gate | todo (first: Gate 2) |
@@ -53,7 +54,29 @@ Status values: todo · in progress · review (returned, planner checking) · don
 Production packages (vertical slice: meta, shop, offers, juice, art, audio, platform) are added after
 Gate 2, when the owner has played the prototype and the fun moment is named.
 
-## WP-02 - Grey-box prototype of the core verb
+## WP-10 - Merge-snake arena core (grey-box, theme-neutral)
+
+- **Goal:** a playable arena where the player steers a chain of numbered value blocks; loose low-value
+  blocks spawn; eating one appends it; equal values merge and double down the chain (2+2=4 -> 4+4=8 ...);
+  heads with a lower value than yours are eaten on contact (their chain drops as loose blocks), a bigger head
+  kills you; hold/click/Space = boost that costs a little; 10-15 labelled bots; a live rank list; death ->
+  result -> retry in < 2 s. Every eat/merge prints its number and plays a pitched tick from day one.
+- **Why theme-neutral:** the owner fixed the family (Cubes 2048.io, 2026-09-26); the designer is choosing the
+  original twist (theme, round structure, one rule change) in parallel. Build the core so a twist can sit on
+  top: values, merge ladder, colours per value and object shape live in config/palette, not hard-coded.
+- **Constraints:** as WP-02 below (pure deterministic sim with fixed step + seeded RNG + sim-health; QA
+  contract `__GS_QA__` with phases ready -> run -> won | failed, start/setAutopilot/forceWin/forceFail/
+  renderInfo/sceneStats/feedback; one click on the ready screen starts; profile M budgets with instancing -
+  one InstancedMesh for all blocks; CrazyGames QA build-mode constraints). Steering: pointer position
+  relative to the head (mouse) / drag direction (touch) / arrows + WASD via event.code; mouse steering must
+  not need pointer lock. Bots are clearly bots (names like "Bot Kiwi"; an "offline arena" label), never
+  presented as real players.
+- **Done when:** build exits 0; sim-health --selftest PASS; browser-qa --only
+  boot,sdk-events,no-sdk,touch,poly-budget,dead-air,tab-hidden,viewports PASS; screenshots at 1280x720 and
+  450x800 of: start, mid-run with merges popping, a bot eaten, death/result; a 20-s autopilot run where the
+  chain visibly grows.
+
+## WP-02 - (shelved) Grey-box prototype of the core verb
 
 - **Goal:** answer "is tap-per-skip fun?" - a playable grey-box throw where every water contact asks for a
   tap, judged PERFECT / GOOD / miss, paying a number and a pitched plink each time, ending on the far shore's

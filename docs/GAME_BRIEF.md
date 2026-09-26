@@ -1,4 +1,4 @@
-# Game brief - Working Title
+# Game brief - Merge-snake arena (working title TBD)
 
 Status: DRAFT · Gate 1 (concept) not passed yet
 Last updated: 2026-09-26

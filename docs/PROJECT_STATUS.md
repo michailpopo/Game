@@ -3,15 +3,15 @@
 Updated: 2026-09-26 · Project folder: /home/user/Game (repo michailpopo/Game, branch claude/festive-darwin-7ukgnb)
 
 ## Where we are
-- **Phase:** 2 Concept -> 3 Prototype
+- **Phase:** 3 Prototype (core engine WP-10)
 - **Current objective:** Comet Chain (Cubes 2048.io family, full reskin): brief + core engine -> twist -> slice -> QA -> launch package, upload-ready this session.
-- **Next action (one concrete step):** designer writes GAME_BRIEF/ORIGINALITY/project.json for Comet Chain; engineer finishes WP-10 core with the Comet Chain rule changes.
+- **Next action (one concrete step):** verify WP-10 when the engineer returns (build, sim-health, browser-qa, screenshots), publish a playtest build for the owner, start WP-11 (meta/offers) and WP-12 (juice/audio) in parallel.
 - **Waiting on the user:** nothing right now. Next: play the prototype (Gate 2).
 
 ## Gates
 | Gate | Status | Date | Evidence |
 |---|---|---|---|
-| 1 Concept | IN PROGRESS (twist picked: R1 Comet Chain; brief in progress) | 2026-09-26 | owner picked C1 Skip Legend, then asked to re-benchmark against very popular games (Cubes 2048.io-level likes) that are simple to make; hit-list research running, Skip Legend brief on hold |
+| 1 Concept | PASS | 2026-09-26 | owner picked R1 Comet Chain; CONCEPTS (8 concepts scored), GAME_BRIEF, ORIGINALITY (name search logged), project.json truthful, BUILD_PLAN WP-10..13, no placeholders (planner checked) |
 | 2 Prototype fun | NOT STARTED | | |
 | 3 Vertical slice | NOT STARTED | | |
 | 4 Gameplay quality | NOT STARTED | | |
@@ -43,9 +43,9 @@ npm run qa           # all automated checks + COMPLIANCE_REPORT.md
 | Docs freshness | UNCHANGED vs register 2026.09.11 | 2026-09-26 | check-docs-freshness.mjs |
 
 ## Top 3 problems (reorder after every playtest)
-1. The core feel (tap on every water contact) is unproven - the Gate 2 prototype answers it.
-2. The launch-and-upgrade family is crowded on CrazyGames (Rocket Fling, Bouncemasters, Splash Sliders); Skip Legend must read as different in a 3-second clip.
-3. "Skip It!" (1Games.IO, 2026-03) is a stone-skipping upgrade game on other portals - originality review must show our verb and structure are distinct.
+1. Clone risk vs Cubes 2048.io: the reskin (planets, nebula, timed rounds, rank payout) must read as different side by side (ORIGINALITY pass criteria).
+2. Bot difficulty for real humans is unknown (autopilot is superhuman); the adaptive tier 1-20 is the safety net.
+3. Pointer lock inside the CrazyGames iframe / Safari (CG-QUAL-008) - needs the portal preview test.
 
 ## Known bugs
 | Id | Severity (P0-P3) | Description | Status |

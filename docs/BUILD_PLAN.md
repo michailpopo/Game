@@ -1,4 +1,4 @@
-# Build plan - merge-snake arena (Cubes 2048.io family; working title TBD)
+# Build plan - Comet Chain (Cubes 2048.io family, full reskin)
 
 Owner: the planner (game-studio-director / the main session). Builders work only from packages here.
 Last updated: 2026-09-26
@@ -48,6 +48,9 @@ The `crazygames-qa` skill is applied in two modes on every round, next to the ga
 | WP-03 | Cold playtest of the prototype (blind, fresh context) | gauntlet-critic | docs/QA_REPORT.md (playtest section) | WP-02 | todo |
 | WP-04 | Playtest build for the owner (Gate 2: the owner plays on PC and phone) | planner | dist/ -> published playtest page | WP-02 | todo |
 | WP-QA | CrazyGames QA audit (crazygames-qa skill, audit mode) at each gate | crazygames-compliance-auditor | docs/CG_QA_AUDIT.md, qa/** | per gate | todo (first: Gate 2) |
+| WP-11 | Meta + offers + shop: payout with rank crates, 3 upgrades, 12 trail skins, daily gift, all 7 rewarded surfaces with caps, midgame from round 3, Data-module save | threejs-game-engineer | src/main.js, src/ui/ui.js, src/ui/styles.css, src/config.js (OFFERS/economy), src/game/meta.js, src/game/offers.js, src/core/i18n.js | WP-10 | todo |
+| WP-12 | Juice + audio: fusion pops, swallow bursts, trails, hit-stop, shake, counter punch, podium confetti; ZzFX sound set with pitch ladder | game-feel-artist | src/game/view.js, src/fx/**, src/game/feel.js (new, feel constants), src/game/sounds.js (new), src/render/** | WP-10 | todo |
+| WP-13 | Launch package: covers 1920x1080 / 800x1200 / 800x800, preview videos landscape + portrait, STORE_METADATA, portal checklist, upload zip | game-launch-manager | tools/launch/**, submission/**, docs/STORE_METADATA.md, src/ (capture modes only) | WP-11, WP-12 | todo |
 
 Status values: todo · in progress · review (returned, planner checking) · done · blocked (why).
 

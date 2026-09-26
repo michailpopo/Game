@@ -14,45 +14,38 @@ import { mkdirSync, writeFileSync } from "node:fs";
 import { dirname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { checkDeterminism, checkStepSizeIndependence } from "../../src/core/sim-health.js";
-import { ARENA } from "../../src/config.js";
 import { createSim, makeInput, startRun, step } from "../../src/game/sim.js";
 
 const root = resolve(dirname(fileURLToPath(import.meta.url)), "../..");
 const selftest = process.argv.includes("--selftest");
 
-// The full arena: 12 bots, loose blocks, spawner, AI, contacts, merges.
+// Volt City, level 3: charge a strike, release it, let the cascade (hops + forks) play out.
+let aim = 0;
 const makeState = () => {
-  const s = createSim({ level: 2, seed: "sim-health" });
+  const s = createSim({ level: 3, seed: "sim-health" });
+  aim = Math.floor(s.city.buildings.length / 2);
   startRun(s);
   return s;
 };
-// Continuous scripted input: a target direction that sweeps round (mouse / joystick / 8-way keys
-// all arrive as a direction) plus a boost burst - smooth in time, so step-size independent itself.
+// Scripted input: hold from t = 0 until 1.0 s (charge 0.83: inside the SUPERCHARGE band), then a second, short
+// tap at 2.2-2.5 s. The release times are multiples of every tested step (1/30 ... 1/240 s), and the
+// cascade runs on exact event times, so the same chain must happen at every step size.
 const input = makeInput();
+const HOLD = [[0, 1.0], [2.2, 2.5]];
 const scripted = (fn) => (s, dt) => {
-  input.hasDir = true;
-  input.dirX = Math.cos(0.9 * s.t + 0.5 * Math.sin(1.6 * s.t));
-  input.dirZ = Math.sin(0.9 * s.t + 0.5 * Math.sin(1.6 * s.t));
-  input.boost = s.t > 0.8 && s.t < 1.4;
+  input.hold = HOLD.some(([a, b]) => s.t >= a - 1e-6 && s.t < b - 1e-6);
+  input.aim = aim;
   return fn(s, dt, input);
 };
-// Player head (continuous), its heading as a unit vector (no +-PI wrap artefact), its mass (discrete
-// eats - the same pickups in the window at every rate, thanks to the swept pickup test) and its tail
-// planet (path following). Bots are left out on purpose: their choices are discrete decisions (like
-// the template's gates) that legitimately flip at a coarser step; the determinism check above replays
-// them exactly. Positions are measured from the arena's corner (+halfSize): the check divides by
-// |value|, and a position's natural scale is the arena, not its distance from the origin.
-const H = ARENA.arena.halfSize;
-const sample = (s) => {
-  const p = s.player;
-  return [p.x + H, p.z + H, Math.cos(p.heading), Math.sin(p.heading), p.mass, p.segX[p.n - 1] + H, p.segZ[p.n - 1] + H];
-};
+// Charge (continuous), what the first release produced, and the cascade's outcome (lit buildings,
+// points, strikes left): all must match across step sizes.
+const sample = (s) => [s.charge, s.lastRelease ? s.lastRelease.charge : 0, s.lastRelease ? s.lastRelease.energy : 0, s.litCount, s.score, s.strikesLeft];
 
-// Window: inside the player's 2 s spawn protection, so no contact can end the run at one rate and not another.
-const WINDOW = { seconds: 1.9 };
+// Window: both strikes and their cascades (~2 s each).
+const WINDOW = { seconds: 4.5 };
 
 function run(label, stepFn) {
-  const det = checkDeterminism(makeState, scripted(stepFn), sample, { steps: 1800 });
+  const det = checkDeterminism(makeState, scripted(stepFn), sample, { steps: 600 });
   const size = checkStepSizeIndependence(makeState, scripted(stepFn), sample, WINDOW);
   return { label, ok: det.ok && size.ok, determinism: { ok: det.ok, worst: det.worst }, stepSize: size };
 }
@@ -60,8 +53,8 @@ function run(label, stepFn) {
 const results = [run("game simulation", step)];
 
 if (selftest) {
-  // Planted bug: a per-step nudge (no dt) - the classic refresh-rate bug.
-  const broken = (s, dt, inp) => { step(s, dt, inp); s.player.x += Math.cos(s.player.heading) * 0.03; };
+  // Planted bug: charge grows per step instead of per second - the classic refresh-rate bug.
+  const broken = (s, dt, inp) => { step(s, dt, inp); if (s.holding) s.charge += 0.004; };
   const r = run("planted per-step bug (must FAIL)", broken);
   r.expectedToFail = true;
   r.selftestPassed = !r.ok;

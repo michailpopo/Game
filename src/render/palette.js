@@ -104,3 +104,97 @@ export function withSkin(theme, skinHex) {
   const enemy = [theme.enemy, ...ENEMY_FALLBACKS].find(far) ?? theme.enemy;
   return { ...theme, crowd: skinHex, enemy };
 }
+
+// =====================================================================================================
+// Premium look kit palette (WP-20) - concept-agnostic. Used by src/render/look.js (backdrop, light rig,
+// environment) and src/render/materials.js. Rules that keep it "premium" instead of "washed out":
+//  - backdrops are DEEP and saturated (dark value at the edges, one bright glow) so emissive and glossy
+//    objects are the brightest things on screen; nothing pastel behind the action
+//  - accents are fully saturated; the player/strike colour is the one most saturated hue
+//  - every backdrop names its own light rig colours so the objects sit IN the world (hemi sky/ground,
+//    key, rim) and its own environment tint (reflections pick up the backdrop hues)
+// =====================================================================================================
+
+/**
+ * Backdrop presets (analytic gradient drawn by look.js - no texture):
+ *   top, bottom     vertical gradient (screen space)
+ *   horizon         colour band at `horizonAt` (0 = bottom, 1 = top of screen), `horizonWidth`
+ *   glow, glowAt    radial glow colour and centre in screen uv, glowSize (fraction of screen height)
+ *   vignette        0..1 edge darkening
+ *   stars           0..1 density of tiny stars/bokeh (0 = none)
+ *   fog             fog colour (distance fade toward the horizon), fogNear/fogFar in world units
+ *   hemiSky/hemiGround/hemi   hemisphere light, key/keyIntensity, rim/rimIntensity
+ *   env             [top, horizon, bottom] tint of the reflection environment, envPanels = softbox colours
+ */
+export const BACKDROPS = {
+  // Volt City night: deep navy to indigo, a magenta storm glow on the horizon
+  storm: {
+    top: "#050a24", bottom: "#140a3a", horizon: "#c2188f", horizonAt: 0.66, horizonWidth: 0.16,
+    glow: "#ff2fb0", glowAt: [0.5, 0.74], glowSize: 0.55, glow2: "#3b2bff", glow2At: [0.15, 0.95], glow2Size: 0.6,
+    vignette: 0.55, stars: 0.35,
+    fog: "#2a0f55", fogNear: 26, fogFar: 95,
+    hemiSky: "#5b6cff", hemiGround: "#1a0b2e", hemi: 0.9,
+    key: "#9fb4ff", keyIntensity: 1.25, rim: "#ff3fbf", rimIntensity: 2.2,
+    env: ["#10184a", "#b01a88", "#07061a"], envPanels: ["#6fe9ff", "#ff58c8", "#fff3dc"], envIntensity: 0.7,
+  },
+  // deep space: blue-violet with a violet core glow
+  space: {
+    top: "#0b0830", bottom: "#05030f", horizon: "#3a1a9e", horizonAt: 0.45, horizonWidth: 0.3,
+    glow: "#7a3cff", glowAt: [0.5, 0.55], glowSize: 0.6, glow2: "#00b3ff", glow2At: [0.85, 0.2], glow2Size: 0.45,
+    vignette: 0.6, stars: 0.6,
+    fog: "#150a3d", fogNear: 30, fogFar: 120,
+    hemiSky: "#8f9dff", hemiGround: "#1a0f3a", hemi: 1.1,
+    key: "#fff1e6", keyIntensity: 2.2, rim: "#45d8ff", rimIntensity: 2.5,
+    env: ["#1a1460", "#5a2bd6", "#0a0620"], envPanels: ["#ffffff", "#7fe6ff", "#ff7ad9"], envIntensity: 1,
+  },
+  // sunset: hot coral to violet
+  sunset: {
+    top: "#3a0f6e", bottom: "#ff7a45", horizon: "#ff3d6e", horizonAt: 0.4, horizonWidth: 0.22,
+    glow: "#ffd36b", glowAt: [0.5, 0.35], glowSize: 0.5, glow2: "#ff2d95", glow2At: [0.1, 0.6], glow2Size: 0.5,
+    vignette: 0.4, stars: 0,
+    fog: "#b8356e", fogNear: 30, fogFar: 110,
+    hemiSky: "#ffb38a", hemiGround: "#4a1a6b", hemi: 1.3,
+    key: "#ffe2b8", keyIntensity: 2.6, rim: "#ff4fa0", rimIntensity: 2,
+    env: ["#4a1a8a", "#ff6a5a", "#2a0a3a"], envPanels: ["#fff1d6", "#ffb35a", "#ff5ab4"], envIntensity: 1,
+  },
+  // candy: saturated pink to violet, bright and cheerful but never pastel
+  candy: {
+    top: "#ff4fb4", bottom: "#5a2bd6", horizon: "#ff8ad8", horizonAt: 0.55, horizonWidth: 0.2,
+    glow: "#ffe0f4", glowAt: [0.5, 0.5], glowSize: 0.5, glow2: "#40d8ff", glow2At: [0.9, 0.1], glow2Size: 0.4,
+    vignette: 0.35, stars: 0,
+    fog: "#b03ab8", fogNear: 30, fogFar: 110,
+    hemiSky: "#ffd6f2", hemiGround: "#4a2a9e", hemi: 1.5,
+    key: "#ffffff", keyIntensity: 2.4, rim: "#6ff0ff", rimIntensity: 1.6,
+    env: ["#ff6ac8", "#ffc2ea", "#5a2bd6"], envPanels: ["#ffffff", "#fff0a8", "#8ae8ff"], envIntensity: 1,
+  },
+  // ocean: electric cyan to deep blue
+  ocean: {
+    top: "#00a6e8", bottom: "#0a1a6e", horizon: "#38f0ff", horizonAt: 0.5, horizonWidth: 0.2,
+    glow: "#b8fbff", glowAt: [0.5, 0.6], glowSize: 0.45, glow2: "#3a5bff", glow2At: [0.1, 0.1], glow2Size: 0.5,
+    vignette: 0.45, stars: 0,
+    fog: "#0a4aa0", fogNear: 30, fogFar: 110,
+    hemiSky: "#aef4ff", hemiGround: "#0a1a5e", hemi: 1.4,
+    key: "#ffffff", keyIntensity: 2.3, rim: "#7affd9", rimIntensity: 1.8,
+    env: ["#0090e0", "#5ef2ff", "#081a5a"], envPanels: ["#ffffff", "#b8fff0", "#7aa6ff"], envIntensity: 1,
+  },
+};
+
+/** Fully saturated accents - one of them is the player's colour, one the danger colour. */
+export const ACCENTS = {
+  volt: "#4df3ff",       // Volt City bolt glow (white core)
+  gold: "#ffd166",       // Volt City lit windows, coins, jackpot numbers
+  magenta: "#ff2d95",
+  cyan: "#22d3ff",
+  lime: "#9dff3a",
+  orange: "#ff7a1a",
+  violet: "#8b5cff",
+  red: "#ff3b4f",
+  charcoal: "#1b1f3b",   // Volt City unlit buildings
+  ink: "#1a1240",        // UI outline / shadow ink
+};
+
+/** Gem / crystal set for collectibles and debris (hue AND brightness differ between neighbours). */
+export const GEM_COLORS = ["#ff2e63", "#2f7bff", "#19e38a", "#b04dff", "#ffb31f", "#22e5ff", "#ff5cc8"];
+
+/** Bolt skins (Volt City collection): glow colour; the core is always near-white. */
+export const BOLT_COLORS = { volt: "#4df3ff", magenta: "#ff4fd8", gold: "#ffcf3f", plasma: "#7dff4f", violet: "#a66bff", ember: "#ff6a2a" };

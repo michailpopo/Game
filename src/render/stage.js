@@ -11,6 +11,10 @@
  *  - No real-time shadow maps: blob shadows are drawn per unit instead
  *    (cheaper, stable on low-end GPUs, and they read better at small sizes).
  *  - Gradient sky as a background texture + matching Fog: depth for free.
+ *
+ * Premium look (tone mapping, light rig with soft shadows, palette environment, bloom tied to
+ * AdaptiveQuality): call `applyLook(stage, opts)` from src/render/look.js after createStage().
+ * It swaps `stage.render` / `stage.resize` in place, so callers keep using this same API.
  */
 
 import {
@@ -82,5 +86,6 @@ export function createStage(canvas) {
     return true;
   }
 
-  return { renderer, scene, camera, size, setTheme, resize, render: () => renderer.render(scene, camera) };
+  // `lights` lets src/render/look.js re-rig the stage (premium look) without a second light set.
+  return { renderer, scene, camera, size, setTheme, resize, lights: { hemi, sun }, sky, render: () => renderer.render(scene, camera) };
 }

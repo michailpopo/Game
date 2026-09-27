@@ -72,6 +72,8 @@ export class GameView {
     this.look.key.shadow.radius = 5;
     const quality = AdaptiveQuality.of(stage.renderer);
     if (quality) quality.subscribe((tier) => this.look.setQuality(tier));
+    // QA only (?qa=1): the look, so the harness can force a shadow-map refresh frame and read its cost.
+    if (typeof location !== "undefined" && new URLSearchParams(location.search).get("qa") === "1") window.__GS_LOOK__ = this.look;
     this.cityMesh = new CityMesh(stage.scene);
     this.fx = new FxKit(stage.scene, { unit: U, sprites: 1400, ribbons: 30, outline: { color: LOOK.boltOutline, alpha: 0.55 } });
     const root = typeof document !== "undefined" ? document.getElementById("ui") : null;

@@ -52,10 +52,10 @@ import {
   startRun, step,
 } from "./game/sim.js";
 import {
-  DEFAULT_SAVE, MIGRATIONS, SKINS, UPGRADES, completionPercent, pickRandomSkin, skinColor, skinUnlockCost, upgradeCost,
-  upgradeLevels,
+  DEFAULT_SAVE, MIGRATIONS, SKINS, UPGRADES, activeSkin, completionPercent, pickRandomSkin, skinUnlockCost,
+  upgradeCost, upgradeLevels,
 } from "./game/meta.js";
-import { boostOffer, cashOffer, freeUpgradeOffer, reviveOffer } from "./game/offers.js";
+import { boostDue, boostOffer, cashOffer, dailyGiftOffer, freeUpgradeOffer, reviveOffer, trySkinOffer } from "./game/offers.js";
 import { STORM_SFX } from "./game/sfx.js";
 import { themeOf } from "./game/look.js";
 import { GameView } from "./game/view.js";
@@ -65,7 +65,7 @@ const qs = new URLSearchParams(location.search);
 const wait = (ms) => new Promise((r) => setTimeout(r, ms));
 const mmss = (sec) => `${Math.floor(sec / 60)}:${String(sec % 60).padStart(2, "0")}`;
 const pct = (share) => Math.floor(share * 100 + 1e-6);
-const SHOWN_UPGRADES = ["voltage", "fork", "capacitor"];   // the city intro's cards (all 5 + the rooftop screen: WP-32)
+const UPGRADE_ORDER = Object.keys(UPGRADES);   // Voltage, Fork, Strikes, Capacitor, Gold rods
 const PLATE_LADDER = [...STORM.payout.plates].reverse();   // [[0.6, 2], [0.8, 3], [0.95, 5], [1, 10]]
 
 async function boot() {
@@ -78,6 +78,11 @@ async function boot() {
   let revivesUsed = 0;
   let resumeRamp = 1;
   let boosted = false;          // this city's intro already took the Supercharged start
+  let boostIntroRun = -1;       // the run whose intro decided the Supercharged-start cadence ...
+  let boostDueNow = false;      // ... and whether it is this intro's turn
+  let trialSkin = null;         // "Try it": a locked bolt for this one city
+  let shopPreview = null;       // the locked bolt selected in the shop
+  let resultsThisSession = 0;   // the daily gift waits for the first result of the session
   let offerTick = 0;
   let qaAutopilot = false;
   let qaHold = null;            // QA/screenshot override for the hold button (null = real input)
@@ -124,8 +129,9 @@ async function boot() {
 
   const ui = createUI(document.getElementById("ui"), {
     onSound: toggleSound, onPause: () => (paused ? resumeRun() : pauseRun()), onResume: resumeRun,
-    onBuy: buyUpgrade, onFree: freeUpgrade, onBoost: takeBoost,
-    onShop: openShop, onShopClose: closeShop, onSkin: selectSkin, onUnlock: unlockRandom, onCash: cashForShop,
+    onBuy: buyUpgrade, onFree: freeUpgrade, onBoost: takeBoost, onBoostCoins: buyBoost, onGift: openGift,
+    onShop: openShop, onShopClose: closeShop, onSkin: selectSkin, onPreview: previewSkin, onUnlock: unlockRandom,
+    onCash: cashForShop, onTry: trySkin,
   });
   const ads = new AdController(pause, audio, ui.adOverlay);
   ads.detectAdblock().then(refreshReady);   // never block boot on this
@@ -136,7 +142,9 @@ async function boot() {
   // devices (a step costs well under 0.1 ms); below that the spiral guard slows the game instead.
   const loop = new GameLoop({ update, render, maxStepsPerFrame: 8 });
   const view = new GameView(stage, { audio, ui, loop });
-  view.recolor(skinColor(save.data));
+  /** The skin hook: the bolt colour (and the whole skin object, for the look pass) of the equipped or tried bolt. */
+  const applySkin = () => { const k = activeSkin(save.data, trialSkin); view.recolor(k.glow, k); };
+  applySkin();
 
   const themeName = () => t(`theme_${themeOf(sim.city).id}`);
   const cityMode = () => t("city_mode", { n: level, theme: themeName() });
@@ -156,6 +164,12 @@ async function boot() {
   }
 
   function enterReady() {
+    // Supercharged start's cadence is decided once per intro (re-entering from the shop keeps it).
+    if (boostIntroRun !== save.data.runs) {
+      boostIntroRun = save.data.runs;
+      boostDueNow = boostDue(save.data, Date.now());
+      if (boostDueNow) save.update((d) => { d.lastBoostRun = d.runs; d.lastBoostAt = Date.now(); });
+    }
     const keys = inputMode === "keys";
     ui.showHome(true, {
       title: t("title"), mode: cityMode(), main: t("hint_hold"),
@@ -174,6 +188,8 @@ async function boot() {
     ui.showUpgrades(null);
     ui.showBoost(null);
     ui.showShopButton(false);
+    ui.showGift(false);
+    view.setSafeArea(null);   // the run framing: the city as big as the HUD allows
     offerSeen.clear();
     gameplay.setPlaying(true);
     platform.setGameContext({ city: level });
@@ -365,6 +381,7 @@ async function boot() {
   /** % powered -> jackpot plate -> coins; Claim / Claim x3; next city (>= 60%) or the same city again. */
   async function showCityResult() {
     gameplay.setPlaying(false);
+    resultsThisSession++;
     platform.clearGameContext();
     const share = progress(sim);
     const plate = plateFor(share);
@@ -442,6 +459,7 @@ async function boot() {
       if (city >= GAME.firstMidgameLevel && !rewardedShown) await ads.midgame({ context: won ? "level-complete-next" : "retry" });
       ads.endBreak();
       boosted = false;
+      if (trialSkin) { ui.toast(t("trial_over", { name: t(`skin_${trialSkin}`) })); trialSkin = null; applySkin(); }
       loadLevel(won ? city + 1 : city);
       pause.release(Reason.MENU);
       enterReady();
@@ -459,7 +477,7 @@ async function boot() {
 
   function upgradeModel() {
     const ctx = offerCtx();
-    const items = SHOWN_UPGRADES.map((kind) => {
+    const items = UPGRADE_ORDER.map((kind) => {
       const cost = upgradeCost(kind, save.data);
       return {
         kind,
@@ -473,14 +491,29 @@ async function boot() {
     });
     // At most OFFERS.maxVideoOffersPerScreen video buttons on the intro (CG-ADS-011: rewarded
     // ads are "special opportunities"): the boost counts as one, then the cheapest FREE upgrade.
-    const budget = OFFERS.maxVideoOffersPerScreen - (boostModel() ? 1 : 0);
+    const budget = OFFERS.maxVideoOffersPerScreen - (boostModel()?.video ? 1 : 0);
     items.filter((it) => it.free.visible).sort((x, y) => x.cost - y.cost).slice(Math.max(0, budget)).forEach((it) => { it.free = { visible: false }; });
     return items;
   }
 
+  /** Supercharged start on this intro: the video button and its coin path (the same reward for coins). */
   function boostModel() {
-    const b = boostOffer(save.data, { ...offerCtx(), boostedThisRun: boosted });
-    return b.visible ? { label: t("start_boost", { n: b.strikes }) } : null;
+    const b = boostOffer(save.data, { available: ads.rewardedAvailability.ok, due: boostDueNow, boostedThisRun: boosted });
+    if (!b.visible && !b.coin) return null;
+    const label = t("start_boost", { n: b.strikes });
+    return { video: b.visible ? { label } : null, coin: b.coin ? { label, cost: b.cost, affordable: b.affordable } : null };
+  }
+
+  function giftModel() {
+    return dailyGiftOffer(save.data, { available: ads.rewardedAvailability.ok, now: Date.now(), resultsThisSession });
+  }
+
+  /** Keep the city clear of the intro's cards and offers (measured after layout). */
+  function updateSafeArea() {
+    if (sim?.phase !== "ready") return;
+    const a = ui.readyInsets();
+    const pad = 10;
+    view.setSafeArea({ top: a.top + pad, bottom: a.bottom + pad, left: a.left + pad, right: a.right + pad });
   }
 
   /** City intro: upgrades (after the first cleared city), boost (after the first runs), shop (after run 1). */
@@ -491,8 +524,10 @@ async function boot() {
     seen("free-upgrade", !!upgrades?.some((u) => u.free.visible));
     const boost = boostModel();
     ui.showBoost(boost);
-    seen("ready-boost", !!boost);
+    seen("ready-boost", !!boost?.video);
     ui.showShopButton(save.data.runs > 0);
+    ui.showGift(giftModel().visible);
+    requestAnimationFrame(updateSafeArea);
   }
 
   /** Twice a second: cooldowns that end while the player idles on a screen. */
@@ -500,7 +535,8 @@ async function boot() {
     if (ui.shopOpen) { ui.updateShop(shopModel()); return; }
     if (sim?.phase !== "ready" || pause.reasons.length) return;
     const boost = boostModel();
-    if (!!boost !== !!offerSeen.get("ready-boost")) { ui.showBoost(boost); seen("ready-boost", !!boost); }
+    if (!!boost?.video !== !!offerSeen.get("ready-boost")) { ui.showBoost(boost); seen("ready-boost", !!boost?.video); }
+    updateSafeArea();
   }
 
   /** Upgrades change the storm's numbers: rebuild this city's simulation (same layout; gold rods may appear). */
@@ -512,22 +548,81 @@ async function boot() {
     ui.popUpgrade(kind, t(`up_fx_${kind}`));
   }
 
+  function grantBoost() {
+    boosted = true;
+    addStartStrikes(sim, OFFERS.boostStrikes);
+    ui.setStrikes(sim.strikesLeft, sim.strikesMax);
+    ui.floatText(stage.size.width / 2, stage.size.height * 0.45, t("boosted", { n: OFFERS.boostStrikes }), "gold");
+    audio.play("tier", { pitch: 1.35 });
+  }
+
   async function takeBoost() {
     if (sim.phase !== "ready" || boosted || pause.has(Reason.AD) || pause.has(Reason.MENU)) return;
-    const r = await ads.rewarded({
-      context: "ready-boost",
-      grant: () => {
-        boosted = true;
-        save.update((d) => { d.lastBoostAt = Date.now(); });
-        addStartStrikes(sim, OFFERS.boostStrikes);
-        ui.setStrikes(sim.strikesLeft, sim.strikesMax);
-        ui.floatText(stage.size.width / 2, stage.size.height * 0.45, t("boosted", { n: OFFERS.boostStrikes }), "gold");
-        audio.play("tier", { pitch: 1.35 });
-      },
-    });
+    const r = await ads.rewarded({ context: "ready-boost", grant: grantBoost });
     if (!r.shown) ui.toast(r.reason === "adblock" ? t("adblock_notice") : t("no_video"));
     save.flush();
     refreshReady();
+  }
+
+  /** Supercharged start's coin path: the same +2 strikes for the next Voltage level's price. */
+  function buyBoost(btn) {
+    if (sim.phase !== "ready" || boosted || pause.has(Reason.AD) || pause.has(Reason.MENU)) return;
+    const b = boostOffer(save.data, { available: false, due: boostDueNow, boostedThisRun: boosted });
+    if (!b.coin) return;
+    if (save.data.coins < b.cost) { audio.play("gateBad", { volume: 0.5 }); ui.shakeElement(btn); ui.toast(t("need_coins")); return; }
+    save.update((d) => { d.coins -= b.cost; });
+    ui.setCoins(save.data.coins, { animate: true });
+    grantBoost();
+    save.flush();
+    refreshReady();
+  }
+
+  // ---------------------------------------------------------------- daily gift
+  /** The gift icon's dialog: Collect, or Collect xN with a video. Never blocks play: it is optional. */
+  function openGift() {
+    const g = giftModel();
+    if (!g.visible || sim.phase !== "ready" || ui.shopOpen || ui.modalOpen || pause.has(Reason.AD) || pause.has(Reason.MENU)) return;
+    pause.hold(Reason.MENU);
+    ui.showGift(false);
+    audio.play("click");
+    const dlg = ui.showResult({
+      kind: "win",
+      mode: t("gift_mode", { n: g.streak, m: g.mult.toFixed(2).replace(/\.?0+$/, "") }),
+      title: t("gift_title"),
+      amount: g.amount,
+      buttons: [{ id: "collect", label: t("collect") }, g.video ? { id: "collect_x", label: t("collect_x", { m: g.factor }), video: true } : null],
+      note: ads.rewardedAvailability.reason === "adblock" ? t("adblock_notice") : t("gift_note", { n: Math.min(7, g.streak + 1) }),
+    });
+    if (g.video) ads.offer("daily-gift");
+    let total = g.amount;
+    const take = () => save.update((d) => { d.lastGiftDay = g.day; d.giftStreak = g.streak; });
+    dlg.onChoice(async (id) => {
+      if (id === "collect_x") {
+        dlg.lock(true);
+        const r = await ads.rewarded({
+          context: "daily-gift",
+          grant: () => { total = g.amount * g.factor; save.update((d) => { d.coins += total; }); take(); dlg.setAmount(total); },
+        });
+        dlg.lock(false);
+        if (r.shown) { audio.play("coin"); await wait(450); return done(); }
+        dlg.hideButton("collect_x");
+        dlg.setNote(r.reason === "adblock" ? t("adblock_notice") : t("no_video"));
+        return;
+      }
+      audio.play("click");
+      if (g.video) ads.offer("daily-gift", "declined");
+      save.update((d) => { d.coins += total; });
+      take();
+      done();
+    });
+    function done() {
+      save.flush();
+      ui.coinsFly(dlg.amountElement, total);
+      ui.setCoins(save.data.coins, { animate: true });
+      dlg.close();
+      pause.release(Reason.MENU);
+      refreshReady();
+    }
   }
 
   // ---------------------------------------------------------------- bolt shop
@@ -536,14 +631,22 @@ async function boot() {
     const cost = skinUnlockCost(save.data);
     const cash = cashOffer(save.data, ctx);
     const wanting = cost !== null && save.data.coins < cost;
+    const preview = shopPreview && !save.data.owned.includes(shopPreview) ? shopPreview : null;
+    const canTry = trySkinOffer(save.data, preview, { available: ctx.available, trialActive: !!trialSkin });
     let note = "";
     if (cost === null) note = t("all_skins");
+    else if (preview && save.data.tried.includes(preview)) note = t("tried_already");
+    else if (canTry) note = t("try_once");
     else if (wanting && ads.rewardedAvailability.reason === "adblock") note = t("adblock_notice");
     else if (wanting && ctx.available && cash.cooldown > 0) note = t("free_coins_in", { t: mmss(cash.cooldown) });
+    const shown = preview || trialSkin || save.data.skin;
     return {
       title: t("skins"),
-      skins: SKINS.map((s) => ({ id: s.id, color: s.color, owned: save.data.owned.includes(s.id), selected: save.data.skin === s.id })),
+      count: t("owned_count", { a: save.data.owned.length, b: SKINS.length }),
+      skins: SKINS.map((s) => ({ id: s.id, name: t(`skin_${s.id}`), color: s.glow, owned: save.data.owned.includes(s.id), selected: save.data.skin === s.id, preview: s.id === preview })),
+      name: `${t(`skin_${shown}`)}${preview ? ` · ${t("locked")}` : ""}`,
       unlock: cost === null ? null : { label: t("unlock_random"), cost, affordable: !wanting },
+      tryIt: canTry ? { label: t("try_it") } : null,
       cash: cash.visible ? { amount: cash.amount } : null,
       note,
     };
@@ -557,6 +660,8 @@ async function boot() {
     ui.showBoost(null);
     ui.showShopButton(false);
     offerSeen.delete("ready-boost");
+    shopPreview = null;
+    ui.showGift(false);
     const model = shopModel();
     ui.openShop(model);
     seen("shop-cash", !!model.cash);
@@ -567,6 +672,8 @@ async function boot() {
     if (!ui.shopOpen || pause.has(Reason.AD)) return;
     ui.closeShop();
     offerSeen.delete("shop-cash");
+    offerSeen.delete("try-skin");
+    shopPreview = null;
     pause.release(Reason.MENU);
     audio.play("click");
     enterReady();
@@ -575,8 +682,40 @@ async function boot() {
   function selectSkin(id) {
     if (!save.data.owned.includes(id) || save.data.skin === id || pause.has(Reason.AD)) return;
     save.update((d) => { d.skin = id; });
-    view.recolor(skinColor(save.data));
+    shopPreview = null;
+    applySkin();
     audio.play("pop", { pitch: 1.2 });
+    ui.updateShop(shopModel());
+    seen("try-skin", false);
+  }
+
+  /** A locked bolt tapped in the shop: show its name, and "Try it" when it may be tried. */
+  function previewSkin(id) {
+    if (save.data.owned.includes(id) || pause.has(Reason.AD)) return;
+    shopPreview = shopPreview === id ? null : id;
+    audio.play("pop", { pitch: 0.9 });
+    const m = shopModel();
+    ui.updateShop(m);
+    seen("try-skin", !!m.tryIt);
+  }
+
+  /** "Try it": one city with the previewed locked bolt (rewarded, once per skin). */
+  async function trySkin() {
+    const id = shopPreview;
+    if (!trySkinOffer(save.data, id, { available: ads.rewardedAvailability.ok, trialActive: !!trialSkin }) || pause.has(Reason.AD)) return;
+    const r = await ads.rewarded({
+      context: "try-skin",
+      grant: () => { trialSkin = id; save.update((d) => { d.tried = [...d.tried, id]; }); applySkin(); },
+    });
+    save.flush();
+    if (r.shown) {
+      audio.play("tier", { pitch: 1.3 });
+      ui.toast(t("trying", { name: t(`skin_${id}`) }));
+      shopPreview = null;
+      closeShop();
+      return;
+    }
+    ui.toast(r.reason === "adblock" ? t("adblock_notice") : t("no_video"));
     ui.updateShop(shopModel());
   }
 
@@ -593,8 +732,10 @@ async function boot() {
     const id = pickRandomSkin(save.data, Math.random);
     save.update((d) => { d.coins -= cost; d.owned.push(id); d.skin = id; });
     save.flush();
+    shopPreview = null;
+    if (trialSkin === id) trialSkin = null;
     ui.setCoins(save.data.coins, { animate: true });
-    view.recolor(skinColor(save.data));
+    applySkin();
     ui.updateShop(shopModel());
     seen("shop-cash", !!shopModel().cash);
     ui.popSwatch(id);
@@ -768,6 +909,8 @@ async function boot() {
           platform: { name: platform.name, environment: platform.environment }, fps: loop.stats.fps,
           pixelRatio: stage.renderer.getPixelRatio(), adsLog: ads.log, gameplayHistory: gameplay.history,
           runs: save.data.runs, skin: save.data.skin, owned: [...save.data.owned], boosted, shopOpen: ui.shopOpen,
+          trialSkin, tried: [...save.data.tried], boostDue: boostDueNow, giftDay: save.data.lastGiftDay, giftStreak: save.data.giftStreak,
+          upgrades: upgradeLevels(save.data), bestLevel: save.data.bestLevel,
         };
       },
       /** The share of the city at which "One more strike" is offered (OFFERS.reviveMinProgress, never at 100%). */

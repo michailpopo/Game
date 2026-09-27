@@ -31,14 +31,14 @@ import { mergeGeometries } from "three/addons/utils/BufferGeometryUtils.js";
 
 /** The toy palette: limited, calm world + candy lit colours. */
 export const TOY = {
-  unlit: "#7c86ab",          // calm desaturated grey-blue
+  unlit: "#8690b6",          // calm desaturated grey-blue
   unlitWindow: "#474f73",
   unlitTrim: "#9aa3c6",
   rod: "#d9def0",
   window: "#fff2b8",         // lit window bands (HDR via windowGlow)
   lit: ["#ffc21a", "#ff5e57", "#ff6fb5", "#3fd07a", "#ff8c2a", "#9d6bff"],   // warm/candy - never cyan (the bolt's)
-  asphalt: "#4a5277",
-  field: "#6fb85e",
+  asphalt: "#5a6290",
+  field: "#7cc463",
   sidewalk: "#e4dde6",
   park: "#78c86a",
   dash: "#f2f4ff",
@@ -319,12 +319,12 @@ function colored(geo, hex, t) {
   return g;
 }
 
-/** Prop geometries with vertex colours: roundTree (~150 tris), coneTree (~40), car (~230; body white = instance colour). */
+/** Prop geometries with vertex colours: roundTree (~110 tris), coneTree (~34), car (~340; white body = instance colour). */
 export function propGeometries() {
   return {
     roundTree: mergeGeometries([
       colored(new CylinderGeometry(0.22, 0.28, 1.2, 6, 1), TOY.trunk, { y: 0.6 }),
-      colored(new SphereGeometry(1.25, 10, 7), "#ffffff", { y: 2.1 }),
+      colored(new SphereGeometry(1.25, 9, 6), "#ffffff", { y: 2.1 }),
     ]),
     coneTree: mergeGeometries([
       colored(new CylinderGeometry(0.18, 0.22, 0.8, 5, 1), TOY.trunk, { y: 0.4 }),

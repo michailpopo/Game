@@ -39,9 +39,10 @@ if (STILL) Math.random = mulberry32(777);          // the kit's bursts use Math.
 // ------------------------------------------------------------------ stage + look
 const stage = createStage(document.getElementById("game"));
 const look = applyLook(stage, {
-  backdrop: qs.get("backdrop") || "dusk", toneMapping: qs.get("tm") || "neutral", exposure: Number(qs.get("exposure") || 1),
+  backdrop: qs.get("backdrop") || "dusk", toneMapping: qs.get("tm") || "neutral", exposure: Number(qs.get("exposure") || 1.08),
   shadowArea: 44, shadowsStatic: true, keyDir: [-0.75, 0.62, 0.5], rimDir: [0.2, 0.6, -1],
-  bloom: { strength: Number(qs.get("bs") || 0.45), radius: Number(qs.get("br") || 0.3), threshold: Number(qs.get("bt") || 1.05) },
+    // toy look: only the bolt's white-hot core and the impact halos bloom (threshold above lit windows/bodies)
+  bloom: { strength: Number(qs.get("bs") || 0.6), radius: Number(qs.get("br") || 0.25), threshold: Number(qs.get("bt") || 2.2) },
 });
 look.key.shadow.radius = 5;
 const quality = new AdaptiveQuality(stage.renderer, { onTier: (t) => look.setQuality(t) });
@@ -66,15 +67,18 @@ P[A].startLit = 1; P[B].startLit = 0; P[C].startLit = 0; P[D].startLit = 0;
 P[A].color = "#ffc21a"; P[B].color = "#ff5e57";
 
 createToyGround(scene, layout);
-// a ring of trees around the city plate frames the diorama (negative space stays green and calm)
+// a ring of trees around the city plate frames the diorama (negative space stays green and calm).
+// It does not cast shadows: a shadow-map refresh then stays inside profile M.
+const ring = [];
 for (let k = 0; k < 70; k++) {
   const a = rand() * Math.PI * 2, r = layout.size * 0.5 + 5 + rand() * 30;
   const x = Math.cos(a) * r * (1 + 0.15 * Math.sin(a * 3)), z = Math.sin(a) * r;
   if (Math.abs(x) < layout.size * 0.5 + 3 && Math.abs(z) < layout.size * 0.5 + 3) continue;
-  layout.props.push({ kind: rand() < 0.55 ? "roundTree" : "coneTree", x, z, rot: rand() * 6.28, scale: 1 + rand() * 0.8 });
+  ring.push({ kind: rand() < 0.55 ? "roundTree" : "coneTree", x, z, rot: rand() * 6.28, scale: 1 + rand() * 0.8 });
 }
 const city = new ToyCity(scene, P);
 new ToyProps(scene, layout.props);
+new ToyProps(scene, ring, { castShadow: false });
 function resetCity() { P.forEach((p, i) => city.setLit(i, p.startLit, true)); }
 resetCity();
 const tipA = city.tip(A), tipB = city.tip(B), tipC = city.tip(C), tipD = city.tip(D);
@@ -82,8 +86,8 @@ const tipA = city.tip(A), tipB = city.tip(B), tipC = city.tip(C), tipD = city.ti
 // storm cloud: a few big smooth puffs, slate blue with a bright rim (toy-like, no haze)
 const cloudCenter = new Vector3(-40, 25, 2);
 const puffs = [[0, 0, 0, 5], [5.5, -0.6, 1, 4.2], [-5.2, -0.8, -0.5, 4], [2.2, 2.4, -1, 4.2], [-2.6, 2, 0.8, 3.8], [8.8, -1.2, -0.6, 3], [-8.4, -1.4, 0.4, 2.8], [0.5, -1.4, 3, 3.6]];
-const cloud = new InstancedMesh(new SphereGeometry(1, 16, 12),
-  enhance(new MeshStandardMaterial({ color: "#5d6594", roughness: 0.9 }), { rim: 0.45, rimPower: 2.4, rimColor: "#ffd9e8", rimTint: 0 }), puffs.length);
+const cloud = new InstancedMesh(new SphereGeometry(1, 14, 9),
+  enhance(new MeshStandardMaterial({ color: "#474e7c", roughness: 1, envMapIntensity: 0.3 }), { rim: 0.45, rimPower: 2.4, rimColor: "#ffd9e8", rimTint: 0 }), puffs.length);
 cloud.name = "storm-cloud";
 const _m = new Matrix4(), _q = new Quaternion(), _p = new Vector3(), _s = new Vector3();
 puffs.forEach(([x, y, z, r], i) => { _m.compose(_p.set(cloudCenter.x + x, cloudCenter.y + y, cloudCenter.z + z), _q.identity(), _s.set(r, r * 0.82, r)); cloud.setMatrixAt(i, _m); });
@@ -128,10 +132,11 @@ const camDir = new Vector3(0.55, 0.37, 0.75).normalize();
 const lookAt = new Vector3();
 function placeCamera() {
   const aspect = stage.size.aspect || 16 / 9;
-  const dist = aspect >= 1 ? 74 : 74 + (1 - aspect) * 30;
+  const dist = aspect >= 1 ? 74 : 60;
   camera.position.copy(target).addScaledVector(camDir, dist);
   camera.lookAt(lookAt.copy(target).setY(target.y + (aspect >= 1 ? 0 : 2)));
   camera.updateMatrixWorld();
+  cloud.position.set(aspect >= 1 ? 0 : 20, aspect >= 1 ? 0 : -3, aspect >= 1 ? 0 : 8);   // keep the storm cloud in frame
 }
 
 // ------------------------------------------------------------------ the strike sequence
@@ -142,7 +147,9 @@ const scr = { x: 0, y: 0, visible: true };
 const popLog = [];   // [element, sequence time] - stills seek each pop to its own age
 function popAt(v, text, o) {
   worldToScreen(v, camera, stage.size.width, stage.size.height, scr);
-  const el = pops.pop(scr.x + (o.dx ?? 0), scr.y + (o.dy ?? 0), text, o);
+  const W = stage.size.width;
+  const x = Math.min(W * 0.9, Math.max(W * 0.1, scr.x + (o.dx ?? 0) * (W < stage.size.height ? 0.5 : 1)));
+  const el = pops.pop(x, scr.y + (o.dy ?? 0), text, o);
   popLog.push([el, seqT]);
   return el;
 }
@@ -173,7 +180,7 @@ function wave(from, radius, delay) {
 const wakes = [];
 const EVENTS = [
   [0.0, () => {
-    fx.strike(_p.set(cloudCenter.x + 5, cloudCenter.y - 3, cloudCenter.z + 2).clone(), tipA, { width: 1.1, forks: 2, arc: 0, life: 0.45, jag: 0.08, intensity: 1.4, haloSize: 2.2, beads: 2, ringDrop: 1.6 });
+    fx.strike(_p.set(cloudCenter.x + 5, cloudCenter.y - 3, cloudCenter.z + 2).add(cloud.position).clone(), tipA, { width: 1.1, forks: 2, arc: 0, life: 0.45, jag: 0.08, intensity: 1.4, haloSize: 2.2, beads: 2, ringDrop: 1.6 });
     flash.position.copy(tipA).setY(tipA.y + 5); flash.intensity = 90;
     popAt(tipA, "+8", { kind: "gold", size: 0.6, dx: -80, dy: 40 });
   }],

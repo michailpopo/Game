@@ -130,3 +130,37 @@ all in `src/config.js` `STORM` / `OFFERS`; the title lives in `GAME.title`, i18n
 - **Known:** plain materials + own bolt mesh until WP-31 wires the look kit; the storm front is placeholder puffs; the
   result dialog covers the city in portrait (the orbit shows ~1.3 s before it); English only (German dropped rather than
   shipped unchecked); sounds are unauditioned ZzFX.
+
+## WP-21 notes - city restyle from hit references (game-feel-artist, 2026-09-27)
+Owner feedback on the WP-20 frame: "UI looks great, the city still looks too AI-generated - take inspo from liked HTML5 games,
+do not overcomplicate". UI untouched; the city look was rebuilt as a toy city.
+- **Reference study (reference only, never shipped; `qa/refs/`, gitignored):** cover + 3 preview-video frames each of
+  Holey.io Battle Royale, Slice Master, Cubes 2048.io (video: Cubes 2048 Royale - the page only serves that clip), Paper.io 2,
+  Tile Jumper 3D, Harvest.io, Smash Karts, PolyTrack (URLs from each page's `__NEXT_DATA__`, frames with imageio-ffmpeg).
+  Contact sheet: `qa/refs/contact.png` (copy in `qa/wp21/refs-contact.png`).
+- **Visual rules they share:**
+  1. High-key, clean backdrop: a flat light floor or a simple sky; no haze, no fog veil, no bloom wash. 7 of 8 are bright;
+     only Tile Jumper is dark neon.
+  2. Few big flat colour areas: 3-5 hues per frame. The world is one or two calm colours (white/grey floor, navy, sand,
+     grass); objects are saturated candy colours. No texture noise.
+  3. Toy shape language: chunky primitives with rounded or bevelled edges (bombs, karts, cubes, donuts, tractors), big
+     readable silhouettes, very little small detail, objects large on screen.
+  4. Simple soft shading: flat-ish diffuse with one directional light and a clear soft shadow that grounds everything;
+     glow only on the one special thing (none shows a bloom veil).
+  5. Contrast: the interactive thing is the most saturated or brightest element, often ringed or outlined (Holey's green
+     ring, Cubes' bright snake on navy, Harvest's purple tractor on yellow).
+  6. Clean frames with negative space: big empty ground, few props (ball/cone trees, box cars), minimal HUD.
+  7. Camera: elevated 3/4 or top-down, close enough that each object reads at thumbnail size; mild perspective.
+- **Applied:** 55 chunky buildings in 6 types (chamfered bodies, 4 roof kinds: flat rim, stepped, dome, spire, plus
+  pyramid-roof houses), window BANDS instead of grids; unlit = calm grey-blue #8690b6, lit = one candy colour per
+  building (yellow, coral, pink, green, orange, purple - never cyan) that floods up from the ground with a bright fill
+  line; dusk sky (deep blue over a peach horizon, `BACKDROPS.dusk`); green field with a tree ring; rounded sidewalks,
+  lane dashes, 14 box cars, parks with ball/cone trees; one soft low sun shadow; bloom threshold 2.2 so only the bolt
+  core and halos glow (at 1.05 the lit windows bloomed into a pink veil in portrait). The neon night city, wet-street
+  reflection, beacons and window grids are gone from the demo (the materials stay in the kit).
+- **Budgets (hero frame 1280x720, profile M <= 60 calls / 60k tris):** low 19 calls / 34.1k tris; medium 19 / 34.1k
+  steady, 28 / 57.3k on a static-shadow refresh frame; high and ultra 33 (19 scene + 14 post) / 34.1k, 42 / 57.3k on a
+  shadow refresh; animated strike max 33 / 34.8k. Heaviest geometry: ribbon pool 1,920; building types 132-534 tris.
+  The outer tree ring does not cast shadows (with it casting, the refresh frame was 66.8k).
+- **Checks:** `npm run build` exit 0; browser-qa boot, poly-budget, console-errors PASS (the game build does not import
+  the kit yet); live demo runs without console errors.

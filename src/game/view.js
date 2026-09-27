@@ -78,6 +78,7 @@ export class GameView {
     this.aim = { index: -1, visible: false };
     this.chargeView = { x: 0, y: 0, charge: 0, lo: 0, hi: 0, band: "" };   // reused: no per-frame objects
     this.cameraOverride = null;
+    this.safe = null;                  // setSafeArea(): screen space the UI leaves free for the city
     this.fxScale = 1;
 
     const ringGeo = new RingGeometry(0.86, 1.1, 40);
@@ -97,6 +98,15 @@ export class GameView {
   }
 
   setCameraOverride(o) { this.cameraOverride = o; }
+
+  /**
+   * Keep the city inside the screen area the UI leaves free: { top, bottom, left, right } in px from
+   * each edge (the city intro's cards and offers), or null for the run framing. The camera eases over.
+   */
+  setSafeArea(a) {
+    const r = (v) => Math.round(Math.max(0, v || 0) / 8) * 8;   // 8 px steps: no refit on sub-pixel layout noise
+    this.safe = a ? { top: r(a.top), bottom: r(a.bottom), left: r(a.left), right: r(a.right) } : null;
+  }
 
   build(sim) {
     const theme = themeOf(sim.city);
@@ -372,8 +382,13 @@ export class GameView {
   #fitCity(sim, portrait, aspect) {
     const F = portrait ? FRAMING.portrait : FRAMING.landscape;
     const city = sim.city;
-    const key = `${this.stage.size.width}x${this.stage.size.height}:${city.level}:${sim.seed}`;
+    const sa = this.safe;
+    const key = `${this.stage.size.width}x${this.stage.size.height}:${city.level}:${sim.seed}:${sa ? `${sa.top},${sa.bottom},${sa.left},${sa.right}` : ""}`;
     if (this.fit.key === key) return this.fit;
+    // The free NDC box: the framing's own margins, tightened by the UI's safe area when one is set.
+    const W = this.stage.size.width || 1, H = this.stage.size.height || 1;
+    const xlo = Math.max(-F.mx, sa ? -1 + (2 * sa.left) / W : -1), xhi = Math.min(F.mx, sa ? 1 - (2 * sa.right) / W : 1);
+    const yhi = Math.min(F.yhi, sa ? 1 - (2 * sa.top) / H : 1), ylo = Math.max(F.ylo, sa ? -1 + (2 * sa.bottom) / H : -1);
     const pts = [];
     for (const d of city.districts) {
       const hw = d.w / 2 + 0.8, hd = d.d / 2 + 0.8;
@@ -407,12 +422,12 @@ export class GameView {
     for (let it = 0; it < 40; it++) {
       const mid = (lo + hi) / 2;
       const r = span(mid);
-      if (r.xmax - r.xmin <= 2 * F.mx && r.ymax - r.ymin <= F.yhi - F.ylo) hi = mid; else lo = mid;
+      if (r.xmax - r.xmin <= Math.max(0.2, xhi - xlo) && r.ymax - r.ymin <= Math.max(0.2, yhi - ylo)) hi = mid; else lo = mid;
     }
     const r = span(hi);
-    // Centre the city in the free band: shift the target along the camera's up and right axes.
-    const shift = ((r.ymin + r.ymax) / 2 - (F.ylo + F.yhi) / 2) * r.zc * tv;
-    const side = ((r.xmin + r.xmax) / 2) * r.zc * th;
+    // Centre the city in the free box: shift the target along the camera's up and right axes.
+    const shift = ((r.ymin + r.ymax) / 2 - (ylo + yhi) / 2) * r.zc * tv;
+    const side = ((r.xmin + r.xmax) / 2 - (xlo + xhi) / 2) * r.zc * th;
     Object.assign(this.fit, { key, dist: hi, fov: F.fov, pitch, yaw, ty, shift, side });
     return this.fit;
   }

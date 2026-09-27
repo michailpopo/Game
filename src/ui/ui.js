@@ -11,7 +11,9 @@
  * Styles: src/ui/styles.css (shared classes: .hud .score .meter .ranks .home .hint .pill .world-card
  * .btn .card .dialog .pod ...). Storm-Grid-only pieces carry inline styles and these class names for
  * the look pass: .charge (ring: .charge-track .charge-band .charge-fill), .powered-label,
- * .meter-tick, .strike-pips (.pip, .pip.used), .plate-ladder.
+ * .meter-tick, .strike-pips (.pip, .pip.used), .plate-ladder. WP-32 layout (the "WP-32" block at the
+ * end of styles.css): the 5 upgrade cards as a left rail (landscape) or a bottom row (portrait),
+ * .boost-row (.boost video + .boost-coins), .gift-btn, .shop .owned-count / .skin-name / .swatch.preview.
  *
  * Rewarded-ad UI rules baked in (CG-ADS-007/008, CG-QUAL-004): an offer and its decline/alternative
  * use the SAME button class - same size, font and colour - and appear in the same frame; the offer
@@ -39,12 +41,13 @@ const ICON = {
   gold: `<svg viewBox="0 0 48 48" aria-hidden="true"><path d="M24 4v30" stroke="#ffcc33" stroke-width="5" stroke-linecap="round"/><circle cx="24" cy="8" r="6" fill="#ffe066"/><rect x="14" y="34" width="20" height="8" rx="2" fill="#fff"/></svg>`,
   shop: `<svg viewBox="0 0 48 48" aria-hidden="true"><path d="M27 4 12 27h10l-3 17 17-25H26z" fill="#fff"/><circle cx="36" cy="12" r="6" fill="#ff3fd8"/></svg>`,
   close: `<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 6l12 12M18 6 6 18" stroke="#fff" stroke-width="3" stroke-linecap="round"/></svg>`,
+  gift: `<svg viewBox="0 0 48 48" aria-hidden="true"><rect x="7" y="19" width="34" height="23" rx="3" fill="#ff3fa4"/><rect x="5" y="13" width="38" height="8" rx="2.5" fill="#ff7ac4"/><rect x="21" y="13" width="6" height="29" fill="#ffd166"/><path d="M24 13c-3-7-12-8-11-2 1 4 8 3 11 2zm0 0c3-7 12-8 11-2-1 4-8 3-11 2z" fill="#ffd166"/></svg>`,
 };
 /** A bolt skin swatch: coloured when owned, a dark silhouette while locked. */
 const swatch = (fill) => `<svg viewBox="0 0 48 48" aria-hidden="true"><path d="M28 4 12 27h10l-3 17 17-25H26z" fill="${fill}"/></svg>`;
 const PLATE_COLORS = { 2: "#4df3ff", 3: "#7cff7a", 5: "#ffcc33", 10: "#ff3fa4" };
 
-export function createUI(root, { onSound, onPause, onResume, onBuy, onFree, onBoost, onShop, onShopClose, onSkin, onUnlock, onCash }) {
+export function createUI(root, { onSound, onPause, onResume, onBuy, onFree, onBoost, onBoostCoins, onGift, onShop, onShopClose, onSkin, onPreview, onUnlock, onCash, onTry }) {
   root.innerHTML = `
     <div class="hud">
       <div class="hud-left"><div class="coins"><b>0</b><span class="coin">${ICON.coin}</span></div></div>
@@ -74,13 +77,16 @@ export function createUI(root, { onSound, onPause, onResume, onBuy, onFree, onBo
     <div class="pill hidden"><span class="pill-icon"></span><span class="pill-text stroke"></span></div>
     <div class="world-card hidden"><p class="stroke small"></p><p class="stroke big"></p></div>
     <div class="upgrades hidden"></div>
-    <button class="btn boost hidden" type="button" data-video="1">${ICON.video}<span class="boost-label"></span></button>
+    <div class="boost-row hidden"><button class="btn boost hidden" type="button" data-video="1">${ICON.video}<span class="boost-label"></span></button><button class="btn boost-coins hidden" type="button"><span class="boost-label"></span><b></b><span class="coin">${ICON.coin}</span></button></div>
     <button class="icon-btn shop-btn hidden" type="button" aria-label="shop">${ICON.shop}</button>
+    <button class="icon-btn gift-btn hidden" type="button" aria-label="gift">${ICON.gift}</button>
     <div class="paused" hidden><div class="paused-card"><h2 class="stroke"></h2><p class="stroke sub"></p><p class="keys"></p></div></div>
     <div class="shop-modal" hidden><div class="shop">
       <button class="icon-btn close" type="button">${ICON.close}</button>
       <h2 class="stroke"></h2>
+      <p class="owned-count stroke"></p>
       <div class="grid"></div>
+      <p class="skin-name stroke"></p>
       <div class="row"></div>
       <p class="note stroke"></p>
     </div></div>
@@ -101,7 +107,10 @@ export function createUI(root, { onSound, onPause, onResume, onBuy, onFree, onBo
   const dialog = $(".dialog");
   const toastEl = $(".toast");
   const adBlock = $(".ad-block");
+  const boostRow = $(".boost-row");
   const boostBtn = $(".boost");
+  const boostCoinsBtn = $(".boost-coins");
+  const giftBtn = $(".gift-btn");
   const shopBtn = $(".shop-btn");
   const shopModal = $(".shop-modal");
   const ring = dialog.querySelector(".ring");
@@ -129,14 +138,18 @@ export function createUI(root, { onSound, onPause, onResume, onBuy, onFree, onBo
   pauseBtn.addEventListener("click", () => onPause?.());
   paused.addEventListener("click", () => onResume?.());
   boostBtn.addEventListener("click", () => onBoost?.());
+  boostCoinsBtn.addEventListener("click", () => onBoostCoins?.(boostCoinsBtn));
+  giftBtn.addEventListener("click", () => onGift?.());
   shopBtn.addEventListener("click", () => onShop?.());
   shopModal.querySelector(".close").addEventListener("click", () => onShopClose?.());
   shopModal.addEventListener("click", (e) => {
     const b = e.target.closest("button[data-act]");
     if (!b) return;
     if (b.dataset.act === "skin") onSkin?.(b.dataset.id);
+    else if (b.dataset.act === "preview") onPreview?.(b.dataset.id);
     else if (b.dataset.act === "unlock") onUnlock?.(b);
     else if (b.dataset.act === "cash") onCash?.(b);
+    else if (b.dataset.act === "try") onTry?.(b);
   });
 
   // ---- coins with a counting animation
@@ -300,10 +313,19 @@ export function createUI(root, { onSound, onPause, onResume, onBuy, onFree, onBo
     onExpire?.();
   }
 
-  // ---- city intro: rewarded Supercharged start
+  // ---- city intro: Supercharged start - the video button and its coin path, side by side
+  /** @param {{ video:{label:string}|null, coin:{label:string, cost:number, affordable:boolean}|null }|null} model */
   function showBoost(model) {
-    boostBtn.classList.toggle("hidden", !model);
-    if (model) boostBtn.querySelector(".boost-label").textContent = model.label;
+    const v = model?.video, c = model?.coin;
+    boostRow.classList.toggle("hidden", !v && !c);
+    boostBtn.classList.toggle("hidden", !v);
+    boostCoinsBtn.classList.toggle("hidden", !c);
+    if (v) boostBtn.querySelector(".boost-label").textContent = v.label;
+    if (c) {
+      boostCoinsBtn.querySelector(".boost-label").textContent = c.label;
+      boostCoinsBtn.querySelector("b").textContent = String(c.cost);
+      boostCoinsBtn.classList.toggle("cant", !c.affordable);
+    }
   }
 
   // ---- bolt shop
@@ -316,10 +338,14 @@ export function createUI(root, { onSound, onPause, onResume, onBuy, onFree, onBo
     if (key === shopKey && !force) return;
     shopKey = key;
     shopModal.querySelector("h2").textContent = m.title;
+    shopModal.querySelector(".owned-count").textContent = m.count || "";
+    // Locked bolts are dark silhouettes; tapping one previews it (name + "Try it" when allowed).
     shopModal.querySelector(".grid").innerHTML = m.skins.map((s) =>
-      `<button class="swatch ${s.owned ? "owned" : "locked"}${s.selected ? " selected" : ""}" type="button" data-act="skin" data-id="${s.id}" ${s.owned ? "" : "disabled"} aria-label="${s.id}">${swatch(s.owned ? s.color : "#2c2446")}</button>`).join("");
+      `<button class="swatch ${s.owned ? "owned" : "locked"}${s.selected ? " selected" : ""}${s.preview ? " preview" : ""}" type="button" data-act="${s.owned ? "skin" : "preview"}" data-id="${s.id}" aria-label="${escapeHtml(s.name)}">${swatch(s.owned ? s.color : s.preview ? "#4a3f7a" : "#2c2446")}</button>`).join("");
+    shopModal.querySelector(".skin-name").textContent = m.name || "";
     const row = [];
     if (m.unlock) row.push(`<button class="btn${m.unlock.affordable ? "" : " cant"}" type="button" data-act="unlock"><span>${m.unlock.label}</span><b>${m.unlock.cost}</b><span class="coin">${ICON.coin}</span></button>`);
+    if (m.tryIt) row.push(`<button class="btn" type="button" data-act="try" data-video="1">${ICON.video}<span>${m.tryIt.label}</span></button>`);
     if (m.cash) row.push(`<button class="btn" type="button" data-act="cash" data-video="1">${ICON.video}<span>+${m.cash.amount}</span><span class="coin">${ICON.coin}</span></button>`);
     shopModal.querySelector(".row").innerHTML = row.join("");
   }
@@ -420,11 +446,6 @@ export function createUI(root, { onSound, onPause, onResume, onBuy, onFree, onBo
 
   let hintAnim = null;
 
-  // Portrait: three upgrade cards fill the bottom row on a 390 px phone, so the shop button moves up
-  // to the boost's row (left side). Inline because styles.css belongs to the look pass.
-  function placeShopButton() { shopBtn.style.bottom = portraitQuery.matches ? "11.6em" : ""; }
-  portraitQuery.addEventListener?.("change", placeShopButton);
-
   return {
     setCoins,
     coinsFly,
@@ -462,7 +483,36 @@ export function createUI(root, { onSound, onPause, onResume, onBuy, onFree, onBo
     showUpgrades,
     popUpgrade,
     showBoost,
-    showShopButton(on) { shopBtn.classList.toggle("hidden", !on); placeShopButton(); },
+    /**
+     * City intro: how far (px) the intro UI reaches in from each screen edge, so the camera keeps the
+     * city clear of it (view.setSafeArea). Top = the hint's bottom; blocks in the top 40% count to the
+     * top; portrait blocks below count to the bottom; landscape blocks to the nearer side.
+     */
+    readyInsets() {
+      const R = root.getBoundingClientRect();
+      const W = R.width, H = R.height;
+      const out = { top: 0, bottom: 0, left: 0, right: 0 };
+      const vis = (el) => el && !el.classList.contains("hidden") && !el.closest(".hidden") && el.getClientRects().length > 0;
+      if (vis(hint)) out.top = hint.getBoundingClientRect().bottom - R.top;
+      const portrait = portraitQuery.matches;
+      for (const el of [upgrades, boostRow, shopBtn, giftBtn]) {
+        if (!vis(el)) continue;
+        const r = el.getBoundingClientRect();
+        const l = r.left - R.left, t = r.top - R.top, rr = r.right - R.left, b = r.bottom - R.top;
+        if (b < H * 0.4) out.top = Math.max(out.top, b);
+        else if (portrait || (t > H * 0.75 && l > W * 0.25 && rr < W * 0.75)) out.bottom = Math.max(out.bottom, H - t);
+        else if ((l + rr) / 2 < W / 2) out.left = Math.max(out.left, rr);
+        else out.right = Math.max(out.right, W - l);
+      }
+      return out;
+    },
+    showShopButton(on) { shopBtn.classList.toggle("hidden", !on); },
+    /** Daily gift icon on the city intro (never in a run, never blocking the city). */
+    showGift(on) {
+      const was = !giftBtn.classList.contains("hidden");
+      giftBtn.classList.toggle("hidden", !on);
+      if (on && !was) giftBtn.animate([{ scale: 0.3, rotate: "-20deg" }, { scale: 1.2, rotate: "8deg", offset: 0.6 }, { scale: 1, rotate: "0deg" }], { duration: 520, easing: "ease-out" });
+    },
     openShop(model) { renderShop(model, true); shopModal.hidden = false; root.classList.add("shop-open"); shopModal.querySelector(".shop").animate([{ transform: "scale(.7)", opacity: 0 }, { transform: "scale(1)", opacity: 1 }], { duration: 260, easing: "ease-out" }); },
     updateShop(model) { if (!shopModal.hidden) renderShop(model); },
     closeShop() { shopModal.hidden = true; root.classList.remove("shop-open"); },

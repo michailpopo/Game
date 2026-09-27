@@ -11,15 +11,16 @@
 export const GAME = {
   slug: "storm-grid",
   title: "Storm Grid",          // owner, 2026-09-26 (the only place the name lives besides i18n/index.html)
-  saveVersion: 2,               // 2 = Storm Grid save shape (v1 was Comet Chain: coins + mute are kept)
+  saveVersion: 3,               // 3 = + daily gift, tried skins, boost cadence (v2 Storm Grid core, v1 Comet Chain)
   // Midgame from this city on, on "Next city" and "Retry" (GAME_BRIEF "Midgame"; the SDK paces the rest).
   firstMidgameLevel: 4,
 };
 
 /**
- * Rewarded offers (skill: references/crazygames/monetization-playbook.md, "Ad-view maximisation").
- * More ad views come from more WANTED offers at the right moments, each with a real cap - never
- * from pressure. Rules live in src/game/offers.js. (Try-skin and the daily gift arrive in WP-32.)
+ * Rewarded offers (skill: references/crazygames/monetization-playbook.md, "Ad-view maximisation";
+ * docs/GAME_BRIEF.md "Monetization plan"). More ad views come from more WANTED offers at the right
+ * moments, each with a real cap and a coin or play path - never from pressure. Rules live in
+ * src/game/offers.js.
  */
 export const OFFERS = {
   // "One more strike" (the revive analogue): the last cascade ended 85-99% powered. Once per session;
@@ -27,8 +28,11 @@ export const OFFERS = {
   revivesPerSession: 1,
   reviveMinProgress: 0.85,      // progress = share of the city powered (offered only below 1.0)
   reviveCountdownSec: 5,
-  // "Supercharged start" on the city intro: +boostStrikes strikes for this city.
-  boostAfterRuns: 2,            // hidden in the first runs
+  // "Supercharged start" on the city intro: +boostStrikes strikes for this city (video, or coins =
+  // the next Voltage level's price). Hidden in runs 1-2, then on every boostEveryRuns-th intro or
+  // when boostCooldownSec passed since it was last shown.
+  boostAfterRuns: 2,
+  boostEveryRuns: 2,
   boostCooldownSec: 120,
   boostStrikes: 2,
   // "FREE" upgrade card, only while the upgrade is not affordable (CG-ADS-011/012).
@@ -36,6 +40,10 @@ export const OFFERS = {
   // Shop: "+coins" while the next bolt skin is not affordable, with a visible cooldown timer.
   cashCooldownSec: 180,
   cashShare: 0.22,
+  // Shop: "Try it" = one city with a locked bolt, once per skin, from this many runs on.
+  trySkinFromRuns: 4,
+  // Daily gift (first session of a local day, after the first result): Collect, or Collect xN with a video.
+  giftVideoFactor: 2,
   // Never more video buttons than this on one screen: more offers per SESSION, not per screen.
   maxVideoOffersPerScreen: 2,
 };
@@ -109,5 +117,27 @@ export const STORM = {
   },
   input: {
     snapPx: 80,                 // the target snaps to the antenna nearest the finger within this (screen px)
+  },
+};
+
+/**
+ * Economy (docs/GAME_BRIEF.md "Economy"): prices are round5(base x growth^level) - to 5 below 1,000,
+ * to 50 above. Skins round to 5. The daily gift base is `gift.runs` x the average player's coins per
+ * run at the best city reached (the brief's Monte Carlo table, interpolated), x the streak multiplier.
+ */
+export const ECONOMY = {
+  upgrades: {
+    voltage: { max: 15, base: 60, growth: 1.45 },    // +2 hops per bolt (E0), +0.5 m range
+    fork: { max: 10, base: 100, growth: 1.55 },      // +3% fork chance
+    strikes: { max: 3, base: 600, growth: 3 },       // +1 strike per city (3 -> 6)
+    capacitor: { max: 5, base: 150, growth: 1.9 },   // SUPERCHARGE band 3 points wider
+    gold: { max: 5, base: 300, growth: 2.1 },        // +1 gold rod per city (from city 3)
+  },
+  skins: { base: 250, growth: 1.45 },                // "Unlock random": 250 x 1.45^(owned-1)
+  gift: {
+    runs: 2,
+    // average coins per run by city (GAME_BRIEF "Coins per run", average player); +6%/city past the table
+    runCoins: [[1, 174], [5, 394], [10, 1043], [20, 4044], [40, 6065]],
+    streak: [1, 1.15, 1.3, 1.45, 1.6, 1.8, 2],       // day 1..7; a missed day steps back one day
   },
 };

@@ -404,3 +404,53 @@
   box-shadow: inset 0 0.2em 0 rgba(255, 255, 255, 0.6), inset 0 -0.15em 0 rgba(0, 60, 140, 0.35), 0 0 0.8em #4df3ff;
 }
 #ui .big-meter .bm-bar b { position: absolute; top: 0; bottom: 0; width: 0.14em; background: rgba(255, 255, 255, 0.35); }
+
+/* =====================================================================================================
+   WP-32 (threejs-game-engineer, 2026-09-27): city-intro LAYOUT for the meta/offers - 5 upgrade cards,
+   the Supercharged-start pair (video + coins), the daily gift icon, bolt-shop names and preview.
+   Layout only; the look pass may restyle any of it. The camera keeps the city inside the space these
+   leave free (ui.readyInsets() -> view.setSafeArea()).
+   ===================================================================================================== */
+#ui .boost-row { position: absolute; left: 50%; bottom: 0.9em; transform: translateX(-50%); display: flex; gap: 0.6em; align-items: stretch; }
+#ui .boost-row .btn { position: relative; inset: auto; translate: none; font-size: 1.05em; white-space: nowrap; }
+#ui .boost-coins b { font-weight: normal; }
+#ui .gift-btn { position: absolute; right: 0.6em; top: 3.6em; width: 3em; height: 3em; border-radius: 0.9em; }
+#ui .gift-btn svg { width: 2.3em; height: 2.3em; filter: none; }
+#ui .shop { width: min(24em, 94vw); }
+#ui .shop .owned-count { margin: -0.3em 0 0.45em; font-size: max(12px, 0.8em); opacity: 0.9; }
+#ui .shop .skin-name { min-height: 1.2em; margin: 0.45em 0 0; font-size: max(13px, 0.95em); color: #ffe066; }
+#ui .swatch.locked { cursor: pointer; }
+#ui .swatch.preview { border-color: #fff; box-shadow: 0 0 0 0.14em #fff; }
+
+/* landscape: the cards are a rail on the left, clear of the city in the middle */
+@media (min-aspect-ratio: 1001/1000) {
+  #ui .upgrades { left: 0.7em; top: 50%; bottom: auto; transform: translateY(-50%); flex-direction: column; align-items: flex-start; gap: 0.4em; }
+  #ui .upgrade { flex-direction: row; align-items: center; width: auto; gap: 0.4em; }
+  #ui .upgrade .card {
+    display: grid; grid-template-columns: 2.1em auto auto; grid-template-areas: "icon title lvl" "icon cost cost";
+    align-items: center; justify-items: start; column-gap: 0.45em; row-gap: 0.05em;
+    min-width: 9.4em; padding: 0.3em 0.55em 0.3em 0.4em; text-align: left;
+  }
+  #ui .upgrade .card .icon { grid-area: icon; }
+  #ui .upgrade .card .icon svg { width: 2.1em; height: 2.1em; margin: 0; }
+  #ui .upgrade .card .title { grid-area: title; }
+  #ui .upgrade .card .lvl { grid-area: lvl; position: static; justify-self: end; opacity: 0.85; }
+  #ui .upgrade .card .cost { grid-area: cost; width: auto; margin: 0; padding: 0; border: 0; justify-content: flex-start; font-size: 1em; }
+  #ui .upgrade .free-spacer { display: none; }
+  #ui .upgrade .btn.free { min-height: 2.2em; }
+}
+
+/* portrait: a compact row of 5 at the bottom; the Supercharged-start pair and the shop above it */
+@media (max-aspect-ratio: 1/1) {
+  #ui .upgrades { gap: 0.3em; bottom: 0.8em; }
+  #ui .upgrade { width: 4.8em; gap: 0.25em; }
+  #ui .upgrade .card { padding: 0.35em 0.15em 0.3em; }
+  #ui .upgrade .card .lvl { font-size: 12px; left: 0.3em; top: 0.15em; }
+  #ui .upgrade .card .icon svg { width: 1.9em; height: 1.9em; margin: 0.55em auto 0.05em; }
+  #ui .upgrade .card .title { font-size: 12px; letter-spacing: 0; }
+  #ui .upgrade .card .cost { font-size: 0.95em; margin-top: 0.15em; padding-top: 0.15em; }
+  #ui .upgrade .btn.free { font-size: 12px; min-height: 2em; padding: 0.2em 0.3em; }
+  #ui .upgrade .free-spacer { min-height: 2em; }
+  #ui .boost-row { bottom: 9.4em; }
+  #ui .shop-btn { bottom: 9.4em; }
+}

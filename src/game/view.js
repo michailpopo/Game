@@ -2,34 +2,44 @@
  * Presentation for Storm Grid: turns simulation state + events into pixels, sound and juice.
  * It reads the simulation and drains `sim.events`; it never mutates game state.
  *
+ * Look (WP-31): the WP-21 toy city (city-mesh.js), the premium look kit (src/render/look.js: dusk sky per theme,
+ * soft static shadows, bloom only on the bolt core; AdaptiveQuality tiers drop bloom/shadows on weak devices),
+ * FxKit bolts (white core + skin glow + a deep-blue outline so the bolt stays the most saturated thing on screen).
+ *
  * Juice (skill references/design/game-feel-juice.md, feedback size matches event size):
- *   charge     the storm front flickers, a hum rises with the charge, a ding entering SUPERCHARGE
- *   strike     the big bolt from the storm front, 60 ms hit-stop, FOV punch -4 deg for 120 ms,
- *              trauma 0.15 shake, SUPERCHARGE! / FIZZLE
- *   hop        a jagged camera-facing bolt tip to tip, a halo at the arrival, sparks, "+N", a crackle
- *              on a major-pentatonic ladder that climbs one step per depth
+ *   charge     the storm front flickers, a hum rises with the charge; SUPERCHARGE band: ding, gold ring and a gold
+ *              pulse on the target; overcharge: buzz, red ring and red sparks (the fizzle warning)
+ *   strike     the big bolt from the storm front, 60 ms hit-stop, FOV punch -4 deg for 120 ms, trauma shake,
+ *              a flat shockwave on the roof, SUPERCHARGE! / FIZZLE
+ *   hop        a forked bolt tip to tip, a halo and sparks at the arrival, the building floods with colour from the
+ *              ground up (white flash), "+N", a crackle on a major-pentatonic ladder (one step per depth)
  *   fork       "FORK x2 / x4 / x8" as the bolt count doubles, a zap one step higher
- *   district   BLOCK POWERED card + chord, the streetlights come on
- *   cascade    "+N" floats merge after the first few (<= ~12 on screen at 800x450); the strike's total
- *              and CHAIN xN at its end
- *   run end    a 20 deg/s orbit over the lit city for 3 s
+ *   gold rod   gold halo, sparks and coins popping from the rod, a ping
+ *   district   BLOCK POWERED card + chord, the block's pad warms up in a wave, its buildings pulse, a ring
+ *   cascade    "+N" floats merge after the first few (<= ~12 on screen at 800x450); CHAIN xN + the strike total
+ *   run end    FULL POWER: a flash sweeps the city, fireworks from the tallest towers, fanfare; the orbit
  *
  * Camera (GAME_BRIEF "Camera"): landscape FOV 45 at 38 deg pitch, portrait FOV 55 at 48 deg; the
  * city's bounding box is fitted inside the HUD-free part of the screen; exponential follow (3/s)
  * toward the active bolt fronts with a 15% dolly-in.
- * Plain three materials for now (look.js); the game-feel-artist's look kit replaces them (WP-31).
  */
 
 import { Color, MathUtils, Mesh, MeshBasicMaterial, RingGeometry, Vector3 } from "three";
 import { STORM } from "../config.js";
 import { t } from "../core/i18n.js";
+import { AdaptiveQuality } from "../core/quality.js";
 import { CameraShake } from "../fx/shake.js";
-import { BoltMesh } from "./bolt-mesh.js";
+import { FxKit } from "../fx/fx-kit.js";
+import { createNumberPops } from "../fx/number-pop.js";
+import { applyLook } from "../render/look.js";
 import { CityMesh } from "./city-mesh.js";
-import { LOOK, themeOf } from "./look.js";
+import { LOOK, THEMES, backdropFor, themeOf } from "./look.js";
 import { bandOf, nearestBuilding } from "./sim.js";
 
-const U = 2.4;                                   // bolt/halo/spark sizes: metres per effect unit
+const U = 2.4;                                   // FxKit preset unit in metres (bolt widths, halos, sparks)
+const _a = new Vector3();
+const _b = new Vector3();
+const _o3 = new Vector3();
 const _v = new Vector3();
 const _w = new Vector3();
 const _o = { x: 0, y: 0, z: 0 };

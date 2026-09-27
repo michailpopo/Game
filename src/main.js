@@ -104,6 +104,7 @@ async function boot() {
   let inputMode = "mouse";      // mouse | touch | keys
   let sawSuper = false;         // onboarding: the player released in the gold band at least once
   let panelKey = -1;
+  let pillOn = false;
   const pointer = { id: null, down: false, x: 0, y: 0 };
   const offerSeen = new Map();  // surface -> visible, so "offer shown" is logged once per appearance
   const stepIn = makeInput();
@@ -151,6 +152,7 @@ async function boot() {
     ui.setStrikes(sim.strikesLeft, sim.strikesMax);
     ui.setCharge(null);
     ui.showPill(null);
+    pillOn = false;
   }
 
   function enterReady() {
@@ -294,7 +296,8 @@ async function boot() {
     }
     // Onboarding: until the first SUPERCHARGE, a pill while charging.
     if (sim.lastRelease?.band === "super") sawSuper = true;
-    ui.showPill(sim.phase === "run" && sim.holding && !sawSuper && save.data.runs <= 3 ? t("pill_band") : null, "bolt");
+    const wantPill = sim.phase === "run" && sim.holding && !sawSuper && save.data.runs <= 3;
+    if (wantPill !== pillOn) { pillOn = wantPill; ui.showPill(wantPill ? t("pill_band") : null, "bolt"); }
   }
 
   // ---------------------------------------------------------------- flow
@@ -304,6 +307,7 @@ async function boot() {
     pointer.down = false;
     ui.setCharge(null);
     ui.showPill(null);
+    pillOn = false;
     if (paused) { paused = false; ui.showPaused(false); pause.release(Reason.DIALOG); }
     const share = progress(sim);
     const offer = ads.rewardedAvailability;

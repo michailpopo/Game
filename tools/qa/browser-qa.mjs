@@ -270,7 +270,8 @@ await scenario("ads-basic-launch", async () => {
 });
 
 await scenario("ads-fill", async () => {
-  const { ctx, page, errors } = await openGame("mockAdDelay=900&mockAdLength=900");
+  // Adapter (Storm Grid): the very first city result has no video offer (GAME_BRIEF "Claim x3 ... from run 2").
+  const { ctx, page, errors } = await openGame("runs=2&mockAdDelay=900&mockAdLength=900");
   await reachResult(page, "win");
   const before = (await state(page)).coins;
   await page.click('button[data-id="claim_x"]');
@@ -295,7 +296,7 @@ await scenario("ads-fill", async () => {
 });
 
 await scenario("ads-slow-fill", async () => {
-  const { ctx, page, errors } = await openGame("mockAd=slow&mockAdDelay=4000");
+  const { ctx, page, errors } = await openGame("runs=2&mockAd=slow&mockAdDelay=4000");   // runs=2: see ads-fill
   await reachResult(page, "win");
   await page.click('button[data-id="claim_x"]');
   await sleep(1200);

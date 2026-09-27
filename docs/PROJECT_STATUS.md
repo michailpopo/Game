@@ -1,17 +1,17 @@
 # Project status - Storm Grid
 
-Updated: 2026-09-26 · Project folder: /home/user/Game (repo michailpopo/Game, branch claude/festive-darwin-7ukgnb)
+Updated: 2026-09-27 · Project folder: /home/user/Game (repo michailpopo/Game, branch claude/festive-darwin-7ukgnb)
 
 ## Where we are
-- **Phase:** 2 Concept (round 3) + look kit (WP-20)
+- **Phase:** 3 Build - Storm Grid (concept T1 Volt City, 3D)
 - **Current objective:** an original, dopamine-hitting game that looks premium, upload-ready this session.
-- **Next action (one concrete step):** designer's round-3 concepts -> owner picks; feel artist's premium look kit (WP-20) -> owner approves the look -> build.
-- **Waiting on the user:** pick among the round-3 concepts (next message).
+- **Next action (one concrete step):** verify WP-30 (3D core) when the engineer returns; then WP-31 (wire the look kit + juice + sound) and WP-32 (meta, offers, shop) in parallel; then full QA + crazygames-qa audit; then covers/videos/upload package.
+- **Waiting on the user:** approve the 3D look (qa/wp20/hero-*.png, sent 2026-09-26).
 
 ## Gates
 | Gate | Status | Date | Evidence |
 |---|---|---|---|
-| 1 Concept | IN PROGRESS (round 3) | 2026-09-26 | round 3: original dopamine concepts with a premium art direction; owner picks, then approves a look test before the build |
+| 1 Concept | PASS | 2026-09-26 | owner picked T1 Volt City (3D), renamed Storm Grid; GAME_BRIEF, ORIGINALITY (casino name collision found -> rename), project.json done |
 | 2 Prototype fun | FAIL (Comet Chain) | 2026-09-26 | owner played playtest 1: "the game looks shit" - wants an original, dopamine-hitting game, not a copy; Comet Chain shelved |
 | 3 Vertical slice | NOT STARTED | | |
 | 4 Gameplay quality | NOT STARTED | | |
@@ -43,15 +43,14 @@ npm run qa           # all automated checks + COMPLIANCE_REPORT.md
 | Docs freshness | UNCHANGED vs register 2026.09.11 | 2026-09-26 | check-docs-freshness.mjs |
 
 ## Top 3 problems (reorder after every playtest)
-1. Clone risk vs Cubes 2048.io: the reskin (planets, nebula, timed rounds, rank payout) must read as different side by side (ORIGINALITY pass criteria).
-2. Bot difficulty for real humans is unknown (autopilot is superhuman); the adaptive tier 1-20 is the safety net.
-3. Pointer lock inside the CrazyGames iframe / Safari (CG-QUAL-008) - needs the portal preview test.
+1. Nothing playable of Storm Grid yet has been verified by the planner (WP-30 in progress).
+2. The chain must read clearly in 3D and feel great on a real GPU (container renders in software; owner playtest needed).
+3. Economy numbers are model numbers (Monte Carlo) until a human playtest.
 
 ## Known bugs
 | Id | Severity (P0-P3) | Description | Status |
 |---|---|---|---|
-| B1 | P2 | Template demo: save not flushed on tab hide (browser-qa tab-hidden FAIL) | open - WP-02 |
-| B2 | P2 | Template demo: dead-air 8.6 s (budget 3 s) | open - replaced by the new game in WP-02 |
+| B1 | P2 | Template demo: save not flushed on tab hide | fixed in WP-10 (main.js marks the save dirty on hide) |
 
 ## Decisions log
 | Date | Decision | Why | Alternatives rejected |
@@ -64,3 +63,5 @@ npm run qa           # all automated checks + COMPLIANCE_REPORT.md
 | 2026-09-26 | Concept R1 Comet Chain; bots labelled via "Offline Arena" mode name only; title kept | owner's picks | R2 Merge Express, R3 Gloop Merge; per-name BOT tag |
 | 2026-09-26 | Comet Chain shelved after the owner's playtest | owner: "the game looks shit, now create an original game not copy game, but it must be dopamine hitting" | polishing Comet Chain |
 | 2026-09-26 | Art direction becomes a user checkpoint before building (look test) | the skill lists art direction as the owner's decision; we skipped it for Comet Chain | building first, showing later |
+| 2026-09-26 | Concept T1 Volt City, fully 3D; renamed Storm Grid | owner's picks ("It must be 3d game"; Volt City collides with a Volt Casino game) | T2 Shatterfall, T3 Magnet Heap; keeping the casino-colliding name |
+| 2026-09-26 | Look kit WP-20 done: Neutral tone mapping (ACES/AgX washed colours out), bloom only on high/ultra tiers | side-by-side captures in qa/wp20/ | ACES, AgX |

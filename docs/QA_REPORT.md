@@ -96,3 +96,33 @@ deterministic frame, `?quality=low|medium|high|ultra`, `?stats=1`, `?panel=1`, `
 - **Environment caveat:** SwiftShader software WebGL here (~1-5 fps) - frames judged as stills; no frame-time claim.
 - **Open:** WP-31 wires `applyLook` + `FxKit` + pops into the game view (the WIP game still uses its own bolt mesh and
   the plain stage); the demo's city generator is demo-only.
+
+## WP-30 notes - Storm Grid 3D core (threejs-game-engineer, 2026-09-26)
+Replaces Comet Chain in `src/game/` (body-mesh, controls, space-mesh, values deleted). Numbers from docs/GAME_BRIEF.md,
+all in `src/config.js` `STORM` / `OFFERS`; the title lives in `GAME.title`, i18n `title` and index.html only.
+- **Sim (`src/game/sim.js`, pure):** seeded generator (N = min(300, round(24 x 1.1^(c-1))), x0.85 on each theme's first
+  city, 3x3 / 4x4-lot districts, 9 m lots +-1.2 m, avenues 4 -> 12 m, parks 10 -> 25%, heights 12 -> 24..60 m, tip =
+  roof + 3 m; ramps hold after city 40, cities never run out). Which lots get the N buildings: park roll first, then
+  the lots nearest the centre win (compact skyline) - the one rule the brief leaves open. Charge is a function of sim
+  time since the press; WEAK / CHARGED / SUPERCHARGE (2 bolts x floor(1.3 E0)) / HOT; 0.35 s past full auto-fires a
+  FIZZLE (3 hops, no forks) at its exact time, then the button must be let go. Event-timed cascade (nearest unlit tip
+  within R in 3D, hop 0.08 + 0.07 x (1 - e/e_strike) s, forks ceil(0.6 (e-1)) each, gold x10 / always fork / +4).
+- **sim-health:** 3 strikes (SUPERCHARGE, WEAK tap, hold-to-FIZZLE) at 30/60/120/240 Hz: drift 0.00%, determinism exact;
+  selftest (charge +0.004 per step) detected at 37.5% drift.
+- **Balance (Node sweep, QA autopilot = always SUPERCHARGE on the densest dark area, 20 seeds, the brief's typical
+  upgrades):** city 1 94% (coins 343), city 5 93% (369), city 10 95% (1,267), city 20 92% (4,689), city 40 62%
+  (8,842). Brief (average / skilled): 90-94 / 96-99%, city 40 56 / 60%. Cascades are short on small cities (city 1:
+  ~7 hops, 0.6 s per strike) - the brief's hop times; `STORM.chain.hopFast/hopSlow` is the knob.
+- **Browser QA (SwiftShader, this container):** required set boot, sdk-events, no-sdk, touch, poly-budget (max 16k tris /
+  13 calls, heaviest = bolt ribbon pool 4,800 tris, the one hero geometry), dead-air (longest silence 1.0 s), tab-hidden,
+  revive-offer, ad-ui PASS; viewports and ad-ui-style UNVERIFIED (looked at: no overlap, text >= 12 px). Full harness:
+  0 FAIL. GPU memory stable over 5 city rebuilds (10 geometries, 5 textures).
+- **Harness adapters (tools/qa/browser-qa.mjs):** revive-offer - "One more strike" is offered at `__GS_QA__.reviveAt`
+  (85-99% powered), its decline is `finish`, and a low run goes to the city result (Retry) instead of a respawn;
+  ad-ui - the fail moment uses `reviveAt`; ads-fill / ads-slow-fill - `runs=2` (the first city result has no video
+  offer, GAME_BRIEF).
+- **QA hooks added:** `reviveAt`, `setHold`, `setAim`, `freeze`, `freezeWhen({charge|bolts|district})`, `frozen`,
+  `?up=v,f,s,c,g` fixture. Screenshots: qa/wp30/{ready,charging,fork,district,result}-{1280x720,450x800}.png.
+- **Known:** plain materials + own bolt mesh until WP-31 wires the look kit; the storm front is placeholder puffs; the
+  result dialog covers the city in portrait (the orbit shows ~1.3 s before it); English only (German dropped rather than
+  shipped unchecked); sounds are unauditioned ZzFX.

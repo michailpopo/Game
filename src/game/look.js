@@ -17,7 +17,7 @@ export const LOOK = {
   tipLit: "#fff2b8",             // ... once lit
   gold: "#ffc21a",
   goldGlow: "#ffd766",
-  cloud: "#4b527f",
+  cloud: "#737aa6",
   cloudGlow: "#9fe8ff",          // the storm front flickers while charging
   boltCore: "#ffffff",
   boltGlow: "#4df3ff",           // default bolt skin
@@ -38,7 +38,7 @@ export const LOOK = {
 export const THEMES = [
   {
     id: "downtown", window: "#ffd166", accent: "#4df3ff", fog: "#9b94c4",
-    world: { field: "#7cc463", asphalt: "#5a6290", pad: "#e4dde6", padLit: "#fff1c9", unlit: "#8690b6", unlitWin: "#474f73", trim: "#9aa3c6", dash: "#f2f4ff", trees: ["#58c25a", "#7fd65a", "#3fae6a"] },
+    world: { field: "#7cc463", asphalt: "#6a71a0", pad: "#e4dde6", padLit: "#fff1c9", unlit: "#8690b6", unlitWin: "#474f73", trim: "#9aa3c6", dash: "#f2f4ff", trees: ["#58c25a", "#7fd65a", "#3fae6a"] },
     lit: ["#ffc21a", "#ff5e57", "#ff6fb5", "#3fd07a", "#ff8c2a", "#9d6bff"],
     sky: {},
   },

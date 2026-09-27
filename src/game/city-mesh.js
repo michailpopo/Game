@@ -16,7 +16,7 @@
  */
 
 import {
-  Color, ConeGeometry, CylinderGeometry, DynamicDrawUsage, Group, IcosahedronGeometry, InstancedBufferAttribute,
+  Color, ConeGeometry, CylinderGeometry, DynamicDrawUsage, Group, InstancedBufferAttribute, OctahedronGeometry,
   InstancedMesh, Matrix4, Mesh, MeshStandardMaterial, PlaneGeometry, Quaternion, SphereGeometry, Vector3,
 } from "three";
 import { STORM } from "../config.js";
@@ -144,6 +144,9 @@ export class CityMesh {
     bodyGeo.setAttribute("aState", aState);
     bodyGeo.setAttribute("aLitColor", aLitC);
     const bodyMat = this.#own(toyBlockMaterial({ unlit: W.unlit, unlitWindow: W.unlitWin, unlitTop: W.trim }));
+    // Shadow casters: bodies always; caps, roofs, trees and cars only while the city is small, so a shadow-map
+    // refresh frame stays inside profile M (60k triangles) even at 300 buildings.
+    const small = n <= 120;
     const bodies = new InstancedMesh(bodyGeo, bodyMat, segs.length);
     bodies.name = "buildings";
     bodies.castShadow = true;
@@ -162,7 +165,7 @@ export class CityMesh {
     const trimMat = this.#own(toyTrimMaterial());
     const trimMesh = new InstancedMesh(this.#own(chamferPrismGeometry(0.14)), trimMat, Math.max(1, trims.length));
     trimMesh.name = "roof-caps";
-    trimMesh.castShadow = true;
+    trimMesh.castShadow = small;
     trimMesh.receiveShadow = true;
     trims.forEach(([x, y, z, w, h, d], i) => { trimMesh.setMatrixAt(i, _m.compose(_p.set(x, y, z), ID, _s.set(w, h, d))); trimMesh.setColorAt(i, _c.set(W.trim)); });
     trimMesh.count = trims.length;
@@ -174,14 +177,14 @@ export class CityMesh {
     const roofMesh = (geo, list, name, place) => {
       const mesh = new InstancedMesh(this.#own(geo), trimMat, Math.max(1, list.length));
       mesh.name = name;
-      mesh.castShadow = true;
+      mesh.castShadow = small;
       list.forEach((r, i) => { place(r); mesh.setMatrixAt(i, _m); mesh.setColorAt(i, _c.set(W.trim)); });
       mesh.count = list.length;
       if (mesh.instanceColor) mesh.instanceColor.setUsage(DynamicDrawUsage);
       this.group.add(mesh);
       return mesh;
     };
-    this.domes = roofMesh(new SphereGeometry(1, 12, 6, 0, Math.PI * 2, 0, Math.PI / 2), domes, "roof-domes",
+    this.domes = roofMesh(new SphereGeometry(1, 10, 4, 0, Math.PI * 2, 0, Math.PI / 2), domes, "roof-domes",
       ([x, y, z, r]) => _m.compose(_p.set(x, y, z), ID, _s.set(r, r * 0.95, r)));
     this.spires = roofMesh(new ConeGeometry(1, 1, 8, 1).translate(0, 0.5, 0), spires, "roof-spires",
       ([x, y, z, r, h]) => _m.compose(_p.set(x, y, z), ID, _s.set(r, h, r)));
@@ -189,9 +192,9 @@ export class CityMesh {
       ([x, y, z, r, h]) => _m.compose(_p.set(x, y, z), ID, _s.set(r, h, r)));
 
     // lightning rods: pole + tip ball on the sim's tipY; gold rods are gold and bigger
-    const poleMesh = new InstancedMesh(this.#own(new CylinderGeometry(0.14, 0.2, 1, 5, 1).translate(0, 0.5, 0)), this.#own(toyTrimMaterial({ roughness: 0.4 })), n);
+    const poleMesh = new InstancedMesh(this.#own(new CylinderGeometry(0.14, 0.2, 1, 4, 1, true).translate(0, 0.5, 0)), this.#own(toyTrimMaterial({ roughness: 0.4 })), n);
     poleMesh.name = "rods";
-    const tipMesh = new InstancedMesh(this.#own(new IcosahedronGeometry(0.55, 0)), this.#own(new MeshStandardMaterial({ color: 0xffffff, roughness: 0.3, emissive: 0xffffff, emissiveIntensity: 0.15 })), n);
+    const tipMesh = new InstancedMesh(this.#own(new OctahedronGeometry(0.62, 0)), this.#own(new MeshStandardMaterial({ color: 0xffffff, roughness: 0.3, emissive: 0xffffff, emissiveIntensity: 0.15 })), n);
     tipMesh.name = "rod-tips";
     rods.forEach(([x, y0, z, tipY, gold], i) => {
       const k = gold ? 1.6 : 1;
@@ -254,15 +257,17 @@ export class CityMesh {
         const x = d.x - d.w / 2 + (lxI + 0.5) * (d.w / lots), z = d.z - d.d / 2 + (lzI + 0.5) * (d.d / lots);
         if (bs.some((b) => Math.abs(b.x - x) < pitch * 0.55 && Math.abs(b.z - z) < pitch * 0.55)) continue;
         const k = 1 + Math.floor(rng.next() * 2);
-        for (let t = 0; t < k; t++) trees.push({ kind: rng.next() < 0.6 ? "roundTree" : "coneTree", x: x + rng.range(-2, 2), z: z + rng.range(-2, 2), s: rng.range(1.7, 2.3), r: rng.range(0, 6.28) });
+        for (let t = 0; t < k && trees.length < 70; t++) trees.push({ kind: rng.next() < 0.6 ? "roundTree" : "coneTree", x: x + rng.range(-2, 2), z: z + rng.range(-2, 2), s: rng.range(1.7, 2.3), r: rng.range(0, 6.28) });
       }
     }
-    const outer = size / 2 + avenue + 8;
-    for (let k = 0; k < 60; k++) {
-      const a = rng.range(0, Math.PI * 2), rr = outer + rng.range(4, 50);
+    // the tree ring: behind and beside the city only (the camera side stays open), sparse near the plate
+    const outer = size / 2 + avenue + 8, yaw0 = 35 * Math.PI / 180, vx = Math.sin(yaw0), vz = Math.cos(yaw0);
+    for (let k = 0; k < 70 && ring.length < 38; k++) {
+      const a = rng.range(0, Math.PI * 2), rr = outer + rng.range(6, 60);
       const x = Math.cos(a) * rr, z = Math.sin(a) * rr;
       if (Math.abs(x) < outer - 2 && Math.abs(z) < outer - 2) continue;
-      ring.push({ kind: rng.next() < 0.55 ? "roundTree" : "coneTree", x, z, s: rng.range(2, 3.4), r: rng.range(0, 6.28) });
+      if ((x * vx + z * vz) / rr > 0.35) continue;             // not between the camera and the city
+      ring.push({ kind: rng.next() < 0.55 ? "roundTree" : "coneTree", x, z, s: rng.range(1.8, 2.8), r: rng.range(0, 6.28) });
     }
     for (let k = 0; k < Math.min(14, (lx.length + lz.length) * 2); k++) {
       const along = rng.next() < 0.5, list = along ? lx : lz;
@@ -283,18 +288,18 @@ export class CityMesh {
       });
       this.group.add(mesh);
     };
-    propMesh(trees, "roundTree", true, "park-trees");
-    propMesh(trees, "coneTree", true, "park-pines");
+    propMesh(trees, "roundTree", small, "park-trees");
+    propMesh(trees, "coneTree", small, "park-pines");
     propMesh(ring, "roundTree", false, "ring-trees");
     propMesh(ring, "coneTree", false, "ring-pines");
-    propMesh(cars, "car", true, "cars");
+    propMesh(cars, "car", false, "cars");
 
     // ---------------------------------------------------------------- storm front (behind the city, top of frame)
     let top = 0;
     for (const b of bs) top = Math.max(top, b.tipY);
     this.top = top;
-    this.cloudY = top + 26;
-    const yaw = 35 * Math.PI / 180, far = size * 0.55 + 22;
+    this.cloudY = top + 16;
+    const yaw = 35 * Math.PI / 180, far = size * 0.5 + 14;
     const cx = -Math.sin(yaw) * far, cz = -Math.cos(yaw) * far;
     this.cloudCenter = new Vector3(cx, this.cloudY, cz);
     const cloudMat = this.#own(enhance(new MeshStandardMaterial({ color: LOOK.cloud, roughness: 1, emissive: LOOK.cloudGlow, emissiveIntensity: 0, envMapIntensity: 0.3 }),
@@ -305,7 +310,7 @@ export class CityMesh {
     const across = Math.max(40, size * 1.1);
     for (let i = 0; i < puffs; i++) {
       const t = i / (puffs - 1) - 0.5;
-      const s = rng.range(7, 12) * (1 - Math.abs(t) * 0.6) * Math.max(1, size / 60);
+      const s = rng.range(5.5, 9.5) * (1 - Math.abs(t) * 0.6) * Math.max(1, size / 60);
       const x = cx + Math.cos(yaw) * t * across + rng.range(-3, 3), z = cz - Math.sin(yaw) * t * across + rng.range(-3, 3);
       cloud.setMatrixAt(i, _m.compose(_p.set(x, this.cloudY + rng.range(-2, 5) + (1 - Math.abs(t) * 2) * 4, z), ID, _s.set(s * 1.25, s * 0.8, s)));
     }

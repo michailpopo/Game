@@ -319,12 +319,12 @@ function colored(geo, hex, t) {
   return g;
 }
 
-/** Prop geometries with vertex colours: roundTree (~110 tris), coneTree (~34), car (~340; white body = instance colour). */
+/** Prop geometries with vertex colours: roundTree (~90 tris), coneTree (~34), car (~340; white body = instance colour). */
 export function propGeometries() {
   return {
     roundTree: mergeGeometries([
-      colored(new CylinderGeometry(0.22, 0.28, 1.2, 6, 1), TOY.trunk, { y: 0.6 }),
-      colored(new SphereGeometry(1.25, 9, 6), "#ffffff", { y: 2.1 }),
+      colored(new CylinderGeometry(0.22, 0.28, 1.2, 5, 1, true), TOY.trunk, { y: 0.6 }),
+      colored(new SphereGeometry(1.25, 8, 5), "#ffffff", { y: 2.1 }),
     ]),
     coneTree: mergeGeometries([
       colored(new CylinderGeometry(0.18, 0.22, 0.8, 5, 1), TOY.trunk, { y: 0.4 }),

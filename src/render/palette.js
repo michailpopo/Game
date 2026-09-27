@@ -144,7 +144,7 @@ export const BACKDROPS = {
     glow: "#ffd9a8", glowAt: [0.28, 0.73], glowSize: 0.2, glow2: "#ff86b8", glow2At: [0.78, 0.74], glow2Size: 0.2,
     vignette: 0.25, stars: 0.12,
     fog: "#9b94c4", fogNear: 110, fogFar: 420,
-    hemiSky: "#b4c3ff", hemiGround: "#6a5a78", hemi: 1.15,
+    hemiSky: "#c0cbf0", hemiGround: "#626a84", hemi: 1.15,
     key: "#ffcfa8", keyIntensity: 2.1, rim: "#9fb0ff", rimIntensity: 0.5,
     env: ["#3a50b0", "#f0a890", "#3a3050"], envPanels: ["#ffffff", "#ffd0a0", "#a0b8ff"], envPanelIntensity: 0.5, envIntensity: 0.55,
   },

@@ -251,6 +251,7 @@ export function applyLook(stage, opts = {}) {
     scene.environmentIntensity = b.envIntensity ?? 1;
     if (envTarget) envTarget.dispose(); else old?.dispose?.();
     envTarget = next;
+    renderer.info.reset();          // the PMREM passes are not a frame's cost
   }
   setBackdrop(o.backdrop);
 

@@ -42,7 +42,6 @@ const _b = new Vector3();
 const _o3 = new Vector3();
 const _v = new Vector3();
 const _w = new Vector3();
-const _o = { x: 0, y: 0, z: 0 };
 const _scr = { x: 0, y: 0, visible: false };
 const _scr2 = { x: 0, y: 0, visible: false };
 const _g = { x: 0, z: 0 };
@@ -65,15 +64,22 @@ export class GameView {
     this.audio = audio;
     this.ui = ui;
     this.loop = loop;
+    // The look (WP-21 settings): applyLook swaps stage.render/resize in place, so main.js keeps calling them.
+    this.look = applyLook(stage, {
+      backdrop: backdropFor(THEMES[0]), toneMapping: "neutral", exposure: 1.08, shadowsStatic: true, shadowArea: 60,
+      keyDir: [-0.75, 0.62, 0.5], rimDir: [0.2, 0.6, -1], bloom: { strength: 0.6, radius: 0.25, threshold: 2.2 },
+    });
+    this.look.key.shadow.radius = 5;
+    const quality = AdaptiveQuality.of(stage.renderer);
+    if (quality) quality.subscribe((tier) => this.look.setQuality(tier));
     this.cityMesh = new CityMesh(stage.scene);
-    this.bolts = new BoltMesh(stage.scene, { unit: U });
+    this.fx = new FxKit(stage.scene, { unit: U, sprites: 1400, ribbons: 30, outline: { color: LOOK.boltOutline, alpha: 0.55 } });
+    const root = typeof document !== "undefined" ? document.getElementById("ui") : null;
+    this.pops = root ? createNumberPops(root, { max: 8 }) : null;
     this.shake = new CameraShake({ maxOffset: 4, maxRoll: 0, decay: 1.4 });
     this.time = 0;
+    this.boltHex = LOOK.boltGlow;
     this.boltColor = new Color(LOOK.boltGlow);
-    this.hot = new Color(LOOK.boltCore);
-    this.gold = new Color(LOOK.gold);
-    this.superCol = new Color(LOOK.super);
-    this.spark = new Color(LOOK.spark);
     this.yaw = YAW;
     this.camLook = new Vector3();
     this.camPos = new Vector3(0, 80, 80);
@@ -85,6 +91,7 @@ export class GameView {
     this.floats = { n: 0, pending: 0, at: -9, x: 0, y: 0, z: 0 };
     this.forkShown = 1;
     this.lastHum = 0;
+    this.lastCue = 0;
     this.aim = { index: -1, visible: false };
     this.chargeView = { x: 0, y: 0, charge: 0, lo: 0, hi: 0, band: "" };   // reused: no per-frame objects
     this.cameraOverride = null;
@@ -98,13 +105,6 @@ export class GameView {
     this.marker.renderOrder = 6;
     this.marker.visible = false;
     stage.scene.add(this.marker);
-
-    // Night: dim the template's day lights (the look kit brings its own rig).
-    stage.scene.traverse((o) => {
-      if (o.isHemisphereLight) o.intensity = LOOK.hemiIntensity;
-      if (o.isDirectionalLight) { o.intensity = LOOK.sunIntensity; o.color.set(LOOK.sunColor); }
-    });
-    if ("environmentIntensity" in stage.scene) stage.scene.environmentIntensity = 0.12;
   }
 
   setCameraOverride(o) { this.cameraOverride = o; }
@@ -120,9 +120,13 @@ export class GameView {
 
   build(sim) {
     const theme = themeOf(sim.city);
-    this.stage.setTheme({ ...LOOK, fog: theme.fog });
-    this.cityMesh.build(sim.city, sim.seed);
-    this.bolts.clear();
+    this.theme = theme;
+    this.look.setBackdrop(backdropFor(theme));
+    this.fx.clear();
+    this.cityMesh.build(sim.city, sim.seed, theme, this.fx);
+    const r = Math.max(sim.city.width, sim.city.depth) * 0.62 + 14;
+    this.look.setFocus(0, 0, 0, r);
+    this.look.refreshShadows();
     this.shake.trauma = 0;
     this.followW = 0;
     this.forkShown = 1;
@@ -130,11 +134,12 @@ export class GameView {
     this.floats.n = 0;
     this.floats.pending = 0;
     this.fit.key = "";
+    this.pops?.clear();
     this.snapCamera(sim);
   }
 
-  /** The equipped bolt skin. */
-  recolor(hex) { this.boltColor.set(hex || LOOK.boltGlow); }
+  /** The equipped (or tried) bolt skin: its glow colour; the core stays white, the outline deep blue. */
+  recolor(hex) { this.boltHex = hex || LOOK.boltGlow; this.boltColor.set(this.boltHex); }
 
   toScreen(x, y, z, out = { x: 0, y: 0, visible: false }) {
     _v.set(x, y, z).project(this.stage.camera);
@@ -204,18 +209,20 @@ export class GameView {
     this.time += dt;
     this.#events(sim);
     this.cityMesh.update(sim, this.time, this.stage.camera.quaternion, sim.charge, sim.holding);
-    this.bolts.update(dt, this.stage.camera, this.time);
     this.shake.update(dt);
     this.#flushFloats(false);
     this.#hum(sim);
     this.#frame(sim, dt, false);
     this.#marker(sim);
     this.#chargeRing(sim);
+    this.#chargeCue(sim);
+    this.fx.update(dt, this.stage.camera);
   }
 
   // ------------------------------------------------------------------ events -> juice
   #events(sim) {
     const bs = sim.city.buildings;
+    const fx = this.fx, glow = this.boltHex;
     for (const ev of sim.events) {
       switch (ev.type) {
         case "chargeStart":
@@ -223,27 +230,25 @@ export class GameView {
           this.lastHum = this.time;
           break;
         case "band":
-          if (ev.band === "super") this.audio.play("ding");
-          else this.audio.play("buzz");
+          if (ev.band === "super") {
+            this.audio.play("ding");
+            const b = this.aim.index >= 0 ? bs[this.aim.index] : null;
+            if (b) { fx.impact(_a.set(b.x, b.tipY, b.z), { color: LOOK.super, size: 2.2, sparks: 14, ringDrop: 3 }); }
+          } else this.audio.play("buzz");
           break;
         case "strike": {
           const b = bs[ev.target];
           const fizzle = ev.band === "fizzle";
           const sup = ev.band === "super";
-          this.cityMesh.strikeOrigin(b, _o);
-          // The main bolt: storm front -> rooftop, in three jagged legs.
-          const mx = lerp(_o.x, b.x, 0.45) + (b.x - _o.x) * 0.08, my = lerp(_o.y, b.tipY, 0.45) + 8, mz = lerp(_o.z, b.z, 0.5);
-          const nx = lerp(_o.x, b.x, 0.78), ny = lerp(_o.y, b.tipY, 0.8), nz = lerp(_o.z, b.z, 0.8) + 4;
-          const w = (fizzle ? 0.35 : sup ? 1.1 : 0.75) * U;
-          const col = sup ? this.superCol : this.boltColor;
-          this.bolts.segment(_o.x, _o.y, _o.z, mx, my, mz, col, w, 0.55, ev.n * 11);
-          this.bolts.segment(mx, my, mz, nx, ny, nz, col, w, 0.55, ev.n * 11 + 3);
-          this.bolts.segment(nx, ny, nz, b.x, b.tipY, b.z, col, w, 0.55, ev.n * 11 + 7);
-          this.bolts.halo(b.x, b.tipY, b.z, (fizzle ? 4 : 11) * U, this.hot, 0.5);
-          this.bolts.halo(b.x, b.tipY, b.z, (fizzle ? 6 : 18) * U, col, 0.35);
-          this.bolts.sparks(b.x, b.tipY, b.z, fizzle ? 8 : 34, this.spark, 8 * U, 0.22 * U);
-          this.shake.add(fizzle ? 0.08 : sup ? 0.15 : 0.12);
-          this.shake.trauma = Math.min(0.3, this.shake.trauma);
+          this.cityMesh.strikeOrigin(b, _o3);
+          _a.set(b.x, b.tipY, b.z);
+          fx.strike(_o3, _a, {
+            color: sup ? LOOK.super : glow, width: fizzle ? 0.5 : sup ? 1.7 : 1.3, forks: fizzle ? 0 : sup ? 3 : 2, forkLength: 0.25,
+            arc: 0, jag: 0.09, life: 0.5, intensity: 1.5, core: 3.2, haloSize: fizzle ? 1.5 : sup ? 4 : 3, sparks: fizzle ? 8 : 34, ringDrop: 3, beads: 3,
+          });
+          if (sup) fx.bolt(_o3, _a, { color: glow, width: 0.9, forks: 1, jag: 0.14, life: 0.45, fromHalo: false, beads: 0 });
+          this.shake.add(fizzle ? 0.08 : sup ? 0.18 : 0.13);
+          this.shake.trauma = Math.min(0.32, this.shake.trauma);
           this.punch = fizzle ? 0 : 0.12;
           if (!fizzle) this.loop.freeze(60);
           this.audio.play("thunder", { pitch: sup ? 1.1 : fizzle ? 0.7 : 0.9 });
@@ -252,17 +257,17 @@ export class GameView {
           this.floats.pending = 0;
           this.follow.set(b.x, b.tipY, b.z);
           const s = this.toScreen(b.x, b.tipY + 4, b.z, _scr);
-          if (sup) this.ui.floatText(s.x, s.y - 40, t("supercharge"), "gold");
-          else if (fizzle) { this.ui.floatText(s.x, s.y - 40, t("fizzle"), "bad"); this.audio.play("fizzle"); }
+          if (sup) this.#floatAt(s.x, s.y - 40, t("supercharge"), "gold");
+          else if (fizzle) { this.#floatAt(s.x, s.y - 40, t("fizzle"), "bad"); this.audio.play("fizzle"); }
           break;
         }
         case "hop": {
           const a = bs[ev.from], b = bs[ev.to];
           const gen = Math.min(4, ev.gen);
-          const col = gen >= 2 ? _mix(this.boltColor, this.hot, 0.2 * (gen - 1)) : this.boltColor;
-          this.bolts.segment(a.x, a.tipY, a.z, b.x, b.tipY, b.z, col, (0.5 + gen * 0.08) * U, 0.7, ev.bolt * 31 + ev.depth);
-          this.bolts.halo(b.x, b.tipY, b.z, (4.5 + gen * 0.5) * U, col, 0.4);
-          this.bolts.sparks(b.x, b.tipY, b.z, 5, this.spark, 5 * U, 0.14 * U, 0.45);
+          _a.set(a.x, a.tipY, a.z); _b.set(b.x, b.tipY, b.z);
+          fx.bolt(_a, _b, { color: glow, width: 1.05 + gen * 0.08, forks: 1, forkLength: 0.3, arc: 1.4, jag: 0.12, life: 0.5, intensity: 1.5, core: 3.2, beads: 2, fromHalo: false, haloSize: 2 });
+          fx.glow(_b, { color: glow, size: 2.6, grow: 1.5, life: 0.4, intensity: 2.2 });
+          fx.sparks(_b, { count: 6, color: LOOK.spark, speed: 5, up: 3, size: 0.09, life: 0.45 });
           // Crackle on a major-pentatonic ladder: one step per depth, +-3% detune.
           const semis = LADDER[Math.min(LADDER.length - 1, Math.max(0, ev.depth - 1))];
           this.audio.play("crackle", { pitch: 2 ** (semis / 12) * (0.97 + Math.random() * 0.06), minGap: 0.03, maxVoices: 6, volume: 0.8 });
@@ -271,8 +276,9 @@ export class GameView {
         case "light": {
           const b = bs[ev.b];
           if (ev.gold) {
-            this.bolts.halo(b.x, b.tipY, b.z, 14 * U, this.gold, 0.6);
-            this.bolts.sparks(b.x, b.tipY, b.z, 26, this.gold, 7 * U, 0.24 * U);
+            _a.set(b.x, b.tipY, b.z);
+            fx.impact(_a, { color: LOOK.gold, size: 3.4, sparks: 26, ringDrop: 3 });
+            fx.coinBurst(_a, { count: 8, speed: 3, size: 0.7, life: 1.4 });
             this.audio.play("gold");
           }
           this.#float(b, ev.value, ev.gold);
@@ -280,11 +286,11 @@ export class GameView {
         }
         case "fork": {
           const b = bs[ev.at];
-          this.bolts.halo(b.x, b.tipY, b.z, 6 * U, this.hot, 0.35);
+          fx.glow(_a.set(b.x, b.tipY, b.z), { color: "#ffffff", size: 2.4, grow: 1.4, life: 0.3, intensity: 2.4 });
           if (ev.bolts >= this.forkShown * 2) {
             this.forkShown = 2 ** Math.floor(Math.log2(ev.bolts));
             const s = this.toScreen(b.x, b.tipY + 6, b.z, _scr);
-            if (s.visible) this.ui.floatText(s.x, s.y - 30, t("fork_x", { n: this.forkShown }), "merge");
+            if (s.visible) this.#floatAt(s.x, s.y - 30, t("fork_x", { n: this.forkShown }), "merge");
             const step = Math.min(LADDER.length - 1, Math.floor(Math.log2(ev.bolts)) + 1);
             this.audio.play("fork", { pitch: 2 ** (LADDER[step] / 12), minGap: 0.05 });
           }
@@ -292,30 +298,53 @@ export class GameView {
         }
         case "boltEnd": {
           const b = bs[ev.at];
-          if (ev.grounded) this.bolts.segment(b.x, b.tipY, b.z, b.x + 2, 0.3, b.z + 1.5, this.boltColor, 0.2 * U, 0.3, ev.bolt * 7);
-          this.bolts.sparks(b.x, ev.grounded ? 0.5 : b.tipY, b.z, 4, this.boltColor, 3 * U, 0.1 * U, 0.35);
+          if (ev.grounded) {
+            _a.set(b.x, b.tipY, b.z); _b.set(b.x + 3, 0.4, b.z + 2);
+            fx.bolt(_a, _b, { color: glow, width: 0.25, forks: 0, arc: 0, life: 0.25, beads: 0, fromHalo: false });
+            fx.sparks(_b, { count: 5, color: glow, speed: 3, up: 2, size: 0.07, life: 0.35 });
+          }
           break;
         }
-        case "district":
+        case "district": {
           this.#flushFloats(true);
+          const d = sim.city.districts[ev.d];
+          this.cityMesh.districtWave(ev.d, this.time);
+          fx.ring(_a.set(d.x, 0.6, d.z), { color: this.theme?.world.padLit ?? "#fff1c9", from: 1, to: d.w * 0.34, life: 0.8, thickness: 0.18, intensity: 1.6, normal: [0, 1, 0] });
           this.ui.showWorld(t("block_powered"), `+${ev.bonus}`);
           this.audio.play("district");
           this.shake.add(0.1);
           this.shake.trauma = Math.min(0.3, this.shake.trauma);
           break;
+        }
         case "cascadeEnd": {
           this.#flushFloats(true);
           const s = this.toScreen(this.follow.x, this.cityMesh.top * 0.8, this.follow.z, _scr);
           const x = s.visible ? s.x : this.stage.size.width / 2, y = s.visible ? s.y - 40 : this.stage.size.height * 0.3;
-          if (ev.hops >= 6) this.ui.floatText(x, y, t("chain_x", { n: ev.hops }), "gold");
-          if (ev.value > 0 && ev.hops >= FIRST_FLOATS) this.ui.floatText(x, y + 44, `+${ev.value}`, "merge");
+          const cx = Math.min(this.stage.size.width * 0.8, Math.max(this.stage.size.width * 0.2, x));
+          const cy = Math.max(this.stage.size.height * 0.24, y);
+          if (ev.hops >= 6) {
+            if (this.pops) this.pops.combo(cx, cy, t("chain_x", { n: ev.hops }), { size: 0.85, duration: 1300 });
+            else this.#floatAt(cx, cy, t("chain_x", { n: ev.hops }), "gold");
+          }
+          if (ev.value > 0 && ev.hops >= FIRST_FLOATS) {
+            if (this.pops) this.pops.pop(cx, cy + 46, `+${ev.value}`, { kind: "gold", size: 0.9, duration: 1200 });
+            else this.#floatAt(cx, cy + 44, `+${ev.value}`, "merge");
+          }
           break;
         }
         case "runEnd":
           this.orbitT = 0;
           if (ev.share >= 1) {
-            for (const b of bs) if ((b.id % 3) === 0) this.bolts.sparks(b.x, b.tipY, b.z, 4, this.gold, 6 * U, 0.2 * U, 1.2);
-            this.audio.play("fanfare");
+            this.cityMesh.sweep(this.time);
+            const tall = [...bs].sort((p, q) => q.tipY - p.tipY).slice(0, 5);
+            tall.forEach((b, i) => {
+              _a.set(b.x, b.tipY, b.z);
+              const col = this.theme?.lit[i % this.theme.lit.length] ?? LOOK.gold;
+              for (let k = 0; k < 3; k++) fx.streak(_a, (Math.random() - 0.5) * 30, 26 + Math.random() * 14, (Math.random() - 0.5) * 30, { color: col, width: 0.4, life: 0.9, gravity: 10 });
+              fx.sparks(_a, { count: 16, colors: this.theme?.lit, speed: 7, up: 5, size: 0.11, life: 0.9 });
+            });
+            this.audio.play("powerSweep");
+            this.audio.play("fanfare", { volume: 0.9 });
           } else this.audio.play(ev.phase === "won" ? "win" : "fail", { pitch: ev.phase === "won" ? 1 : 0.9 });
           break;
         case "extraStrike":
@@ -328,13 +357,31 @@ export class GameView {
     sim.events.length = 0;
   }
 
+  /** ui.floatText kept inside the readable part of the screen (never under the HUD or off an edge). */
+  #floatAt(x, y, text, kind) {
+    const W = this.stage.size.width, H = this.stage.size.height;
+    this.ui.floatText(Math.min(W * 0.9, Math.max(W * 0.1, x)), Math.min(H * 0.86, Math.max(H * 0.2, y)), text, kind);
+  }
+
+  /** Charge cues on the target: a gold pulse in the SUPERCHARGE band, red sparks when overcharged. */
+  #chargeCue(sim) {
+    const b = this.aim.index >= 0 ? sim.city.buildings[this.aim.index] : null;
+    if (!b || !sim.holding || sim.phase !== "run" || this.time - this.lastCue < 0.14) return;
+    const band = bandOf(sim, sim.charge);
+    if (band !== "super" && band !== "over") return;
+    this.lastCue = this.time;
+    _a.set(b.x, b.tipY, b.z);
+    if (band === "super") this.fx.glow(_a, { color: LOOK.super, size: 2.4, grow: 1.3, life: 0.2, intensity: 1.8 });
+    else this.fx.sparks(_a, { count: 5, color: LOOK.over, speed: 4, up: 3, size: 0.08, life: 0.3 });
+  }
+
   /** "+N" at a rooftop: the first few of a strike one by one, then merged every MERGE_SEC. */
   #float(b, value, gold) {
     const f = this.floats;
     f.n++;
     if (f.n <= FIRST_FLOATS || gold) {
       const s = this.toScreen(b.x, b.tipY + 3, b.z, _scr);
-      if (s.visible) this.ui.floatText(s.x, s.y, `+${value}`, gold ? "gold" : "good");
+      if (s.visible) this.#floatAt(s.x, s.y, `+${value}`, gold ? "gold" : "good");
       return;
     }
     f.pending += value;
@@ -345,7 +392,7 @@ export class GameView {
     const f = this.floats;
     if (f.pending <= 0 || (!force && this.time - f.at < MERGE_SEC)) return;
     const s = this.toScreen(f.x, f.y + 3, f.z, _scr);
-    if (s.visible) this.ui.floatText(s.x, s.y, `+${f.pending}`, f.pending >= 20 ? "gold" : "good");
+    if (s.visible) this.#floatAt(s.x, s.y, `+${f.pending}`, f.pending >= 20 ? "gold" : "good");
     f.pending = 0;
     f.at = this.time;
   }
@@ -497,5 +544,4 @@ export class GameView {
   }
 }
 
-const _mixC = new Color();
-function _mix(a, b, k) { return _mixC.copy(a).lerp(b, Math.min(1, k)); }
+

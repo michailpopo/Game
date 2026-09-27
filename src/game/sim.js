@@ -23,6 +23,31 @@
  *    that each carry ceil(0.6 x (e - 1))
  *  - a building pays round((1 + floors/8) x 1.06^(city-1) x min(2, 1 + 0.02 x depth)) (x10 gold);
  *    a district fully lit pays +25% of its buildings' value ("BLOCK POWERED")
+ *
+ * VIEW API - everything a view needs, read-only (units: metres, sim seconds). Restyle freely; the
+ * simulation never depends on how it is drawn:
+ *   s.city            { level, theme (0..7), width, depth, buildings: Building[], districts: District[] }
+ *   Building          { id, district, x, z (footprint centre, ground y = 0), w, d (footprint), h (roof height),
+ *                       tipY (antenna tip = the hop point, roof + 3 m), floors, roof ("flat" | "stepped" | "spire",
+ *                       cosmetic), gold (gold rod: x10), seed (0..1, per-building variation) }
+ *   District          { id, members (building ids), x, z, w, d (the district's lot area) }
+ *   lit state         s.lit[i] 0/1 · s.litAt[i] sim time it lit (-1 = dark) · s.litGen[i] fork generation of the
+ *                     bolt that lit it · s.paid[i] its "+N" · s.districtDone[d] 0/1 · progress(s) share powered
+ *   live              s.phase · s.t · s.holding · s.charge (0..1.29) · bandOf(s, c) · s.params (bandLo, bandHi, e0,
+ *                     range, fork, fillSec) · s.bolts[] { id, at (building), e, gen, depth } · s.strikesLeft/Max
+ *   events            s.events (the view drains it each frame; every event has `type`, most have `t` = sim time):
+ *     runStart                                  the first press of a city
+ *     chargeStart                               a new charge began
+ *     band      { band: "super" | "over" }      the charge entered the SUPERCHARGE band / went past 100%
+ *     strike    { n, target, band, energy, bolts, charge, x, y, z, t }   band: weak|charged|super|hot|fizzle
+ *     hop       { bolt, from, to, gen, depth, chain, t }                  a bolt leapt tip to tip
+ *     light     { b, value, gen, depth, gold, bolt, x, y, z, t }          a building lit ("+N" = value)
+ *     fork      { bolt, child, at, gen, bolts, forced, t }                one bolt became two (bolts = in the air)
+ *     district  { d, bonus, x, z, t }                                     BLOCK POWERED
+ *     boltEnd   { bolt, at, grounded, t }                                 spent, or grounded (nothing in range)
+ *     cascadeEnd { hops, value, lit, t }                                  the last bolt of a strike ended
+ *     runEnd    { share, plate: { at, mult }, phase }                     the city is over (won | failed)
+ *     extraStrike                                                         "One more strike" granted
  */
 
 import { STORM as S } from "../config.js";
@@ -117,7 +142,7 @@ export function generateCity(level, seed, gold = 0) {
     const b = {
       id: buildings.length, district: l.district, x: l.x, z: l.z,
       w: pitch * rng.range(c.footprint[0], c.footprint[1]), d: pitch * rng.range(c.footprint[0], c.footprint[1]),
-      h, tipY: h + c.antenna, floors: Math.floor(h / S.payout.floorM), gold: false, seed: rng.next(),
+      h, tipY: h + c.antenna, floors: Math.floor(h / S.payout.floorM), roof: "flat", gold: false, seed: rng.next(),
     };
     buildings.push(b);
     if (!byDistrict.has(l.district)) byDistrict.set(l.district, []);
@@ -130,6 +155,12 @@ export function generateCity(level, seed, gold = 0) {
     const d = { id: districts.length, members, x: -half + di * stride + block / 2, z: -half + dj * stride + block / 2, w: block, d: block };
     for (const m of members) buildings[m].district = d.id;
     districts.push(d);
+  }
+  // Roof types (cosmetic, for the view): their own stream, so the layout never depends on them.
+  const rr = createRng(`${seed}:roof:${level}`);
+  for (const b of buildings) {
+    const r = rr.next();
+    b.roof = b.h > 0.75 * P.heightMax && r < 0.5 ? "spire" : r < 0.35 ? "stepped" : "flat";
   }
   // Gold rods: mid-to-tall buildings, one per district while districts last.
   if (gold > 0) {

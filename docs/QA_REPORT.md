@@ -123,6 +123,10 @@ all in `src/config.js` `STORM` / `OFFERS`; the title lives in `GAME.title`, i18n
   offer, GAME_BRIEF).
 - **QA hooks added:** `reviveAt`, `setHold`, `setAim`, `freeze`, `freezeWhen({charge|bolts|district})`, `frozen`,
   `?up=v,f,s,c,g` fixture. Screenshots: qa/wp30/{ready,charging,fork,district,result}-{1280x720,450x800}.png.
+- **Plain city (planner, 2026-09-26):** the facade window shader and streetlights are gone - one instanced box per
+  building whose colour is its lit state (dark -> white flash -> the theme's lit colour), antenna tips, gold-rod glows.
+  The view API for the restyle (buildings with position/size/`roof`/district, lit state, every event and its payload)
+  is documented at the top of src/game/sim.js.
 - **Known:** plain materials + own bolt mesh until WP-31 wires the look kit; the storm front is placeholder puffs; the
   result dialog covers the city in portrait (the orbit shows ~1.3 s before it); English only (German dropped rather than
   shipped unchecked); sounds are unauditioned ZzFX.

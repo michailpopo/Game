@@ -138,6 +138,16 @@ export const BACKDROPS = {
     key: "#9fb2ff", keyIntensity: 1.35, rim: "#ff3fbf", rimIntensity: 0.8,
     env: ["#0a1040", "#4a0c50", "#05040f"], envPanels: ["#5fd9ff", "#ff58c8", "#c9d4ff"], envPanelIntensity: 0.3, envIntensity: 0.4,
   },
+  // dusk: clean evening sky - deep blue overhead, warm peach horizon (Storm Grid toy city, WP-21)
+  dusk: {
+    top: "#23398f", bottom: "#5a4f9e", horizon: "#ffb48c", horizonAt: 0.72, horizonWidth: 0.2,
+    glow: "#ffd9a8", glowAt: [0.28, 0.73], glowSize: 0.3, glow2: "#ff86b8", glow2At: [0.78, 0.74], glow2Size: 0.32,
+    vignette: 0.28, stars: 0.12,
+    fog: "#d9a4b2", fogNear: 140, fogFar: 460,
+    hemiSky: "#b4c3ff", hemiGround: "#5d4c6e", hemi: 1.0,
+    key: "#ffcaa0", keyIntensity: 2.0, rim: "#9fb0ff", rimIntensity: 0.5,
+    env: ["#3a50b0", "#f0a890", "#3a3050"], envPanels: ["#ffffff", "#ffd0a0", "#a0b8ff"], envPanelIntensity: 0.5, envIntensity: 0.55,
+  },
   // deep space: blue-violet with a violet core glow
   space: {
     top: "#0a0730", bottom: "#04020d", horizon: "#3a1a9e", horizonAt: 0.45, horizonWidth: 0.22,

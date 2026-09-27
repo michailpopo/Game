@@ -1,18 +1,15 @@
 /**
- * The 3D city: ground, district pads, instanced buildings with shader windows, rooftop antennas
- * with aviation-light tips, tip glows, streetlights and the storm front. Built once per city
- * (disposed on rebuild); per frame only the per-instance "lit" attributes, tip colours and glows
- * are written. World units are metres (src/config.js STORM.city).
- *
- * Windows cost no geometry: the fragment shader draws a window grid on every facade from the
- * instance's scale, and each window switches on when the building's aLit (0..1, animated from the
- * simulation's litAt) passes the window's own threshold - lower floors first, with a little
- * randomness - so a building fills with light from the ground up, window by window.
+ * The 3D city, deliberately plain (planner, 2026-09-26: the feel artist restyles it in WP-21/31):
+ * ground, district pads, one instanced box per building whose colour is its lit state (dark -> a
+ * short white-hot flash -> the theme's lit colour), rooftop antennas with tip lights (the hop points),
+ * a few glows for gold rods and fresh hits, and the storm front. Built once per city (disposed on
+ * rebuild); per frame only instance colours and the glow list are written. Units: metres.
+ * Everything it draws comes from the simulation's view API (src/game/sim.js header).
  */
 
 import {
   AdditiveBlending, BoxGeometry, CanvasTexture, Color, CylinderGeometry, DynamicDrawUsage, Euler, Group,
-  IcosahedronGeometry, InstancedBufferAttribute, InstancedMesh, Matrix4, Mesh, MeshBasicMaterial, MeshLambertMaterial,
+  IcosahedronGeometry, InstancedMesh, Matrix4, Mesh, MeshBasicMaterial, MeshLambertMaterial,
   OctahedronGeometry, PlaneGeometry, Quaternion, SRGBColorSpace, Vector3,
 } from "three";
 import { STORM } from "../config.js";
@@ -26,9 +23,11 @@ const _s = new Vector3();
 const _e = new Euler();
 const _c = new Color();
 const ID = new Quaternion();
-const FILL_SEC = 0.35;          // a building fills from the ground up in this long (GAME_BRIEF: ~0.3 s)
+const FILL_SEC = 0.3;           // dark -> lit colour (GAME_BRIEF: a building lights in ~0.3 s)
 const HOT_SEC = 0.3;            // the white-hot flash of a freshly lit building
-const LIGHTS_PER_DISTRICT = 8;  // streetlights around a pad (on at BLOCK POWERED)
+const _dark = new Color();
+const _lit = new Color();
+const _hot = new Color();
 
 export function glowTexture() {
   const c = document.createElement("canvas");
@@ -45,64 +44,6 @@ export function glowTexture() {
   return t;
 }
 
-function buildingMaterial(u) {
-  const mat = new MeshLambertMaterial({ color: 0xffffff });
-  const [cw, ch] = LOOK.windowCell;
-  mat.onBeforeCompile = (shader) => {
-    Object.assign(shader.uniforms, u);
-    shader.vertexShader = shader.vertexShader
-      .replace("#include <common>", `#include <common>
-attribute float aLit;
-attribute float aSeed;
-attribute float aHot;
-varying vec2 vFacade;
-varying float vLit;
-varying float vSeed;
-varying float vSide;
-varying float vHot;
-varying float vH;`)
-      .replace("#include <begin_vertex>", `#include <begin_vertex>
-vec3 sc = vec3(length(instanceMatrix[0].xyz), length(instanceMatrix[1].xyz), length(instanceMatrix[2].xyz));
-vSide = 1.0 - abs(normal.y);
-vFacade = abs(normal.x) > 0.5 ? vec2(position.z * sc.z, position.y * sc.y) : vec2(position.x * sc.x, position.y * sc.y);
-vLit = aLit;
-vSeed = aSeed;
-vHot = aHot;
-vH = sc.y;`);
-    shader.fragmentShader = shader.fragmentShader
-      .replace("#include <common>", `#include <common>
-uniform vec3 uWinDark;
-uniform vec3 uWinLit;
-uniform vec3 uWinHot;
-uniform vec3 uFacadeLit;
-varying vec2 vFacade;
-varying float vLit;
-varying float vSeed;
-varying float vSide;
-varying float vHot;
-varying float vH;`)
-      .replace("#include <color_fragment>", `#include <color_fragment>
-vec2 wg = vFacade / vec2(${cw.toFixed(2)}, ${ch.toFixed(2)});
-vec2 wid = floor(wg);
-vec2 wfr = fract(wg);
-float win = step(0.18, wfr.x) * step(wfr.x, 0.82) * step(0.22, wfr.y) * step(wfr.y, 0.8) * step(1.0, wid.y) * step(0.5, vSide);
-float wrnd = fract(sin(dot(wid + vec2(vSeed * 91.7, vSeed * 37.3), vec2(12.9898, 78.233))) * 43758.5453);
-float rows = max(1.0, vH / ${ch.toFixed(2)});
-float wAt = clamp(wid.y / rows, 0.0, 1.0) * 0.72 + wrnd * 0.26 + 0.01;   // ground floors first, a little random
-float winOn = win * step(wAt, vLit) * step(0.06, wrnd + vLit * 0.2);   // a few windows stay dark
-diffuseColor.rgb = mix(diffuseColor.rgb, uFacadeLit, step(0.999, vLit) * (1.0 - win) * 0.6);
-diffuseColor.rgb = mix(diffuseColor.rgb, uWinDark, win * (1.0 - winOn));
-diffuseColor.rgb *= 1.0 - winOn;`)
-      .replace("#include <emissivemap_fragment>", `#include <emissivemap_fragment>
-float wb = 0.55 + 0.45 * fract(wrnd * 7.13);
-totalEmissiveRadiance += winOn * mix(uWinLit * wb, uWinHot, vHot);
-totalEmissiveRadiance += uWinLit * 0.06 * step(0.001, vLit) * vSide;
-totalEmissiveRadiance += vec3(0.012, 0.016, 0.04) * vSide;   // the blackout still reads as a skyline`);
-  };
-  mat.customProgramCacheKey = () => "storm-building";
-  return mat;
-}
-
 export class CityMesh {
   group = new Group();
   #owned = [];
@@ -111,12 +52,6 @@ export class CityMesh {
   constructor(scene) {
     scene.add(this.group);
     this.glowTex = glowTexture();
-    this.uniforms = {
-      uWinDark: { value: new Color(LOOK.windowDark) },
-      uWinLit: { value: new Color("#ffd166") },
-      uWinHot: { value: new Color(LOOK.windowLitHot) },
-      uFacadeLit: { value: new Color(LOOK.buildingLit) },
-    };
   }
 
   #own(r) { this.#owned.push(r); return r; }
@@ -133,7 +68,7 @@ export class CityMesh {
     this.city = city;
     const theme = themeOf(city);
     this.theme = theme;
-    this.uniforms.uWinLit.value.set(theme.window);
+    this.litColor = new Color(theme.window).multiplyScalar(LOOK.litBoost);
     const n = city.buildings.length;
     const rng = createRng(`${seed}:look:${city.level}`);
     const size = Math.max(city.width, city.depth);
@@ -152,25 +87,18 @@ export class CityMesh {
     this.pads = this.#own(pads);
     this.group.add(pads);
 
-    // Buildings.
+    // Buildings: plain boxes; the instance colour is the lit state (update()).
     const geo = this.#own(new BoxGeometry(1, 1, 1));
     geo.translate(0, 0.5, 0);
-    this.aLit = new InstancedBufferAttribute(new Float32Array(n), 1);
-    this.aLit.setUsage(DynamicDrawUsage);
-    this.aHot = new InstancedBufferAttribute(new Float32Array(n), 1);
-    this.aHot.setUsage(DynamicDrawUsage);
-    const seeds = new Float32Array(n);
-    geo.setAttribute("aLit", this.aLit);
-    geo.setAttribute("aHot", this.aHot);
-    geo.setAttribute("aSeed", new InstancedBufferAttribute(seeds, 1));
-    const bm = new InstancedMesh(geo, this.#own(buildingMaterial(this.uniforms)), n);
+    const bm = new InstancedMesh(geo, this.#own(new MeshLambertMaterial({ color: 0xffffff })), n);
     bm.name = "buildings";
-    const base = new Color(LOOK.building);
+    this.shade = new Float32Array(n);   // per-building brightness variation (dark and lit alike)
     for (const b of city.buildings) {
       bm.setMatrixAt(b.id, _m.compose(_p.set(b.x, 0.2, b.z), ID, _s.set(b.w, b.h, b.d)));
-      bm.setColorAt(b.id, _c.copy(base).multiplyScalar(1 + (rng.next() - 0.5) * 2 * LOOK.buildingVar));
-      seeds[b.id] = b.seed;
+      this.shade[b.id] = 1 + (rng.next() - 0.5) * 2 * LOOK.buildingVar;
+      bm.setColorAt(b.id, _c.set(LOOK.building).multiplyScalar(this.shade[b.id]));
     }
+    bm.instanceColor.setUsage(DynamicDrawUsage);
     this.buildings = this.#own(bm);
     this.group.add(bm);
 
@@ -194,18 +122,8 @@ export class CityMesh {
     this.tips.instanceColor.setUsage(DynamicDrawUsage);
     this.group.add(am, tm);
 
-    // Glows (billboards, additive): lit tips, gold rods and the streetlights of powered districts.
-    this.lights = [];
-    for (const d of city.districts) {
-      const hx = d.w / 2 + 1.2, hz = d.d / 2 + 1.2;
-      for (let k = 0; k < LIGHTS_PER_DISTRICT; k++) {
-        const a = (k / LIGHTS_PER_DISTRICT) * Math.PI * 2 + Math.PI / 4;
-        const cx = Math.max(-1, Math.min(1, Math.cos(a) * 1.5)), cz = Math.max(-1, Math.min(1, Math.sin(a) * 1.5));
-        this.lights.push(d.x + cx * hx, 1.4, d.z + cz * hz);
-      }
-    }
-    const cap = n + city.districts.length * LIGHTS_PER_DISTRICT;
-    const glow = new InstancedMesh(this.#own(new PlaneGeometry(1, 1)), this.#own(new MeshBasicMaterial({ map: this.glowTex, transparent: true, depthWrite: false, blending: AdditiveBlending })), cap);
+    // Glows (billboards, additive): gold rods and freshly hit tips.
+    const glow = new InstancedMesh(this.#own(new PlaneGeometry(1, 1)), this.#own(new MeshBasicMaterial({ map: this.glowTex, transparent: true, depthWrite: false, blending: AdditiveBlending })), n);
     glow.name = "glows";
     glow.frustumCulled = false;
     glow.instanceMatrix.setUsage(DynamicDrawUsage);
@@ -245,14 +163,16 @@ export class CityMesh {
   }
 
   /**
-   * Per frame: windows from the simulation's litAt (ground floor up over FILL_SEC, a hot flash
-   * first), tip colours, glows, powered pads, the cloud flicker.
+   * Per frame, from the simulation's litAt: each building's colour (dark -> white-hot flash -> lit over
+   * FILL_SEC), tip colours, glows (gold rods, fresh hits), powered district pads, the cloud flicker.
    * @param {object} sim  @param {number} time real seconds  @param {Quaternion} camQ camera quaternion
    */
   update(sim, time, camQ, charge = 0, holding = false) {
     if (!this.city) return;
     const bs = this.city.buildings;
-    const litA = this.aLit.array, hotA = this.aHot.array;
+    _dark.set(LOOK.building);
+    _lit.copy(this.litColor);
+    _hot.set(LOOK.hotFlash);
     let g = 0;
     const blink = Math.sin(time * 3.2) > 0.2;
     for (let i = 0; i < bs.length; i++) {
@@ -261,41 +181,27 @@ export class CityMesh {
       let k = 0, hot = 0;
       if (at >= 0) {
         const age = Math.max(0, sim.t - at);
-        k = Math.min(1, 0.08 + age / FILL_SEC);
+        k = Math.min(1, age / FILL_SEC);
         hot = Math.max(0, 1 - age / HOT_SEC);
       }
-      litA[i] = k;
-      hotA[i] = hot;
+      _c.copy(_dark).lerp(_lit, k).lerp(_hot, hot * 0.7).multiplyScalar(this.shade[i]);
+      this.buildings.setColorAt(i, _c);
       if (at >= 0) this.tips.setColorAt(i, _c.set(b.gold ? LOOK.gold : LOOK.tipLit).multiplyScalar(1 + hot));
       else this.tips.setColorAt(i, b.gold ? _c.set(LOOK.gold) : _c.set(LOOK.tipDark).multiplyScalar(blink ? 1 : 0.25));
-      // glows: lit tips (small, cyan, a burst when fresh), gold rods (big, pulsing, lit or not)
-      if (at >= 0 || b.gold) {
+      if (b.gold || hot > 0) {
         const size = b.gold ? 6.5 + Math.sin(time * 4 + i) * 1 : 2.6 + hot * 6;
         this.glows.setMatrixAt(g, _m.compose(_p.set(b.x, b.tipY + 0.2, b.z), camQ, _s.set(size, size, 1)));
-        this.glows.setColorAt(g, _c.set(b.gold ? LOOK.gold : LOOK.tipLit).multiplyScalar(b.gold ? 0.9 : 0.35 + hot * 0.65));
+        this.glows.setColorAt(g, _c.set(b.gold ? LOOK.gold : LOOK.tipLit).multiplyScalar(b.gold ? 0.9 : hot));
         g++;
       }
     }
-    // Powered districts: warm pads and streetlights.
-    const L = this.lights;
-    for (let d = 0; d < this.city.districts.length; d++) {
-      const on = sim.districtDone[d] === 1;
-      this.pads.setColorAt(d, _c.set(on ? LOOK.blockLit : LOOK.block));
-      if (!on) continue;
-      for (let k = 0; k < LIGHTS_PER_DISTRICT; k++) {
-        const o = (d * LIGHTS_PER_DISTRICT + k) * 3;
-        this.glows.setMatrixAt(g, _m.compose(_p.set(L[o], L[o + 1], L[o + 2]), camQ, _s.set(3.4, 3.4, 1)));
-        this.glows.setColorAt(g, _c.set(LOOK.streetLight).multiplyScalar(0.8));
-        g++;
-      }
-    }
+    for (let d = 0; d < this.city.districts.length; d++) this.pads.setColorAt(d, _c.set(sim.districtDone[d] ? LOOK.blockLit : LOOK.block));
     this.glows.count = g;
     this.glows.instanceMatrix.needsUpdate = true;
     this.glows.instanceColor.needsUpdate = true;
+    this.buildings.instanceColor.needsUpdate = true;
     this.tips.instanceColor.needsUpdate = true;
     this.pads.instanceColor.needsUpdate = true;
-    this.aLit.needsUpdate = true;
-    this.aHot.needsUpdate = true;
     // Storm front flickers while the strike charges.
     const flick = holding ? Math.min(1, charge) * (0.55 + 0.45 * Math.sin(time * 37) * Math.sin(time * 23)) : 0;
     this.cloudMat.emissiveIntensity = 0.12 + Math.max(0, flick) * 0.7;

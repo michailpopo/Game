@@ -1,7 +1,6 @@
 /**
- * Storm Grid placeholder look (plain three.js materials). The game-feel-artist's look kit
- * (src/render/**, WP-31) replaces these values; the view reads everything from here so the swap is
- * one place. Colours from docs/GAME_BRIEF.md "Art direction (3D)". World units are metres.
+ * Storm Grid placeholder look: deliberately plain (boxes with a lit/unlit colour state) until the
+ * game-feel-artist restyles the city (WP-21/31); the view reads everything from here. Colours from docs/GAME_BRIEF.md "Art direction (3D)". World units are metres.
  */
 
 export const LOOK = {
@@ -13,15 +12,11 @@ export const LOOK = {
   ground: "#0a0c1a",
   street: "#12152b",
   block: "#1a1e38",              // sidewalk pads under each district
-  blockLit: "#3a3350",           // ... once BLOCK POWERED (warm, the streetlights are on)
-  streetLight: "#ffcf7a",
-  building: "#1b1f3b",           // unlit facades (charcoal)
-  buildingLit: "#2b2f55",        // lit facades
+  blockLit: "#4a3d5e",           // ... once BLOCK POWERED
+  building: "#232848",           // a dark building
   buildingVar: 0.18,             // +- brightness variation per building
-  windowCell: [2.0, 2.6],        // window grid on the facades (m): width x height
-  windowDark: "#262b4f",         // unlit glass
-  windowLitHot: "#fff1c4",       // the first flash of a freshly lit building
-  roof: "#161a31",
+  litBoost: 1.25,                // lit building = the theme's lit colour x this
+  hotFlash: "#ffffff",           // the first flash of a freshly lit building
   antenna: "#4a5078",
   tipDark: "#ff3355",            // aviation light before power
   tipLit: "#9ff8ff",
@@ -37,8 +32,8 @@ export const LOOK = {
 };
 
 /**
- * 8 themes x 5 cities (then they cycle). Colour sets only in v1: the lit window colour, a facade
- * accent and the horizon glow. The rules stay the same. Names: i18n keys `theme_<id>`.
+ * 8 themes x 5 cities (then they cycle). Colour sets only in v1: the lit building colour (`window`),
+ * an accent and the horizon glow. The rules stay the same. Names: i18n keys `theme_<id>`.
  */
 export const THEMES = [
   { id: "downtown", window: "#ffd166", accent: "#4df3ff", fog: "#3a1850" },

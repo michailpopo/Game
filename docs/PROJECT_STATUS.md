@@ -6,7 +6,7 @@ Updated: 2026-09-27 · Project folder: /home/user/Game (repo michailpopo/Game, b
 - **Phase:** 3 Build - Storm Grid (concept T1 Volt City, 3D)
 - **Current objective:** an original, dopamine-hitting game that looks premium, upload-ready this session.
 - **Next action (one concrete step):** verify WP-30 (3D core) when the engineer returns; then WP-31 (wire the look kit + juice + sound) and WP-32 (meta, offers, shop) in parallel; then full QA + crazygames-qa audit; then covers/videos/upload package.
-- **Waiting on the user:** approve the 3D look (qa/wp20/hero-*.png, sent 2026-09-26).
+- **Waiting on the user:** nothing; next: approve the restyled city (WP-21), then play the first build.
 
 ## Gates
 | Gate | Status | Date | Evidence |
@@ -65,3 +65,4 @@ npm run qa           # all automated checks + COMPLIANCE_REPORT.md
 | 2026-09-26 | Art direction becomes a user checkpoint before building (look test) | the skill lists art direction as the owner's decision; we skipped it for Comet Chain | building first, showing later |
 | 2026-09-26 | Concept T1 Volt City, fully 3D; renamed Storm Grid | owner's picks ("It must be 3d game"; Volt City collides with a Volt Casino game) | T2 Shatterfall, T3 Magnet Heap; keeping the casino-colliding name |
 | 2026-09-26 | Look kit WP-20 done: Neutral tone mapping (ACES/AgX washed colours out), bloom only on high/ultra tiers | side-by-side captures in qa/wp20/ | ACES, AgX |
+| 2026-09-27 | Keep the UI; restyle the city from hit-game references, keep it simple | owner: "good in general, the ui looks great but the city is still looking too ai generated, grab some visual inspo from games with a lot of likes that are made in html5, do not overcomplicate" | neon-cyberpunk city |

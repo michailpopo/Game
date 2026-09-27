@@ -87,7 +87,7 @@ export class FxKit {
     const u = this.unit, color = o.color ?? "#ffffff", s = (o.size ?? 1.2) * u;
     this.sprites.halo(at, { color, size: s, intensity: o.intensity ?? 2.4, life: o.life ?? 0.4 });
     if (o.ring !== false) this.sprites.ring(at.x, at.y - (o.ringDrop ?? 0), at.z, { color, from: s * 0.3, to: s * 1.9, life: 0.5, thickness: 0.35, intensity: 1.8, normal: o.ringNormal ?? UP });
-    if ((o.sparks ?? 18) > 0) this.sparks(at, { count: o.sparks ?? 18, color, colors: o.colors, speed: 7 * (o.power ?? 1), up: 3, size: 0.08, life: 0.55 });
+    if ((o.sparks ?? 18) > 0) this.sparks(at, { count: o.sparks ?? 18, color, colors: o.colors, speed: 7 * (o.power ?? 1), up: 3, size: o.sparkSize ?? 0.08, life: 0.55 });
   }
 
   /** A spark burst in preset units (scaled by `unit`). */

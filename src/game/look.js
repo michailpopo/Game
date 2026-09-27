@@ -17,7 +17,7 @@ export const LOOK = {
   tipLit: "#fff2b8",             // ... once lit
   gold: "#ffc21a",
   goldGlow: "#ffd766",
-  cloud: "#737aa6",
+  cloud: "#5d6592",
   cloudGlow: "#9fe8ff",          // the storm front flickers while charging
   boltCore: "#ffffff",
   boltGlow: "#4df3ff",           // default bolt skin

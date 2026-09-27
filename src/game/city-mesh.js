@@ -275,7 +275,7 @@ export class CityMesh {
       if (!onRoad(v, along ? zs : xs)) continue;
       cars.push(along ? { kind: "car", x: c + side * 1.6, z: v, s: 1.35, r: side > 0 ? 0 : Math.PI } : { kind: "car", x: v, z: c + side * 1.6, s: 1.35, r: side > 0 ? Math.PI / 2 : -Math.PI / 2 });
     }
-    const propMesh = (list, kind, cast, name) => {
+    const propMesh = (list, kind, cast, name, y0 = 0) => {
       const items = list.filter((p) => p.kind === kind);
       if (!items.length) return;
       const mesh = new InstancedMesh(geos[kind], this.#own(new MeshStandardMaterial({ vertexColors: true, roughness: kind === "car" ? 0.45 : 0.85 })), items.length);
@@ -283,13 +283,13 @@ export class CityMesh {
       mesh.castShadow = cast;
       mesh.receiveShadow = kind !== "car";
       items.forEach((p, i) => {
-        mesh.setMatrixAt(i, _m.compose(_p.set(p.x, kind === "car" ? 0.1 : BASE * (cast ? 1 : 0), p.z), _q.setFromAxisAngle(_up, p.r), _s.setScalar(p.s)));
+        mesh.setMatrixAt(i, _m.compose(_p.set(p.x, kind === "car" ? 0.1 : y0, p.z), _q.setFromAxisAngle(_up, p.r), _s.setScalar(p.s)));
         mesh.setColorAt(i, _c.set(kind === "car" ? ["#ff5a5f", "#ffd23f", "#4f8dff", "#ffffff", "#ff9f40"][i % 5] : W.trees[i % W.trees.length]));
       });
       this.group.add(mesh);
     };
-    propMesh(trees, "roundTree", small, "park-trees");
-    propMesh(trees, "coneTree", small, "park-pines");
+    propMesh(trees, "roundTree", small, "park-trees", BASE);
+    propMesh(trees, "coneTree", small, "park-pines", BASE);
     propMesh(ring, "roundTree", false, "ring-trees");
     propMesh(ring, "coneTree", false, "ring-pines");
     propMesh(cars, "car", false, "cars");
@@ -315,7 +315,17 @@ export class CityMesh {
       cloud.setMatrixAt(i, _m.compose(_p.set(x, this.cloudY + rng.range(-2, 5) + (1 - Math.abs(t) * 2) * 4, z), ID, _s.set(s * 1.25, s * 0.8, s)));
     }
     this.cloudMat = cloudMat;
-    this.group.add(cloud);
+    this.cloudGroup = new Group();
+    this.cloudGroup.add(cloud);
+    this.group.add(this.cloudGroup);
+    this.cloudBase = this.cloudCenter.clone();
+  }
+
+  /** Keep the storm front behind the city as the camera orbits: rotate it by the view's yaw offset (radians). */
+  setCloudYaw(delta) {
+    if (!this.cloudGroup) return;
+    this.cloudGroup.rotation.y = delta;
+    this.cloudCenter.copy(this.cloudBase).applyAxisAngle(_up, delta);
   }
 
   /** Where a strike comes from: the storm front's underside, leaning toward the target. */
@@ -370,7 +380,7 @@ export class CityMesh {
         anyWave = true;
         for (const b of bs) {
           const x = age - (Math.hypot(b.x, b.z) / reach) * 1.2;
-          if (x > 0 && x < 0.4) pulse[b.id] = Math.max(pulse[b.id], 0.8 * (1 - x / 0.4));
+          if (x > 0 && x < 0.6) pulse[b.id] = Math.max(pulse[b.id], 0.9 * (1 - x / 0.6));
         }
       }
     }
@@ -386,7 +396,7 @@ export class CityMesh {
         hot = Math.max(0, 1 - age / HOT_SEC);
         if (k >= 1 && hot === 0 && pulse[i] === 0) this.#settled[i] = 1;
       } else if (pulse[i] === 0) this.#settled[i] = 1;
-      const flash = Math.min(1, hot * 0.85 + pulse[i]);
+      const flash = Math.min(1, hot * 0.6 + pulse[i] * 0.8);
       const P = parts[i];
       const fillH = fill * (b.h - BASE + 0.8);
       for (const s of P.segs) { A[s * 4] = fillH; A[s * 4 + 2] = flash; }
@@ -414,7 +424,7 @@ export class CityMesh {
     if (!anyWave) for (let d = 0; d < this.#wave.length; d++) if (sim.districtDone[d] && this.#wave[d] === -1) { this.pads.setColorAt(d, _c.set(W.padLit)); this.pads.instanceColor.needsUpdate = true; this.#wave[d] = -2; }
     // the storm front flickers while the strike charges
     const flick = holding ? Math.min(1, charge) * (0.55 + 0.45 * Math.sin(time * 37) * Math.sin(time * 23)) : 0;
-    this.cloudMat.emissiveIntensity = Math.max(0, flick) * 0.9;
+    this.cloudMat.emissiveIntensity = Math.max(0, flick) * 0.3;
   }
 
   dispose() { this.clear(); }

@@ -523,7 +523,7 @@ varying vec3 vBkLit;
  * rising fill line, window bands (or panes) per storey in real metres, a glowing fill line, a white flash.
  */
 export function toyBlockMaterial({ unlit = TOY.unlit, unlitWindow = TOY.unlitWindow, unlitTop = TOY.unlitTrim, window = TOY.window,
-  windowGlow = 1.05, edge = 2.4, flash = 1.6, storey = 3.2, band = [0.34, 0.72], margin = 0.9, pane = 1.8, roughness = 0.72 } = {}) {
+  windowGlow = 1.05, edge = 2.4, flash = 0.9, storey = 3.2, band = [0.34, 0.72], margin = 0.9, pane = 1.8, roughness = 0.72 } = {}) {
   const m = new MeshStandardMaterial({ color: 0xffffff, roughness, metalness: 0, envMapIntensity: 0.6 });
   const u = {
     bkUnlit: { value: new Color(unlit) }, bkUnlitWin: { value: new Color(unlitWindow) }, bkUnlitTop: { value: new Color(unlitTop) },

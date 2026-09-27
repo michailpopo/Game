@@ -73,7 +73,7 @@ export class GameView {
     const quality = AdaptiveQuality.of(stage.renderer);
     if (quality) quality.subscribe((tier) => this.look.setQuality(tier));
     // QA only (?qa=1): the look, so the harness can force a shadow-map refresh frame and read its cost.
-    if (typeof location !== "undefined" && new URLSearchParams(location.search).get("qa") === "1") window.__GS_LOOK__ = this.look;
+    if (typeof location !== "undefined" && new URLSearchParams(location.search).get("qa") === "1") { window.__GS_LOOK__ = this.look; window.__GS_VIEW__ = this; }
     this.cityMesh = new CityMesh(stage.scene);
     this.fx = new FxKit(stage.scene, { unit: U, sprites: 1400, ribbons: 30, outline: { color: LOOK.boltOutline, alpha: 0.55 } });
     const root = typeof document !== "undefined" ? document.getElementById("ui") : null;
@@ -235,7 +235,7 @@ export class GameView {
           if (ev.band === "super") {
             this.audio.play("ding");
             const b = this.aim.index >= 0 ? bs[this.aim.index] : null;
-            if (b) { fx.impact(_a.set(b.x, b.tipY, b.z), { color: LOOK.super, size: 2.2, sparks: 14, ringDrop: 3 }); }
+            if (b) { fx.impact(_a.set(b.x, b.tipY, b.z), { color: LOOK.super, size: 2.2, sparks: 14, sparkSize: 0.18, ringDrop: 3 }); }
           } else this.audio.play("buzz");
           break;
         case "strike": {
@@ -245,10 +245,10 @@ export class GameView {
           this.cityMesh.strikeOrigin(b, _o3);
           _a.set(b.x, b.tipY, b.z);
           fx.strike(_o3, _a, {
-            color: sup ? LOOK.super : glow, width: fizzle ? 0.5 : sup ? 1.7 : 1.3, forks: fizzle ? 0 : sup ? 3 : 2, forkLength: 0.25,
-            arc: 0, jag: 0.09, life: 0.5, intensity: 1.5, core: 3.2, haloSize: fizzle ? 1.5 : sup ? 4 : 3, sparks: fizzle ? 8 : 34, ringDrop: 3, beads: 3,
+            color: sup ? LOOK.super : glow, width: fizzle ? 0.9 : sup ? 3.2 : 2.6, forks: fizzle ? 0 : sup ? 3 : 2, forkLength: 0.25,
+            arc: 0, jag: 0.09, life: 0.55, intensity: 1.5, core: 3.2, haloSize: fizzle ? 1.4 : sup ? 3 : 2.4, sparks: fizzle ? 8 : 34, sparkSize: 0.2, ringDrop: 3, beads: 3,
           });
-          if (sup) fx.bolt(_o3, _a, { color: glow, width: 0.9, forks: 1, jag: 0.14, life: 0.45, fromHalo: false, beads: 0 });
+          if (sup) fx.bolt(_o3, _a, { color: glow, width: 1.8, forks: 1, jag: 0.14, life: 0.5, fromHalo: false, beads: 0 });
           this.shake.add(fizzle ? 0.08 : sup ? 0.18 : 0.13);
           this.shake.trauma = Math.min(0.32, this.shake.trauma);
           this.punch = fizzle ? 0 : 0.12;
@@ -267,9 +267,9 @@ export class GameView {
           const a = bs[ev.from], b = bs[ev.to];
           const gen = Math.min(4, ev.gen);
           _a.set(a.x, a.tipY, a.z); _b.set(b.x, b.tipY, b.z);
-          fx.bolt(_a, _b, { color: glow, width: 1.05 + gen * 0.08, forks: 1, forkLength: 0.3, arc: 1.4, jag: 0.12, life: 0.5, intensity: 1.5, core: 3.2, beads: 2, fromHalo: false, haloSize: 2 });
+          fx.bolt(_a, _b, { color: glow, width: 2.1 + gen * 0.12, forks: 1, forkLength: 0.3, arc: 1.4, jag: 0.12, life: 0.6, intensity: 1.5, core: 3.2, beads: 2, fromHalo: false, haloSize: 2 });
           fx.glow(_b, { color: glow, size: 2.6, grow: 1.5, life: 0.4, intensity: 2.2 });
-          fx.sparks(_b, { count: 6, color: LOOK.spark, speed: 5, up: 3, size: 0.09, life: 0.45 });
+          fx.sparks(_b, { count: 6, color: LOOK.spark, speed: 5, up: 3, size: 0.18, life: 0.45 });
           // Crackle on a major-pentatonic ladder: one step per depth, +-3% detune.
           const semis = LADDER[Math.min(LADDER.length - 1, Math.max(0, ev.depth - 1))];
           this.audio.play("crackle", { pitch: 2 ** (semis / 12) * (0.97 + Math.random() * 0.06), minGap: 0.03, maxVoices: 6, volume: 0.8 });
@@ -279,7 +279,7 @@ export class GameView {
           const b = bs[ev.b];
           if (ev.gold) {
             _a.set(b.x, b.tipY, b.z);
-            fx.impact(_a, { color: LOOK.gold, size: 3.4, sparks: 26, ringDrop: 3 });
+            fx.impact(_a, { color: LOOK.gold, size: 3.4, sparks: 26, sparkSize: 0.22, ringDrop: 3 });
             fx.coinBurst(_a, { count: 8, speed: 3, size: 0.7, life: 1.4 });
             this.audio.play("gold");
           }
@@ -303,7 +303,7 @@ export class GameView {
           if (ev.grounded) {
             _a.set(b.x, b.tipY, b.z); _b.set(b.x + 3, 0.4, b.z + 2);
             fx.bolt(_a, _b, { color: glow, width: 0.25, forks: 0, arc: 0, life: 0.25, beads: 0, fromHalo: false });
-            fx.sparks(_b, { count: 5, color: glow, speed: 3, up: 2, size: 0.07, life: 0.35 });
+            fx.sparks(_b, { count: 5, color: glow, speed: 3, up: 2, size: 0.16, life: 0.35 });
           }
           break;
         }
@@ -311,7 +311,7 @@ export class GameView {
           this.#flushFloats(true);
           const d = sim.city.districts[ev.d];
           this.cityMesh.districtWave(ev.d, this.time);
-          fx.ring(_a.set(d.x, 0.6, d.z), { color: this.theme?.world.padLit ?? "#fff1c9", from: 1, to: d.w * 0.34, life: 0.8, thickness: 0.18, intensity: 1.6, normal: [0, 1, 0] });
+          fx.ring(_a.set(d.x, 0.6, d.z), { color: LOOK.super, from: 0.5, to: (d.w * 0.5) / U, life: 0.7, thickness: 0.1, intensity: 1.3, normal: [0, 1, 0] });
           this.ui.showWorld(t("block_powered"), `+${ev.bonus}`);
           this.audio.play("district");
           this.shake.add(0.1);
@@ -342,8 +342,9 @@ export class GameView {
             tall.forEach((b, i) => {
               _a.set(b.x, b.tipY, b.z);
               const col = this.theme?.lit[i % this.theme.lit.length] ?? LOOK.gold;
-              for (let k = 0; k < 3; k++) fx.streak(_a, (Math.random() - 0.5) * 30, 26 + Math.random() * 14, (Math.random() - 0.5) * 30, { color: col, width: 0.4, life: 0.9, gravity: 10 });
-              fx.sparks(_a, { count: 16, colors: this.theme?.lit, speed: 7, up: 5, size: 0.11, life: 0.9 });
+              for (let k = 0; k < 2; k++) fx.streak(_a, (Math.random() - 0.5) * 30, 30 + Math.random() * 14, (Math.random() - 0.5) * 30, { color: col, width: 1.5, life: 1, gravity: 10 });
+              fx.sparks(_a, { count: 18, colors: this.theme?.lit, speed: 8, up: 6, size: 0.26, life: 1.1, gravity: 5 });
+              fx.glow(_a, { color: col, size: 4, grow: 1.6, life: 0.6, intensity: 2 });
             });
             this.audio.play("powerSweep");
             this.audio.play("fanfare", { volume: 0.9 });
@@ -373,8 +374,11 @@ export class GameView {
     if (band !== "super" && band !== "over") return;
     this.lastCue = this.time;
     _a.set(b.x, b.tipY, b.z);
-    if (band === "super") this.fx.glow(_a, { color: LOOK.super, size: 2.4, grow: 1.3, life: 0.2, intensity: 1.8 });
-    else this.fx.sparks(_a, { count: 5, color: LOOK.over, speed: 4, up: 3, size: 0.08, life: 0.3 });
+    if (band === "super") {
+      this.fx.glow(_a, { color: LOOK.super, size: 3.4, grow: 1.3, life: 0.22, intensity: 2.2 });
+      this.fx.ring(_b.set(b.x, b.h + 0.8, b.z), { color: LOOK.super, from: 0.6, to: Math.max(b.w, b.d) / U, life: 0.3, thickness: 0.25, intensity: 1.6, normal: [0, 1, 0] });
+    }
+    else this.fx.sparks(_a, { count: 6, color: LOOK.over, speed: 4, up: 3, size: 0.2, life: 0.35 });
   }
 
   /** "+N" at a rooftop: the first few of a strike one by one, then merged every MERGE_SEC. */
@@ -508,6 +512,7 @@ export class GameView {
       return;
     }
     const done = sim.phase === "won" || sim.phase === "failed";
+    this.cityMesh.setCloudYaw(this.yaw - fit.yaw);
     if (done) {
       this.orbitT += dt;
       this.yaw += dt * (this.orbitT < 3 ? 20 : 4) * RAD;       // result orbit

@@ -16,7 +16,7 @@
  */
 
 import {
-  AdditiveBlending, BufferAttribute, BufferGeometry, Color, DynamicDrawUsage, Mesh, ShaderMaterial, Vector3,
+  AdditiveBlending, BufferAttribute, BufferGeometry, Color, DynamicDrawUsage, Mesh, NormalBlending, ShaderMaterial, Vector3,
 } from "three";
 
 const RIBBON_VERTEX = /* glsl */`
@@ -49,6 +49,22 @@ void main() {
   #include <colorspace_fragment>
 }`;
 
+// Outline under the additive ribbon: a deep-blue band (normal blending) so the bolt keeps its contrast and
+// saturation over bright skies and lit buildings, where a purely additive glow washes out toward white.
+const OUTLINE_FRAGMENT = /* glsl */`
+uniform vec3 olColor;
+uniform float olAlpha;
+varying float vSide;
+varying vec4 vCol;
+#include <common>
+void main() {
+  float s = min( abs( vSide ), 1.0 );
+  float a = ( 1.0 - smoothstep( 0.72, 1.0, s ) ) * olAlpha * clamp( vCol.a, 0.0, 1.0 );
+  gl_FragColor = vec4( olColor, a );
+  #include <tonemapping_fragment>
+  #include <colorspace_fragment>
+}`;
+
 const _c = new Color();
 const _cam = new Vector3();
 const _t = new Vector3();
@@ -65,8 +81,14 @@ export class Ribbons {
   mesh;
   #R; #P; #rec; #pts; #pos; #info; #col; #dirty; #hi = 0;
 
-  /** Pool geometry = max x (points - 1) x 2 triangles; the default 30 x 33 = 1,920 stays under profile M's 2,000 per geometry. */
-  constructor(scene, { max = 30, points = 33 } = {}) {
+  /** Outline mesh (shares the geometry; +1 draw call) or null. */
+  outline = null;
+
+  /**
+   * Pool geometry = max x (points - 1) x 2 triangles; the default 30 x 33 = 1,920 stays under profile M's 2,000
+   * per geometry. outline: { color: "#0b1446", alpha: 0.6 } draws a dark band under every ribbon.
+   */
+  constructor(scene, { max = 30, points = 33, outline = null } = {}) {
     this.#R = max; this.#P = points;
     this.#rec = new Float32Array(max * RB);
     this.#pts = new Float32Array(max * points * 3);
@@ -100,7 +122,20 @@ export class Ribbons {
     this.mesh.name = "fx-ribbons";
     this.mesh.frustumCulled = false;
     this.mesh.visible = false;
+    this.mesh.renderOrder = 10;
     scene.add(this.mesh);
+    if (outline) {
+      const om = new ShaderMaterial({
+        vertexShader: RIBBON_VERTEX, fragmentShader: OUTLINE_FRAGMENT, transparent: true, depthWrite: false, blending: NormalBlending,
+        uniforms: { olColor: { value: new Color(outline.color ?? "#0b1446") }, olAlpha: { value: outline.alpha ?? 0.6 } },
+      });
+      this.outline = new Mesh(geo, om);
+      this.outline.name = "fx-ribbon-outline";
+      this.outline.frustumCulled = false;
+      this.outline.visible = false;
+      this.outline.renderOrder = 9;
+      scene.add(this.outline);
+    }
   }
 
   get maxPoints() { return this.#P; }
@@ -213,6 +248,7 @@ export class Ribbons {
     if (upload) { this.#pos.needsUpdate = true; this.#info.needsUpdate = true; this.#col.needsUpdate = true; }
     this.mesh.geometry.setDrawRange(0, hi * (P - 1) * 6);
     this.mesh.visible = hi > 0;
+    if (this.outline) this.outline.visible = hi > 0;
   }
 
   #collapse(r) {

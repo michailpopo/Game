@@ -583,7 +583,13 @@ async function boot() {
     const g = giftModel();
     if (!g.visible || sim.phase !== "ready" || ui.shopOpen || ui.modalOpen || pause.has(Reason.AD) || pause.has(Reason.MENU)) return;
     pause.hold(Reason.MENU);
+    // One screen at a time: the intro's offers step aside while the gift dialog is open (max 2 video buttons).
     ui.showGift(false);
+    ui.showUpgrades(null);
+    ui.showBoost(null);
+    ui.showShopButton(false);
+    offerSeen.delete("ready-boost");
+    offerSeen.delete("free-upgrade");
     audio.play("click");
     const dlg = ui.showResult({
       kind: "win",

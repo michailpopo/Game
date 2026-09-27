@@ -24,7 +24,12 @@
  *
  * Test overrides: ?dpr=1 pins the pixel ratio and disables adaptation (features follow the
  * start level); ?quality=low|medium|high|ultra pins the level (and its DPR) and disables adaptation.
+ *
+ * Late subscribers (a view built after main.js made the quality object):
+ *   AdaptiveQuality.of(renderer)?.subscribe((tier) => look.setQuality(tier));   // called now + on every change
  */
+
+const REGISTRY = new WeakMap();
 
 export const QUALITY_LEVELS = [
   { name: "low", dpr: 1, shadows: false, shadowMapSize: 0, bloom: false, msaa: 0 },
@@ -37,10 +42,23 @@ export class AdaptiveQuality {
   #renderer; #onChange; #onTier; #level = 2; #cap = 2; #pinned = false;
   #slowFor = 0; #fastFor = 0; #cooldown = 0;
 
+  #listeners = [];
+
+  /** The AdaptiveQuality driving this renderer, if any. */
+  static of(renderer) { return REGISTRY.get(renderer) ?? null; }
+
+  /** Tier listener: called immediately with the current tier and after every change. Returns an unsubscribe. */
+  subscribe(fn) {
+    this.#listeners.push(fn);
+    fn(this.tier);
+    return () => { this.#listeners = this.#listeners.filter((f) => f !== fn); };
+  }
+
   constructor(renderer, { onChange, onTier } = {}) {
     this.#renderer = renderer;
     this.#onChange = onChange;
     this.#onTier = onTier;
+    REGISTRY.set(renderer, this);
     const qs = new URLSearchParams(location.search);
     const native = window.devicePixelRatio || 1;
     const lowMemory = (navigator.deviceMemory || 8) <= 4;
@@ -102,6 +120,8 @@ export class AdaptiveQuality {
     } else if (dprOverride !== undefined) {
       this.#onChange?.(dpr);
     }
-    this.#onTier?.(this.tier);
+    const tier = this.tier;
+    this.#onTier?.(tier);
+    for (const fn of this.#listeners) fn(tier);
   }
 }

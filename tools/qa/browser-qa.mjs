@@ -665,6 +665,31 @@ await scenario("shop", async () => {
   await p2.screenshot({ path: resolve(SHOTS, "shop-unlocked.png") });
   allErrors.push(...e2);
   await c2.close();
+  // Try a bolt (from run 4): a locked bolt tapped -> "Try it" (video) in the same row as the coin unlock,
+  // same size; watching it equips the bolt for one city and marks it tried (never offered again).
+  const { ctx: c4, page: p4, errors: e4 } = await openGame("runs=5&coins=100");
+  await p4.click(".shop-btn");
+  await p4.waitForSelector(".shop-modal:not([hidden]) .swatch.locked", { timeout: 5000 });
+  await p4.click(".shop .swatch.locked");
+  const tryBtn = await p4.waitForSelector('.shop button[data-act="try"]', { timeout: 3000 }).catch(() => null);
+  if (!tryBtn) problems.push("no Try-it offer for a locked bolt at run 5");
+  else {
+    const tryOffers = await auditOffers(p4);
+    problems.push(...offerProblems(tryOffers, "shop-try"));
+    if (tryOffers.length > MAX_VIDEO_OFFERS) problems.push(`shop-try: ${tryOffers.length} video offers on one screen`);
+    await tryBtn.click();
+    await p4.waitForFunction(() => window.__GS_QA__.state.trialSkin, null, { timeout: 6000 }).catch(() => problems.push("Try it did not equip the bolt after the video"));
+    const t4 = await state(p4);
+    if (!t4.tried.includes(t4.trialSkin)) problems.push("the tried bolt was not recorded (once per skin)");
+    if (t4.owned.includes(t4.trialSkin)) problems.push("Try it unlocked the bolt instead of lending it");
+    await p4.click(".shop-btn").catch(() => {});
+    await p4.waitForSelector(".shop-modal:not([hidden]) .swatch.locked", { timeout: 5000 }).catch(() => {});
+    await p4.click(`.shop .swatch[data-id="${t4.trialSkin}"]`).catch(() => {});
+    await sleep(300);
+    if (await p4.$('.shop button[data-act="try"]')) problems.push("Try it offered again for the same bolt");
+  }
+  allErrors.push(...e4);
+  await c4.close();
   // Adblock: no dead rewarded button in the shop, a notice instead (CG-ADS-020).
   const { ctx: c3, page: p3, errors: e3 } = await openGame("runs=1&coins=0&mockAdblock=true");
   await sleep(300);
@@ -676,7 +701,7 @@ await scenario("shop", async () => {
   allErrors.push(...e3);
   await c3.close();
   record({ id: "shop", requirements: [], status: problems.length ? "FAIL" : "PASS",
-    summary: problems.length ? problems.join("; ") : `+coins offer only while unaffordable, granted after the video, then hidden with a timer; unlock adds a new skin for coins; adblock shows "${note3}"`,
+    summary: problems.length ? problems.join("; ") : `+coins offer only while unaffordable, granted after the video, then hidden with a timer; unlock adds a new skin for coins; Try it lends a locked bolt once (same-size coin alternative); adblock shows "${note3}"`,
     evidence: { offers } });
 });
 

@@ -9,6 +9,7 @@
  *   fx.coinBurst(at, { count: 12, target: hudWorldPos });  // coins pop out, then fly to the target
  *   fx.gemBurst(at) · fx.impact(at) · fx.sparkle(at)       // medium / small / micro feedback
  *   fx.update(dt, camera);                                  // once per frame, before stage.render()
+ *   new FxKit(scene, { unit: 2.4, outline: { color: "#0b1446" } })  // metres per preset unit; dark bolt outline
  *
  * Proportional feedback (references/design/game-feel-juice.md): sparkle = micro (every hit),
  * impact = small, gemBurst/coinBurst = medium, strike/shatter = peak. Callers pick; nothing auto-escalates.
@@ -35,94 +36,124 @@ const MAX_STREAKS = 12;
 export class FxKit {
   /**
    * @param {import("three").Scene} scene
-   * @param {{ sprites?: number, shards?: number, coins?: number, gems?: number, ribbons?: number,
-   *           castShadow?: boolean, floorY?: number, rand?: () => number }} [opts]
+   * @param {{ sprites?: number, shards?: number, coins?: number, gems?: number, ribbons?: number, unit?: number,
+   *           outline?: { color?: string, alpha?: number } | null, castShadow?: boolean, floorY?: number, rand?: () => number }} [opts]
+   *   unit: world metres per preset unit (sizes, speeds, gravity scale with it; 1 = the look demo's scale)
    */
-  constructor(scene, { sprites = 1500, shards = 160, coins = 48, gems = 48, ribbons = 30, castShadow = false, floorY = 0, rand = Math.random } = {}) {
+  constructor(scene, { sprites = 1500, shards = 160, coins = 48, gems = 48, ribbons = 30, unit = 1, outline = null, castShadow = false, floorY = 0, rand = Math.random } = {}) {
+    this.unit = unit;
+    const g = 16 * unit;
     this.sprites = new FxSprites(scene, { max: sprites });
-    this.shards = new Debris(scene, shardGeometry(), MATERIALS.crystal(0xffffff, { inner: 0.5, rim: 1.2 }), { max: shards, castShadow, floorY, name: "fx-shards" });
-    this.coins = new Debris(scene, coinGeometry(), MATERIALS.gold(), { max: coins, castShadow, floorY, bounce: 0.45, name: "fx-coins" });
-    this.gems = new Debris(scene, gemGeometry(), MATERIALS.crystal(0xffffff, { inner: 0.6 }), { max: gems, castShadow, floorY, name: "fx-gems" });
-    this.ribbons = new Ribbons(scene, { max: ribbons, points: 33 });
+    this.shards = new Debris(scene, shardGeometry(), MATERIALS.crystal(0xffffff, { inner: 0.5, rim: 1.2 }), { max: shards, castShadow, floorY, gravity: g, name: "fx-shards" });
+    this.coins = new Debris(scene, coinGeometry(), MATERIALS.gold(), { max: coins, castShadow, floorY, bounce: 0.45, gravity: g, name: "fx-coins" });
+    this.gems = new Debris(scene, gemGeometry(), MATERIALS.crystal(0xffffff, { inner: 0.6 }), { max: gems, castShadow, floorY, gravity: g, name: "fx-gems" });
+    this.ribbons = new Ribbons(scene, { max: ribbons, points: 33, outline });
     this.bolts = new Bolts(this.ribbons, { rand });
     this.rand = rand;
     this.streaks = Array.from({ length: MAX_STREAKS }, () => ({ slot: -1, x: 0, y: 0, z: 0, vx: 0, vy: 0, vz: 0, life: 0, g: 0 }));
   }
 
   /**
-   * Peak: forked lightning from `from` to `to`, halos at both ends, sparks + a shockwave at the impact.
-   * opts: color, width, forks, forkLength, arc, life, jag, intensity (glow, ~1.8), core (white, ~3), progress,
-   * forkProgress, flicker, depth, haloSize, sparks, beads (glow sprites along the path), ringDrop (ring
-   * below the impact point, e.g. antenna height so the shockwave sits on the roof).
+   * A bolt only (no impact): forked lightning from `from` to `to` with soft glow beads and a halo at `from`.
+   * opts: color, width, forks, forkLength, arc, life, jag, intensity (glow, ~1.4-1.8), core (white, ~3), progress,
+   * forkProgress, flicker, depth, haloSize, beads.
    */
-  strike(from, to, o = NO_OPTS) {
-    const color = o.color ?? "#4df3ff";
+  bolt(from, to, o = NO_OPTS) {
+    const u = this.unit, color = o.color ?? "#4df3ff";
     const id = this.bolts.strike(from, to, {
-      color, width: o.width ?? 0.5, forks: o.forks ?? 2, forkLength: o.forkLength ?? 0.45, arc: o.arc ?? 0.8, life: o.life ?? 0.4,
-      jag: o.jag ?? 0.11, intensity: o.intensity ?? 1.8, core: o.core ?? 3, progress: o.progress ?? 1, forkProgress: o.forkProgress ?? 1, flicker: o.flicker ?? 0.05, depth: o.depth,
+      color, width: (o.width ?? 0.5) * u, forks: o.forks ?? 2, forkLength: o.forkLength ?? 0.45, arc: (o.arc ?? 0.8) * u, life: o.life ?? 0.4,
+      jag: o.jag ?? 0.11, intensity: o.intensity ?? 1.6, core: o.core ?? 3, progress: o.progress ?? 1, forkProgress: o.forkProgress ?? 1, flicker: o.flicker ?? 0.05, depth: o.depth,
     });
-    const s = o.haloSize ?? 1.6;
-    this.sprites.glow(from.x, from.y, from.z, { color, intensity: 2.4, size: s * 0.7, grow: 1.2, life: (o.life ?? 0.4) * 1.1 });
-    // soft glow beads along the path: the bolt reads thick and electric even without bloom
-    const beads = o.beads ?? 4, reach = o.progress ?? 1;
+    const s = (o.haloSize ?? 1.6) * u;
+    if (o.fromHalo !== false) this.sprites.glow(from.x, from.y, from.z, { color, intensity: 2.2, size: s * 0.6, grow: 1.2, life: (o.life ?? 0.4) * 1.1 });
+    const beads = o.beads ?? 3, reach = o.progress ?? 1, arc = (o.arc ?? 0.8) * u;
     for (let i = 1; i <= beads; i++) {
-      const t = (i / (beads + 1)) * reach, arc = (o.arc ?? 0.8) * 4 * t * (1 - t);
-      this.sprites.glow(from.x + (to.x - from.x) * t, from.y + (to.y - from.y) * t + arc, from.z + (to.z - from.z) * t,
-        { color, intensity: 0.9, size: s * 0.9, grow: 1.1, life: (o.life ?? 0.4) * 1.2 });
+      const t = (i / (beads + 1)) * reach, lift = arc * 4 * t * (1 - t);
+      this.sprites.glow(from.x + (to.x - from.x) * t, from.y + (to.y - from.y) * t + lift, from.z + (to.z - from.z) * t,
+        { color, intensity: 0.8, size: s * 0.8, grow: 1.1, life: (o.life ?? 0.4) * 1.2 });
     }
-    if ((o.progress ?? 1) >= 1) this.impact(to, { color, size: s, sparks: o.sparks ?? 26, ringDrop: o.ringDrop });
+    return id;
+  }
+
+  /** Peak: a bolt + the impact at `to` (halo, flat shockwave, sparks). ringDrop lowers the ring onto the roof. */
+  strike(from, to, o = NO_OPTS) {
+    const id = this.bolt(from, to, o);
+    if ((o.progress ?? 1) >= 1) this.impact(to, { color: o.color ?? "#4df3ff", size: o.haloSize ?? 1.6, sparks: o.sparks ?? 26, ringDrop: o.ringDrop });
     return id;
   }
 
   /** Small/medium: flash + sparks + a ring (flat on the ground/roof by default: reads as 3D). */
   impact(at, o = NO_OPTS) {
-    const color = o.color ?? "#ffffff", s = o.size ?? 1.2;
+    const u = this.unit, color = o.color ?? "#ffffff", s = (o.size ?? 1.2) * u;
     this.sprites.halo(at, { color, size: s, intensity: o.intensity ?? 2.4, life: o.life ?? 0.4 });
-    this.sprites.ring(at.x, at.y - (o.ringDrop ?? 0), at.z, { color, from: s * 0.3, to: s * 1.9, life: 0.5, thickness: 0.35, intensity: 1.8, normal: o.ringNormal ?? UP });
-    this.sprites.sparkBurst(at, { count: o.sparks ?? 18, color, colors: o.colors, speed: 7 * (o.power ?? 1), up: 3, size: 0.08, life: 0.55, intensity: 3, stretch: 0.06 });
+    if (o.ring !== false) this.sprites.ring(at.x, at.y - (o.ringDrop ?? 0), at.z, { color, from: s * 0.3, to: s * 1.9, life: 0.5, thickness: 0.35, intensity: 1.8, normal: o.ringNormal ?? UP });
+    if ((o.sparks ?? 18) > 0) this.sparks(at, { count: o.sparks ?? 18, color, colors: o.colors, speed: 7 * (o.power ?? 1), up: 3, size: 0.08, life: 0.55 });
+  }
+
+  /** A spark burst in preset units (scaled by `unit`). */
+  sparks(at, o = NO_OPTS) {
+    const u = this.unit;
+    this.sprites.sparkBurst(at, {
+      count: o.count ?? 12, color: o.color ?? "#ffffff", colors: o.colors, speed: (o.speed ?? 6) * u, up: (o.up ?? 2.5) * u, size: (o.size ?? 0.07) * u,
+      life: o.life ?? 0.5, intensity: o.intensity ?? 2.8, stretch: (o.stretch ?? 0.06) / u, gravity: (o.gravity ?? 9) * u, spread: 0.2 * u,
+    });
+  }
+
+  /** A soft glow in preset units. */
+  glow(at, o = NO_OPTS) {
+    const u = this.unit;
+    return this.sprites.glow(at.x, at.y, at.z, { ...o, size: (o.size ?? 1) * u });
+  }
+
+  /** A flat or billboard ring in preset units. */
+  ring(at, o = NO_OPTS) {
+    const u = this.unit;
+    return this.sprites.ring(at.x, at.y, at.z, { ...o, from: (o.from ?? 0.2) * u, to: (o.to ?? 3) * u });
   }
 
   /** Peak: something glassy explodes - flash, two shockwaves, glass shards, sparks, glowing streaks. */
   shatter(at, o = NO_OPTS) {
-    const colors = o.colors ?? GEM_COLORS, p = o.power ?? 1, main = o.color ?? colors[0];
-    this.sprites.halo(at, { color: main, size: 2.4 * p, intensity: 2.6, life: 0.5 });
-    this.sprites.ring(at.x, at.y, at.z, { color: "#ffffff", from: 0.3, to: 3.4 * p, life: 0.35, thickness: 0.07, intensity: 1.1 });
-    this.sprites.ring(at.x, at.y, at.z, { color: main, from: 0.2, to: 2.4 * p, life: 0.6, thickness: 0.3, intensity: 1.6 });
-    this.shards.burst(at, { count: o.count ?? 36, colors, speed: 11 * p, up: 4, size: 0.5 * p, life: 1.6, spin: 14 });
-    this.sprites.sparkBurst(at, { count: (o.count ?? 36) * 2, colors, speed: 14 * p, up: 3, size: 0.09, life: 0.8, intensity: 3.2, stretch: 0.07 });
+    const u = this.unit, colors = o.colors ?? GEM_COLORS, p = o.power ?? 1, main = o.color ?? colors[0];
+    this.sprites.halo(at, { color: main, size: 2.4 * p * u, intensity: 2.6, life: 0.5 });
+    this.sprites.ring(at.x, at.y, at.z, { color: "#ffffff", from: 0.3 * u, to: 3.4 * p * u, life: 0.35, thickness: 0.07, intensity: 1.1 });
+    this.sprites.ring(at.x, at.y, at.z, { color: main, from: 0.2 * u, to: 2.4 * p * u, life: 0.6, thickness: 0.3, intensity: 1.6 });
+    this.shards.burst(at, { count: o.count ?? 36, colors, speed: 11 * p * u, up: 4 * u, size: 0.5 * p * u, life: 1.6, spin: 14 });
+    this.sparks(at, { count: (o.count ?? 36) * 2, colors, speed: 14 * p, up: 3, size: 0.09, life: 0.8, intensity: 3.2, stretch: 0.07 });
     for (let i = 0; i < (o.streaks ?? 6); i++) {
-      const a = this.rand() * Math.PI * 2, u = this.rand() * 0.9 + 0.1, sp = (10 + this.rand() * 6) * p;
-      this.streak(at, Math.cos(a) * sp * (1 - u * 0.5), u * sp, Math.sin(a) * sp * (1 - u * 0.5), { color: colors[i % colors.length], width: 0.28 * p });
+      const a = this.rand() * Math.PI * 2, k = this.rand() * 0.9 + 0.1, sp = (10 + this.rand() * 6) * p * u;
+      this.streak(at, Math.cos(a) * sp * (1 - k * 0.5), k * sp, Math.sin(a) * sp * (1 - k * 0.5), { color: colors[i % colors.length], width: 0.28 * p });
     }
   }
 
-  /** A glowing ballistic streak with a ribbon tail (fireworks-style). */
+  /** A glowing ballistic streak with a ribbon tail (fireworks-style). Velocity in world units/s. */
   streak(at, vx, vy, vz, o = NO_OPTS) {
     const s = this.streaks.find((q) => q.slot < 0);
     if (!s) return;
-    s.slot = this.ribbons.trail({ color: o.color ?? "#ffffff", width: o.width ?? 0.28, intensity: o.intensity ?? 3, core: 0.9 });
+    s.slot = this.ribbons.trail({ color: o.color ?? "#ffffff", width: (o.width ?? 0.28) * this.unit, intensity: o.intensity ?? 2.2, core: 1.8 });
     if (s.slot < 0) return;
-    s.x = at.x; s.y = at.y; s.z = at.z; s.vx = vx; s.vy = vy; s.vz = vz; s.life = o.life ?? 0.7; s.g = o.gravity ?? 14;
+    s.x = at.x; s.y = at.y; s.z = at.z; s.vx = vx; s.vy = vy; s.vz = vz; s.life = o.life ?? 0.7; s.g = (o.gravity ?? 14) * this.unit;
   }
 
   /** Medium: coins pop out; with `target` ({x,y,z}) they fly there after `delay` s. */
   coinBurst(at, o = NO_OPTS) {
+    const u = this.unit;
     if (o.target) this.coins.target.copy(o.target);
-    this.coins.burst(at, { count: o.count ?? 12, color: "#ffffff", speed: o.speed ?? 6, up: 7, size: o.size ?? 0.55, life: 2.2, spin: 9, home: !!o.target, homeDelay: o.delay ?? 0.5 });
-    this.sprites.sparkBurst(at, { count: 12, color: "#ffd166", speed: 6, up: 4, size: 0.07, life: 0.5, intensity: 2.6 });
+    this.coins.burst(at, { count: o.count ?? 12, color: "#ffffff", speed: (o.speed ?? 6) * u, up: 7 * u, size: (o.size ?? 0.55) * u, life: o.life ?? 2.2, spin: 9, home: !!o.target, homeDelay: o.delay ?? 0.5 });
+    this.sparks(at, { count: 12, color: "#ffd166", speed: 6, up: 4, size: 0.07, life: 0.5, intensity: 2.6 });
   }
 
   /** Medium: gems pop out and bounce. */
   gemBurst(at, o = NO_OPTS) {
-    this.gems.burst(at, { count: o.count ?? 10, colors: o.colors ?? GEM_COLORS, speed: o.speed ?? 6, up: 7, size: o.size ?? 0.5, life: 1.8, spin: 8 });
-    this.sprites.glow(at.x, at.y, at.z, { color: "#ffffff", size: 1, life: 0.25, intensity: 2 });
+    const u = this.unit;
+    this.gems.burst(at, { count: o.count ?? 10, colors: o.colors ?? GEM_COLORS, speed: (o.speed ?? 6) * u, up: 7 * u, size: (o.size ?? 0.5) * u, life: 1.8, spin: 8 });
+    this.sprites.glow(at.x, at.y, at.z, { color: "#ffffff", size: u, life: 0.25, intensity: 2 });
   }
 
   /** Micro reward: a few sparks and a tiny glow. */
   sparkle(at, o = NO_OPTS) {
     const color = o.color ?? "#ffffff";
-    this.sprites.glow(at.x, at.y, at.z, { color, size: o.size ?? 0.6, life: 0.22, intensity: 2.2 });
-    this.sprites.sparkBurst(at, { count: o.count ?? 8, color, speed: 4, up: 2.5, size: 0.06, life: 0.4, intensity: 2.6 });
+    this.sprites.glow(at.x, at.y, at.z, { color, size: (o.size ?? 0.6) * this.unit, life: 0.22, intensity: 2.2 });
+    this.sparks(at, { count: o.count ?? 8, color, speed: 4, up: 2.5, size: 0.06, life: 0.4, intensity: 2.6 });
   }
 
   update(dt, camera) {
@@ -150,4 +181,3 @@ export class FxKit {
     this.bolts.clear(); this.ribbons.clear(); this.sprites.clear(); this.shards.clear(); this.coins.clear(); this.gems.clear();
   }
 }
-

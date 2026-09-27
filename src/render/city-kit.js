@@ -24,7 +24,7 @@
 import {
   BufferAttribute, BufferGeometry, Color, ConeGeometry, CylinderGeometry, DynamicDrawUsage, Float32BufferAttribute,
   InstancedBufferAttribute, InstancedMesh, Matrix4, Mesh, MeshStandardMaterial, PlaneGeometry, Quaternion, SphereGeometry,
-  Vector3,
+  Vector2, Vector3,
 } from "three";
 import { RoundedBoxGeometry } from "three/addons/geometries/RoundedBoxGeometry.js";
 import { mergeGeometries } from "three/addons/utils/BufferGeometryUtils.js";
@@ -454,4 +454,138 @@ export function createToyGround(scene, layout, { size = 800 } = {}) {
   d.forEach(([x, z, alongX], i) => { _m.compose(_p.set(x, 0.02, z), _q.identity(), alongX ? _s.set(1.2, 1, 0.22) : _s.set(0.22, 1, 1.2)); dash.setMatrixAt(i, _m); });
   scene.add(dash); out.push(dash);
   return out;
+}
+
+// =====================================================================================================
+// Parametric toy blocks (WP-31): the same toy language as buildingTypes(), built to ANY footprint and
+// height (the game's sim decides w x h x d). One InstancedMesh draws every body segment of a city.
+//   const geo = chamferPrismGeometry();                       // unit footprint, y 0..1, 22 tris
+//   geo.setAttribute("aState", new InstancedBufferAttribute(new Float32Array(n * 4), 4));  // see below
+//   geo.setAttribute("aLitColor", new InstancedBufferAttribute(new Float32Array(n * 3), 3));
+//   const bodies = new InstancedMesh(geo, toyBlockMaterial(), n);   // instance matrix = translate + scale (w, h, d)
+// aState per instance: x = fill height (m, building space: lit below it), y = this segment's base (m, building
+// space, 0 for the ground segment; stacked segments share one rising fill), z = white flash 0..1, w = window
+// style (0 bands, 1 panes). Windows are computed in the shader from real metres: never stretched.
+// =====================================================================================================
+
+/** A unit box (x, z in -0.5..0.5, y 0..1) with chamfered vertical edges and a top: 22 triangles. */
+export function chamferPrismGeometry(c = 0.1) {
+  const a = 0.5 - c, b = 0.5;
+  const ring = [[a, b], [b, a], [b, -a], [a, -b], [-a, -b], [-b, -a], [-b, a], [-a, b]];   // counter-clockwise from +z
+  const pos = [];
+  for (let i = 0; i < 8; i++) {
+    const [x0, z0] = ring[i], [x1, z1] = ring[(i + 1) % 8];
+    // side quad (outward facing, CCW seen from outside)
+    pos.push(x0, 0, z0, x1, 0, z1, x1, 1, z1, x0, 0, z0, x1, 1, z1, x0, 1, z0);
+  }
+  for (let i = 1; i < 7; i++) {
+    const [x0, z0] = ring[0], [x1, z1] = ring[i], [x2, z2] = ring[i + 1];
+    pos.push(x0, 1, z0, x1, 1, z1, x2, 1, z2);
+  }
+  const g = new BufferGeometry();
+  g.setAttribute("position", new Float32BufferAttribute(pos, 3));
+  g.computeVertexNormals();
+  // side normals point inward if the ring winding is clockwise seen from above: fix orientation if needed
+  const n = g.attributes.normal, p = g.attributes.position;
+  if (n.getX(0) * (p.getX(0) + p.getX(1)) + n.getZ(0) * (p.getZ(0) + p.getZ(1)) < 0) {
+    for (let i = 0; i < p.count; i += 3) {             // swap two vertices of every triangle
+      for (const arr of [p, n]) { const t = [arr.getX(i + 1), arr.getY(i + 1), arr.getZ(i + 1)]; arr.setXYZ(i + 1, arr.getX(i + 2), arr.getY(i + 2), arr.getZ(i + 2)); arr.setXYZ(i + 2, ...t); }
+    }
+    g.computeVertexNormals();
+  }
+  g.computeBoundingBox();
+  g.computeBoundingSphere();
+  return g;
+}
+
+const BLOCK_VERTEX_PARS = /* glsl */`
+attribute vec4 aState;
+attribute vec3 aLitColor;
+varying vec3 vBkLocal;
+varying vec3 vBkScale;
+varying vec3 vBkN;
+varying vec4 vBkState;
+varying vec3 vBkLit;
+`;
+const BLOCK_FRAGMENT_PARS = /* glsl */`
+uniform vec3 bkUnlit, bkUnlitWin, bkUnlitTop, bkWin;
+uniform float bkWinGlow, bkEdge, bkFlash, bkStorey, bkMargin, bkPane;
+uniform vec2 bkBand;
+varying vec3 vBkLocal;
+varying vec3 vBkScale;
+varying vec3 vBkN;
+varying vec4 vBkState;
+varying vec3 vBkLit;
+`;
+
+/**
+ * Toy block material for parametric bodies: calm unlit colour, the instance's candy colour below the
+ * rising fill line, window bands (or panes) per storey in real metres, a glowing fill line, a white flash.
+ */
+export function toyBlockMaterial({ unlit = TOY.unlit, unlitWindow = TOY.unlitWindow, unlitTop = TOY.unlitTrim, window = TOY.window,
+  windowGlow = 1.05, edge = 2.4, flash = 1.6, storey = 3.2, band = [0.34, 0.72], margin = 0.9, pane = 1.8, roughness = 0.72 } = {}) {
+  const m = new MeshStandardMaterial({ color: 0xffffff, roughness, metalness: 0, envMapIntensity: 0.6 });
+  const u = {
+    bkUnlit: { value: new Color(unlit) }, bkUnlitWin: { value: new Color(unlitWindow) }, bkUnlitTop: { value: new Color(unlitTop) },
+    bkWin: { value: new Color(window) }, bkWinGlow: { value: windowGlow }, bkEdge: { value: edge }, bkFlash: { value: flash },
+    bkStorey: { value: storey }, bkMargin: { value: margin }, bkPane: { value: pane }, bkBand: { value: new Vector2(band[0], band[1]) },
+  };
+  m.userData.block = u;
+  m.onBeforeCompile = (shader) => {
+    Object.assign(shader.uniforms, u);
+    shader.vertexShader = shader.vertexShader
+      .replace("#include <common>", `#include <common>\n${BLOCK_VERTEX_PARS}`)
+      .replace("#include <begin_vertex>", `#include <begin_vertex>
+        #ifdef USE_INSTANCING
+          vBkScale = vec3( length( instanceMatrix[ 0 ].xyz ), length( instanceMatrix[ 1 ].xyz ), length( instanceMatrix[ 2 ].xyz ) );
+        #else
+          vBkScale = vec3( 1.0 );
+        #endif
+        vBkLocal = position * vBkScale; vBkN = normal; vBkState = aState; vBkLit = aLitColor;`);
+    shader.fragmentShader = shader.fragmentShader
+      .replace("#include <common>", `#include <common>\n${BLOCK_FRAGMENT_PARS}`)
+      .replace("#include <color_fragment>", `#include <color_fragment>
+        float bkY = vBkState.y + vBkLocal.y;
+        float bkLitK = 1.0 - smoothstep( vBkState.x - 0.2, vBkState.x + 0.2, bkY );
+        float bkTopF = step( 0.5, vBkN.y );
+        float bkWinK = 0.0;
+        float bkAx = max( abs( vBkN.x ), abs( vBkN.z ) );
+        if ( bkTopF < 0.5 && bkAx > 0.9 ) {
+          bool onX = abs( vBkN.x ) > abs( vBkN.z );
+          float u = onX ? vBkLocal.z : vBkLocal.x;
+          float faceW = onX ? vBkScale.z : vBkScale.x;
+          float q = bkY / bkStorey;
+          float fy = fract( q );
+          float aa = max( fwidth( q ) * 1.2, 0.002 );
+          float bandK = smoothstep( bkBand.x - aa, bkBand.x + aa, fy ) * ( 1.0 - smoothstep( bkBand.y - aa, bkBand.y + aa, fy ) );
+          float edgeU = faceW * 0.5 - bkMargin;
+          float au = max( fwidth( u ) * 1.2, 0.002 );
+          float inside = 1.0 - smoothstep( edgeU - au, edgeU + au, abs( u ) );
+          float notGround = step( 1.0, floor( q ) );
+          float notTop = 1.0 - step( vBkScale.y - 1.1, vBkLocal.y );
+          bkWinK = bandK * inside * notGround * notTop;
+          if ( vBkState.w > 0.5 ) {
+            float fu = fract( u / bkPane + 0.5 );
+            float ap = max( fwidth( u / bkPane ) * 1.2, 0.002 );
+            bkWinK *= smoothstep( 0.16 - ap, 0.16 + ap, fu ) * ( 1.0 - smoothstep( 0.84 - ap, 0.84 + ap, fu ) );
+          }
+        }
+        vec3 bkBody = mix( bkUnlit, vBkLit, bkLitK );
+        vec3 bkRoof = mix( bkUnlitTop, mix( vBkLit, vec3( 1.0 ), 0.35 ), bkLitK );
+        vec3 bkWinC = mix( bkUnlitWin, bkWin, bkLitK );
+        diffuseColor.rgb = mix( mix( bkBody, bkRoof, bkTopF ), bkWinC, bkWinK );`)
+      .replace("#include <roughnessmap_fragment>", "#include <roughnessmap_fragment>\nroughnessFactor = mix( roughnessFactor, 0.3, bkWinK );")
+      .replace("#include <emissivemap_fragment>", `#include <emissivemap_fragment>
+        totalEmissiveRadiance += bkWin * bkWinGlow * bkWinK * bkLitK;
+        float bkLine = ( 1.0 - smoothstep( 0.0, 0.45, abs( bkY - vBkState.x ) ) ) * step( 0.05, vBkState.x ) * ( 1.0 - bkTopF );
+        totalEmissiveRadiance += vec3( 1.0, 0.95, 0.82 ) * bkEdge * bkLine * step( bkY, vBkState.x + 0.6 ) * step( vBkState.x, vBkState.y + vBkScale.y + 0.3 ) * step( 0.001, vBkState.x - vBkState.y );
+        totalEmissiveRadiance += vec3( 1.0 ) * bkFlash * vBkState.z;`);
+  };
+  m.customProgramCacheKey = () => "gs-toy-block";
+  return m;
+}
+
+/** Plain toy trim material (caps, roofs, rods): colour per instance via setColorAt. */
+export function toyTrimMaterial({ roughness = 0.6, metalness = 0 } = {}) {
+  return new MeshStandardMaterial({ color: 0xffffff, roughness, metalness, envMapIntensity: 0.6 });
 }

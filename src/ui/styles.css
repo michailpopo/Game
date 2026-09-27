@@ -416,7 +416,10 @@
 #ui .boost-coins b { font-weight: normal; }
 #ui .gift-btn { position: absolute; right: 0.6em; top: 3.6em; width: 3em; height: 3em; border-radius: 0.9em; }
 #ui .gift-btn svg { width: 2.3em; height: 2.3em; filter: none; }
-#ui .shop { width: min(24em, 94vw); }
+#ui .shop { width: min(27em, 94vw); }
+/* Up to 3 buttons (Random / Try it / +coins): equal columns, so an offer and its coin alternative are always the same size. */
+#ui .shop .row { grid-auto-columns: minmax(0, 1fr); }
+#ui .shop .row .btn { padding: 0.3em 0.35em; white-space: nowrap; }
 #ui .shop .owned-count { margin: -0.3em 0 0.45em; font-size: max(12px, 0.8em); opacity: 0.9; }
 #ui .shop .skin-name { min-height: 1.2em; margin: 0.45em 0 0; font-size: max(13px, 0.95em); color: #ffe066; }
 #ui .swatch.locked { cursor: pointer; }

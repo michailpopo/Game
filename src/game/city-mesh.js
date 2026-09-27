@@ -1,57 +1,60 @@
 /**
- * The 3D city, deliberately plain (planner, 2026-09-26: the feel artist restyles it in WP-21/31):
- * ground, district pads, one instanced box per building whose colour is its lit state (dark -> a
- * short white-hot flash -> the theme's lit colour), rooftop antennas with tip lights (the hop points),
- * a few glows for gold rods and fresh hits, and the storm front. Built once per city (disposed on
- * rebuild); per frame only instance colours and the glow list are written. Units: metres.
- * Everything it draws comes from the simulation's view API (src/game/sim.js header).
+ * The 3D toy city (WP-31, look from docs/QA_REPORT.md "WP-21 notes"), built from the simulation's view API
+ * (src/game/sim.js header) - the sim stays the source of truth for every position and every hop point.
+ *
+ * Per sim building one of the six toy types, built to its footprint and height:
+ *   house (lowest, pyramid roof) · flat (rim cap) · box (rim cap + roof box) · dome · spire · stepped (setback)
+ * Every part is instanced (bodies 1 + trims 1 + domes 1 + spires 1 + pyramids 1 + poles 1 + tips 1 draw calls);
+ * the rod tip ball sits exactly on the sim's tipY (roof + 3 m), so the bolt lands on it.
+ * Lit state (from sim.litAt): the building floods with its candy colour from the ground up over FILL_SEC with a
+ * glowing fill line, a white flash on the hit; its roof, cap and rod ball light when the flood reaches the top.
+ * BLOCK POWERED: the district pad turns warm in a wave from its centre and its buildings pulse in order.
+ * FULL POWER: sweep() ripples a flash across the whole city.
+ * Ground: a calm field to the horizon, the asphalt plate, rounded district pads, lane dashes, park trees in
+ * empty lots, a tree ring (no shadows), a few toy cars; the storm front is a row of slate puffs behind the city.
+ * Built once per city (disposed on rebuild); per frame only the instance attributes that changed are uploaded.
  */
 
 import {
-  AdditiveBlending, BoxGeometry, CanvasTexture, Color, CylinderGeometry, DynamicDrawUsage, Euler, Group,
-  IcosahedronGeometry, InstancedMesh, Matrix4, Mesh, MeshBasicMaterial, MeshLambertMaterial,
-  OctahedronGeometry, PlaneGeometry, Quaternion, SRGBColorSpace, Vector3,
+  Color, ConeGeometry, CylinderGeometry, DynamicDrawUsage, Group, IcosahedronGeometry, InstancedBufferAttribute,
+  InstancedMesh, Matrix4, Mesh, MeshStandardMaterial, PlaneGeometry, Quaternion, SphereGeometry, Vector3,
 } from "three";
 import { STORM } from "../config.js";
 import { createRng } from "../core/rng.js";
-import { LOOK, themeOf } from "./look.js";
+import { chamferPrismGeometry, propGeometries, toyBlockMaterial, toyTrimMaterial } from "../render/city-kit.js";
+import { enhance } from "../render/materials.js";
+import { LOOK } from "./look.js";
 
 const _m = new Matrix4();
 const _p = new Vector3();
 const _q = new Quaternion();
 const _s = new Vector3();
-const _e = new Euler();
 const _c = new Color();
+const _c2 = new Color();
+const _up = new Vector3(0, 1, 0);
 const ID = new Quaternion();
-const FILL_SEC = 0.3;           // dark -> lit colour (GAME_BRIEF: a building lights in ~0.3 s)
-const HOT_SEC = 0.3;            // the white-hot flash of a freshly lit building
-const _dark = new Color();
-const _lit = new Color();
-const _hot = new Color();
-
-export function glowTexture() {
-  const c = document.createElement("canvas");
-  c.width = c.height = 64;
-  const ctx = c.getContext("2d");
-  const g = ctx.createRadialGradient(32, 32, 0, 32, 32, 32);
-  g.addColorStop(0, "rgba(255,255,255,1)");
-  g.addColorStop(0.25, "rgba(255,255,255,0.55)");
-  g.addColorStop(1, "rgba(255,255,255,0)");
-  ctx.fillStyle = g;
-  ctx.fillRect(0, 0, 64, 64);
-  const t = new CanvasTexture(c);
-  t.colorSpace = SRGBColorSpace;
-  return t;
-}
+const BASE = 0.35;              // pad top: buildings stand on their district pad
+const FILL_SEC = 0.45;          // dark -> lit, flooding from the ground up
+const HOT_SEC = 0.22;           // the white flash of a hit
+const CAP = 0.55;               // roof rim cap height (m)
+const MAX_W = 7.6;              // widest visual footprint (lots are 9 m apart, +-1.2 m jitter)
 
 export class CityMesh {
   group = new Group();
-  #owned = [];
   city = null;
+  top = 0;
+  cloudY = 0;
+  #owned = [];
+  #scene;
+  #wave = [];                   // per district: start time of its BLOCK POWERED wave (-1 = none)
+  #sweepAt = -1;                // FULL POWER sweep start (view time)
+  #pulse;                       // per building: extra flash 0..1 (district wave, sweep)
+  #lastLit;                     // per building: litAt seen last frame (-2 = unknown)
+  #settled;                     // per building: nothing left to animate
 
   constructor(scene) {
+    this.#scene = scene;
     scene.add(this.group);
-    this.glowTex = glowTexture();
   }
 
   #own(r) { this.#owned.push(r); return r; }
@@ -63,149 +66,353 @@ export class CityMesh {
     this.city = null;
   }
 
-  build(city, seed) {
+  /**
+   * @param {object} city  sim.city   @param {string} seed   @param {object} theme  look.js THEMES entry
+   * @param {import("../fx/fx-kit.js").FxKit} [fx]  for the gold-rod glows (persistent sprites)
+   */
+  build(city, seed, theme, fx) {
     this.clear();
     this.city = city;
-    const theme = themeOf(city);
     this.theme = theme;
-    this.litColor = new Color(theme.window).multiplyScalar(LOOK.litBoost);
-    const n = city.buildings.length;
+    const W = theme.world;
+    const bs = city.buildings, n = bs.length;
     const rng = createRng(`${seed}:look:${city.level}`);
-    const size = Math.max(city.width, city.depth);
+    const plan = city.plan;
+    const hMin = STORM.city.heightMin, hMax = Math.max(hMin + 1, plan?.heightMax ?? hMin + 12);
+    this.#pulse = new Float32Array(n);
+    this.#lastLit = new Float32Array(n).fill(-2);
+    this.#settled = new Uint8Array(n);
+    this.#wave = city.districts.map(() => -1);
+    this.#sweepAt = -1;
+    this.litColor = [];
+    this.kind = [];
 
-    // Ground and district pads (sidewalks).
-    const ground = new Mesh(this.#own(new PlaneGeometry(size * 8, size * 8)), this.#own(new MeshLambertMaterial({ color: LOOK.street })));
-    ground.rotation.x = -Math.PI / 2;
-    ground.name = "ground";
-    this.group.add(ground);
-    const pads = new InstancedMesh(this.#own(new BoxGeometry(1, 1, 1)), this.#own(new MeshLambertMaterial({ color: 0xffffff })), city.districts.length);
-    pads.name = "districts";
-    city.districts.forEach((d, i) => {
-      pads.setMatrixAt(i, _m.compose(_p.set(d.x, 0.1, d.z), ID, _s.set(d.w + 1.6, 0.2, d.d + 1.6)));
-      pads.setColorAt(i, _c.set(LOOK.block));
+    // ---------------------------------------------------------------- building parts
+    const segs = [], trims = [], domes = [], spires = [], pyramids = [], rods = [];
+    this.parts = bs.map(() => ({ segs: [], trims: [], roof: -1, roofKind: "", pole: -1, tip: -1 }));
+    for (const b of bs) {
+      const rel = Math.min(1, Math.max(0, (b.h - hMin) / (hMax - hMin)));
+      const r2 = (b.seed * 7.13) % 1, r3 = (b.seed * 13.7) % 1;
+      let kind = b.roof === "spire" ? "spire" : b.roof === "stepped" ? "stepped" : "flat";
+      if (kind === "flat") kind = rel < 0.2 && r2 < 0.65 ? "house" : rel > 0.5 && r2 > 0.55 ? "dome" : r2 < 0.3 ? "box" : "flat";
+      this.kind[b.id] = kind;
+      this.litColor[b.id] = new Color(theme.lit[Math.floor(r3 * theme.lit.length) % theme.lit.length]);
+      const vw = Math.min(MAX_W, b.w * 1.1), vd = Math.min(MAX_W, b.d * 1.1);
+      const H = b.h - BASE;                      // body height above the pad (roof at the sim's h)
+      const style = r2 > 0.5 ? 1 : 0;
+      const P = this.parts[b.id];
+      let roofTop;
+      if (kind === "stepped") {
+        const h1 = Math.round(H * 0.7), uw = vw * 0.64, ud = vd * 0.64;
+        P.segs.push(segs.length); segs.push([b.x, BASE, b.z, vw, h1, vd, 0, style, b.id]);
+        P.trims.push(trims.length); trims.push([b.x, BASE + h1, b.z, vw + 0.5, 0.4, vd + 0.5, b.id]);
+        P.segs.push(segs.length); segs.push([b.x, BASE + h1, b.z, uw, H - h1, ud, h1, style, b.id]);
+        P.trims.push(trims.length); trims.push([b.x, b.h, b.z, uw + 0.6, CAP, ud + 0.6, b.id]);
+        roofTop = b.h + CAP;
+      } else {
+        P.segs.push(segs.length); segs.push([b.x, BASE, b.z, vw, H, vd, 0, style, b.id]);
+        if (kind === "house") {
+          P.roof = pyramids.length; P.roofKind = "pyramid";
+          const rr = Math.min(vw, vd) * 0.74, rh = Math.min(2.4, rr * 0.8);
+          pyramids.push([b.x, b.h, b.z, rr, rh, b.id]);
+          roofTop = b.h + rh;
+        } else {
+          P.trims.push(trims.length); trims.push([b.x, b.h, b.z, vw + 0.7, CAP, vd + 0.7, b.id]);
+          roofTop = b.h + CAP;
+          if (kind === "dome") {
+            const r = Math.min(1.9, Math.min(vw, vd) * 0.36);
+            P.roof = domes.length; P.roofKind = "dome"; domes.push([b.x, roofTop, b.z, r, b.id]);
+            roofTop += r;
+          } else if (kind === "spire") {
+            const r = Math.min(vw, vd) * 0.3;
+            P.roof = spires.length; P.roofKind = "spire"; spires.push([b.x, roofTop, b.z, r, 2.1, b.id]);
+            roofTop += 2.1;
+          } else if (kind === "box") {
+            P.trims.push(trims.length);
+            trims.push([b.x + vw * 0.18 * (r3 < 0.5 ? 1 : -1), roofTop, b.z - vd * 0.15, vw * 0.34, 1.1, vd * 0.3, b.id]);
+          }
+        }
+      }
+      P.pole = rods.length;
+      rods.push([b.x, Math.min(roofTop, b.tipY - 0.4), b.z, b.tipY, b.gold, b.id]);
+    }
+
+    // bodies (the toy block material: flood fill + window bands)
+    const bodyGeo = this.#own(chamferPrismGeometry(0.1));
+    const aState = new InstancedBufferAttribute(new Float32Array(segs.length * 4), 4).setUsage(DynamicDrawUsage);
+    const aLitC = new InstancedBufferAttribute(new Float32Array(segs.length * 3), 3);
+    bodyGeo.setAttribute("aState", aState);
+    bodyGeo.setAttribute("aLitColor", aLitC);
+    const bodyMat = this.#own(toyBlockMaterial({ unlit: W.unlit, unlitWindow: W.unlitWin, unlitTop: W.trim }));
+    const bodies = new InstancedMesh(bodyGeo, bodyMat, segs.length);
+    bodies.name = "buildings";
+    bodies.castShadow = true;
+    bodies.receiveShadow = true;
+    segs.forEach(([x, y, z, w, h, d, base, style, id], i) => {
+      bodies.setMatrixAt(i, _m.compose(_p.set(x, y, z), ID, _s.set(w, h, d)));
+      aState.array.set([0, base, 0, style], i * 4);
+      const c = this.litColor[id];
+      aLitC.array.set([c.r, c.g, c.b], i * 3);
     });
-    this.pads = this.#own(pads);
-    this.group.add(pads);
+    bodies.computeBoundingSphere();
+    this.bodies = bodies; this.aState = aState; this.segs = segs;
+    this.group.add(bodies);
 
-    // Buildings: plain boxes; the instance colour is the lit state (update()).
-    const geo = this.#own(new BoxGeometry(1, 1, 1));
-    geo.translate(0, 0.5, 0);
-    const bm = new InstancedMesh(geo, this.#own(new MeshLambertMaterial({ color: 0xffffff })), n);
-    bm.name = "buildings";
-    this.shade = new Float32Array(n);   // per-building brightness variation (dark and lit alike)
-    for (const b of city.buildings) {
-      bm.setMatrixAt(b.id, _m.compose(_p.set(b.x, 0.2, b.z), ID, _s.set(b.w, b.h, b.d)));
-      this.shade[b.id] = 1 + (rng.next() - 0.5) * 2 * LOOK.buildingVar;
-      bm.setColorAt(b.id, _c.set(LOOK.building).multiplyScalar(this.shade[b.id]));
+    // trims: roof caps, setback ledges, roof boxes
+    const trimMat = this.#own(toyTrimMaterial());
+    const trimMesh = new InstancedMesh(this.#own(chamferPrismGeometry(0.14)), trimMat, Math.max(1, trims.length));
+    trimMesh.name = "roof-caps";
+    trimMesh.castShadow = true;
+    trimMesh.receiveShadow = true;
+    trims.forEach(([x, y, z, w, h, d], i) => { trimMesh.setMatrixAt(i, _m.compose(_p.set(x, y, z), ID, _s.set(w, h, d))); trimMesh.setColorAt(i, _c.set(W.trim)); });
+    trimMesh.count = trims.length;
+    if (trimMesh.instanceColor) trimMesh.instanceColor.setUsage(DynamicDrawUsage);
+    this.trims = trimMesh;
+    this.group.add(trimMesh);
+
+    // roofs
+    const roofMesh = (geo, list, name, place) => {
+      const mesh = new InstancedMesh(this.#own(geo), trimMat, Math.max(1, list.length));
+      mesh.name = name;
+      mesh.castShadow = true;
+      list.forEach((r, i) => { place(r); mesh.setMatrixAt(i, _m); mesh.setColorAt(i, _c.set(W.trim)); });
+      mesh.count = list.length;
+      if (mesh.instanceColor) mesh.instanceColor.setUsage(DynamicDrawUsage);
+      this.group.add(mesh);
+      return mesh;
+    };
+    this.domes = roofMesh(new SphereGeometry(1, 12, 6, 0, Math.PI * 2, 0, Math.PI / 2), domes, "roof-domes",
+      ([x, y, z, r]) => _m.compose(_p.set(x, y, z), ID, _s.set(r, r * 0.95, r)));
+    this.spires = roofMesh(new ConeGeometry(1, 1, 8, 1).translate(0, 0.5, 0), spires, "roof-spires",
+      ([x, y, z, r, h]) => _m.compose(_p.set(x, y, z), ID, _s.set(r, h, r)));
+    this.pyramids = roofMesh(new ConeGeometry(1, 1, 4, 1).rotateY(Math.PI / 4).translate(0, 0.5, 0), pyramids, "roof-pyramids",
+      ([x, y, z, r, h]) => _m.compose(_p.set(x, y, z), ID, _s.set(r, h, r)));
+
+    // lightning rods: pole + tip ball on the sim's tipY; gold rods are gold and bigger
+    const poleMesh = new InstancedMesh(this.#own(new CylinderGeometry(0.14, 0.2, 1, 5, 1).translate(0, 0.5, 0)), this.#own(toyTrimMaterial({ roughness: 0.4 })), n);
+    poleMesh.name = "rods";
+    const tipMesh = new InstancedMesh(this.#own(new IcosahedronGeometry(0.55, 0)), this.#own(new MeshStandardMaterial({ color: 0xffffff, roughness: 0.3, emissive: 0xffffff, emissiveIntensity: 0.15 })), n);
+    tipMesh.name = "rod-tips";
+    rods.forEach(([x, y0, z, tipY, gold], i) => {
+      const k = gold ? 1.6 : 1;
+      poleMesh.setMatrixAt(i, _m.compose(_p.set(x, y0, z), ID, _s.set(k, Math.max(0.3, tipY - y0), k)));
+      poleMesh.setColorAt(i, _c.set(gold ? LOOK.gold : LOOK.pole));
+      tipMesh.setMatrixAt(i, _m.compose(_p.set(x, tipY, z), ID, _s.setScalar(gold ? 1.5 : 1)));
+      tipMesh.setColorAt(i, _c.set(gold ? LOOK.gold : LOOK.tipDark));
+    });
+    tipMesh.instanceColor.setUsage(DynamicDrawUsage);
+    this.poles = poleMesh; this.tips = tipMesh;
+    this.group.add(poleMesh, tipMesh);
+    if (fx) for (const b of bs) if (b.gold) fx.sprites.glow(b.x, b.tipY, b.z, { color: LOOK.goldGlow, size: 3.2, life: Infinity, intensity: 1.6, pulse: 1.1 });
+
+    // ---------------------------------------------------------------- ground
+    const size = Math.max(city.width, city.depth);
+    const field = new Mesh(this.#own(new PlaneGeometry(size * 14 + 400, size * 14 + 400)), this.#own(new MeshStandardMaterial({ color: W.field, roughness: 0.95 })));
+    field.rotation.x = -Math.PI / 2;
+    field.position.y = -0.05;
+    field.receiveShadow = true;
+    field.name = "field";
+    const avenue = plan?.avenue ?? 6;
+    const plate = new Mesh(this.#own(chamferPrismGeometry(0.02)), this.#own(new MeshStandardMaterial({ color: W.asphalt, roughness: 0.9 })));
+    plate.scale.set(city.width + avenue * 2 + 6, 0.12, city.depth + avenue * 2 + 6);
+    plate.position.y = -0.02;
+    plate.receiveShadow = true;
+    plate.name = "asphalt";
+    const pads = new InstancedMesh(this.#own(chamferPrismGeometry(0.06)), this.#own(toyTrimMaterial({ roughness: 0.85 })), city.districts.length);
+    pads.name = "districts";
+    pads.receiveShadow = true;
+    city.districts.forEach((d, i) => { pads.setMatrixAt(i, _m.compose(_p.set(d.x, 0.08, d.z), ID, _s.set(d.w + 1.6, BASE - 0.08, d.d + 1.6))); pads.setColorAt(i, _c.set(W.pad)); });
+    pads.instanceColor.setUsage(DynamicDrawUsage);
+    this.pads = pads;
+    this.group.add(field, plate, pads);
+
+    // lane dashes along the avenues between districts (centre lines, crossings skipped)
+    const xs = [...new Set(city.districts.map((d) => Math.round(d.x * 10) / 10))].sort((a, b) => a - b);
+    const zs = [...new Set(city.districts.map((d) => Math.round(d.z * 10) / 10))].sort((a, b) => a - b);
+    const bw = city.districts[0]?.w ?? 27;
+    const lines = (cs) => { const out = []; for (let i = 0; i < cs.length - 1; i++) out.push((cs[i] + cs[i + 1]) / 2); if (cs.length) { out.unshift(cs[0] - bw / 2 - avenue / 2 - 1.5); out.push(cs[cs.length - 1] + bw / 2 + avenue / 2 + 1.5); } return out; };
+    const lx = lines(xs), lz = lines(zs), dashes = [];
+    const onRoad = (v, cs) => cs.every((c) => Math.abs(v - c) > bw / 2 + 1.2);
+    const span = size / 2 + avenue;
+    for (const x of lx) for (let v = -span; v < span; v += 4.2) if (onRoad(v, zs)) dashes.push([x, v, 0]);
+    for (const z of lz) for (let v = -span; v < span; v += 4.2) if (onRoad(v, xs)) dashes.push([v, z, 1]);
+    const dash = new InstancedMesh(this.#own(new PlaneGeometry(1, 1).rotateX(-Math.PI / 2)), this.#own(new MeshStandardMaterial({ color: W.dash, roughness: 0.8 })), Math.max(1, dashes.length));
+    dash.name = "lane-dashes";
+    dash.receiveShadow = true;
+    dashes.forEach(([x, z, alongX], i) => dash.setMatrixAt(i, _m.compose(_p.set(x, 0.06, z), ID, alongX ? _s.set(2.2, 1, 0.35) : _s.set(0.35, 1, 2.2))));
+    dash.count = dashes.length;
+    this.group.add(dash);
+
+    // ---------------------------------------------------------------- props
+    const geos = propGeometries();
+    for (const g of Object.values(geos)) this.#own(g);
+    const pitch = STORM.city.lotPitch;
+    const trees = [], ring = [], cars = [];
+    for (const d of city.districts) {
+      const lots = Math.max(1, Math.round(d.w / pitch));
+      for (let lzI = 0; lzI < lots; lzI++) for (let lxI = 0; lxI < lots; lxI++) {
+        const x = d.x - d.w / 2 + (lxI + 0.5) * (d.w / lots), z = d.z - d.d / 2 + (lzI + 0.5) * (d.d / lots);
+        if (bs.some((b) => Math.abs(b.x - x) < pitch * 0.55 && Math.abs(b.z - z) < pitch * 0.55)) continue;
+        const k = 1 + Math.floor(rng.next() * 2);
+        for (let t = 0; t < k; t++) trees.push({ kind: rng.next() < 0.6 ? "roundTree" : "coneTree", x: x + rng.range(-2, 2), z: z + rng.range(-2, 2), s: rng.range(1.7, 2.3), r: rng.range(0, 6.28) });
+      }
     }
-    bm.instanceColor.setUsage(DynamicDrawUsage);
-    this.buildings = this.#own(bm);
-    this.group.add(bm);
-
-    // Antennas (6 segments) + tips (aviation light before power, bright once lit, gold rods).
-    const mast = STORM.city.antenna;
-    const ag = this.#own(new CylinderGeometry(0.1, 0.24, 1, 6));
-    ag.translate(0, 0.5, 0);
-    const am = new InstancedMesh(ag, this.#own(new MeshLambertMaterial({ color: 0xffffff })), n);
-    am.name = "antennas";
-    const tg = this.#own(new OctahedronGeometry(0.42, 0));
-    const tm = new InstancedMesh(tg, this.#own(new MeshBasicMaterial({ color: 0xffffff })), n);
-    tm.name = "antenna-tips";
-    for (const b of city.buildings) {
-      am.setMatrixAt(b.id, _m.compose(_p.set(b.x, b.h + 0.2, b.z), ID, _s.set(b.gold ? 1.8 : 1, mast, b.gold ? 1.8 : 1)));
-      am.setColorAt(b.id, _c.set(b.gold ? LOOK.gold : LOOK.antenna));
-      tm.setMatrixAt(b.id, _m.compose(_p.set(b.x, b.tipY + 0.2, b.z), ID, _s.setScalar(b.gold ? 1.9 : 1)));
-      tm.setColorAt(b.id, _c.set(b.gold ? LOOK.gold : LOOK.tipDark));
+    const outer = size / 2 + avenue + 8;
+    for (let k = 0; k < 60; k++) {
+      const a = rng.range(0, Math.PI * 2), rr = outer + rng.range(4, 50);
+      const x = Math.cos(a) * rr, z = Math.sin(a) * rr;
+      if (Math.abs(x) < outer - 2 && Math.abs(z) < outer - 2) continue;
+      ring.push({ kind: rng.next() < 0.55 ? "roundTree" : "coneTree", x, z, s: rng.range(2, 3.4), r: rng.range(0, 6.28) });
     }
-    this.antennas = this.#own(am);
-    this.tips = this.#own(tm);
-    this.tips.instanceColor.setUsage(DynamicDrawUsage);
-    this.group.add(am, tm);
+    for (let k = 0; k < Math.min(14, (lx.length + lz.length) * 2); k++) {
+      const along = rng.next() < 0.5, list = along ? lx : lz;
+      const c = list[Math.floor(rng.next() * list.length)] ?? 0, v = rng.range(-span * 0.9, span * 0.9), side = rng.next() < 0.5 ? -1 : 1;
+      if (!onRoad(v, along ? zs : xs)) continue;
+      cars.push(along ? { kind: "car", x: c + side * 1.6, z: v, s: 1.35, r: side > 0 ? 0 : Math.PI } : { kind: "car", x: v, z: c + side * 1.6, s: 1.35, r: side > 0 ? Math.PI / 2 : -Math.PI / 2 });
+    }
+    const propMesh = (list, kind, cast, name) => {
+      const items = list.filter((p) => p.kind === kind);
+      if (!items.length) return;
+      const mesh = new InstancedMesh(geos[kind], this.#own(new MeshStandardMaterial({ vertexColors: true, roughness: kind === "car" ? 0.45 : 0.85 })), items.length);
+      mesh.name = name;
+      mesh.castShadow = cast;
+      mesh.receiveShadow = kind !== "car";
+      items.forEach((p, i) => {
+        mesh.setMatrixAt(i, _m.compose(_p.set(p.x, kind === "car" ? 0.1 : BASE * (cast ? 1 : 0), p.z), _q.setFromAxisAngle(_up, p.r), _s.setScalar(p.s)));
+        mesh.setColorAt(i, _c.set(kind === "car" ? ["#ff5a5f", "#ffd23f", "#4f8dff", "#ffffff", "#ff9f40"][i % 5] : W.trees[i % W.trees.length]));
+      });
+      this.group.add(mesh);
+    };
+    propMesh(trees, "roundTree", true, "park-trees");
+    propMesh(trees, "coneTree", true, "park-pines");
+    propMesh(ring, "roundTree", false, "ring-trees");
+    propMesh(ring, "coneTree", false, "ring-pines");
+    propMesh(cars, "car", true, "cars");
 
-    // Glows (billboards, additive): gold rods and freshly hit tips.
-    const glow = new InstancedMesh(this.#own(new PlaneGeometry(1, 1)), this.#own(new MeshBasicMaterial({ map: this.glowTex, transparent: true, depthWrite: false, blending: AdditiveBlending })), n);
-    glow.name = "glows";
-    glow.frustumCulled = false;
-    glow.instanceMatrix.setUsage(DynamicDrawUsage);
-    glow.setColorAt(0, _c.set(0xffffff));
-    glow.instanceColor.setUsage(DynamicDrawUsage);
-    glow.count = 0;
-    this.glows = this.#own(glow);
-    this.group.add(glow);
-
-    // The storm front: dark puffs along the far edge, high up; they flicker while charging.
-    const puffs = 28;
-    const cloudMat = this.#own(new MeshLambertMaterial({ color: LOOK.cloud, emissive: LOOK.cloudGlow, emissiveIntensity: 0 }));
-    const cloud = new InstancedMesh(this.#own(new IcosahedronGeometry(1, 2)), cloudMat, puffs);
-    cloud.name = "storm-cloud";
+    // ---------------------------------------------------------------- storm front (behind the city, top of frame)
     let top = 0;
-    for (const b of city.buildings) top = Math.max(top, b.tipY);
+    for (const b of bs) top = Math.max(top, b.tipY);
     this.top = top;
-    this.cloudY = top + 55;
-    const span = city.width * 1.6 + 160;
+    this.cloudY = top + 26;
+    const yaw = 35 * Math.PI / 180, far = size * 0.55 + 22;
+    const cx = -Math.sin(yaw) * far, cz = -Math.cos(yaw) * far;
+    this.cloudCenter = new Vector3(cx, this.cloudY, cz);
+    const cloudMat = this.#own(enhance(new MeshStandardMaterial({ color: LOOK.cloud, roughness: 1, emissive: LOOK.cloudGlow, emissiveIntensity: 0, envMapIntensity: 0.3 }),
+      { rim: 0.4, rimPower: 2.4, rimColor: "#ffe0ec", rimTint: 0 }));
+    const puffs = 14;
+    const cloud = new InstancedMesh(this.#own(new SphereGeometry(1, 12, 8)), cloudMat, puffs);
+    cloud.name = "storm-cloud";
+    const across = Math.max(40, size * 1.1);
     for (let i = 0; i < puffs; i++) {
-      const x = (i / (puffs - 1) - 0.5) * span + rng.range(-10, 10);
-      const z = -city.depth / 2 - rng.range(70, 150);
-      const s = rng.range(22, 40);
-      cloud.setMatrixAt(i, _m.compose(_p.set(x, this.cloudY + rng.range(-10, 18), z), _q.setFromEuler(_e.set(rng.range(0, 3), rng.range(0, 3), 0)), _s.set(s * 1.5, s * 0.45, s)));
+      const t = i / (puffs - 1) - 0.5;
+      const s = rng.range(7, 12) * (1 - Math.abs(t) * 0.6) * Math.max(1, size / 60);
+      const x = cx + Math.cos(yaw) * t * across + rng.range(-3, 3), z = cz - Math.sin(yaw) * t * across + rng.range(-3, 3);
+      cloud.setMatrixAt(i, _m.compose(_p.set(x, this.cloudY + rng.range(-2, 5) + (1 - Math.abs(t) * 2) * 4, z), ID, _s.set(s * 1.25, s * 0.8, s)));
     }
     this.cloudMat = cloudMat;
-    this.cloud = this.#own(cloud);
     this.group.add(cloud);
   }
 
-  /** Where a strike comes from: high above and behind the target, out of the storm front. */
+  /** Where a strike comes from: the storm front's underside, leaning toward the target. */
   strikeOrigin(b, out) {
-    out.x = b.x * 0.6;
-    out.y = this.cloudY;
-    out.z = -this.city.depth / 2 - 70;
+    const c = this.cloudCenter;
+    out.x = c.x + (b.x - c.x) * 0.18;
+    out.y = this.cloudY - 5;
+    out.z = c.z + (b.z - c.z) * 0.18;
     return out;
   }
 
+  /** BLOCK POWERED: the district's pad warms up in a wave from its centre; its buildings pulse in order. */
+  districtWave(d, time) { if (this.#wave[d] !== undefined) this.#wave[d] = time; }
+
+  /** FULL POWER: a flash ripples across the whole city from its centre. */
+  sweep(time) { this.#sweepAt = time; }
+
   /**
-   * Per frame, from the simulation's litAt: each building's colour (dark -> white-hot flash -> lit over
-   * FILL_SEC), tip colours, glows (gold rods, fresh hits), powered district pads, the cloud flicker.
-   * @param {object} sim  @param {number} time real seconds  @param {Quaternion} camQ camera quaternion
+   * Per frame, from the simulation's litAt: the flood fill, flashes, roof/cap/tip colours, pads, cloud flicker.
+   * @param {object} sim  @param {number} time view seconds (frozen with the effects)
    */
   update(sim, time, camQ, charge = 0, holding = false) {
     if (!this.city) return;
-    const bs = this.city.buildings;
-    _dark.set(LOOK.building);
-    _lit.copy(this.litColor);
-    _hot.set(LOOK.hotFlash);
-    let g = 0;
-    const blink = Math.sin(time * 3.2) > 0.2;
-    for (let i = 0; i < bs.length; i++) {
-      const b = bs[i];
-      const at = sim.litAt[i];
-      let k = 0, hot = 0;
-      if (at >= 0) {
-        const age = Math.max(0, sim.t - at);
-        k = Math.min(1, age / FILL_SEC);
-        hot = Math.max(0, 1 - age / HOT_SEC);
-      }
-      _c.copy(_dark).lerp(_lit, k).lerp(_hot, hot * 0.7).multiplyScalar(this.shade[i]);
-      this.buildings.setColorAt(i, _c);
-      if (at >= 0) this.tips.setColorAt(i, _c.set(b.gold ? LOOK.gold : LOOK.tipLit).multiplyScalar(1 + hot));
-      else this.tips.setColorAt(i, b.gold ? _c.set(LOOK.gold) : _c.set(LOOK.tipDark).multiplyScalar(blink ? 1 : 0.25));
-      if (b.gold || hot > 0) {
-        const size = b.gold ? 6.5 + Math.sin(time * 4 + i) * 1 : 2.6 + hot * 6;
-        this.glows.setMatrixAt(g, _m.compose(_p.set(b.x, b.tipY + 0.2, b.z), camQ, _s.set(size, size, 1)));
-        this.glows.setColorAt(g, _c.set(b.gold ? LOOK.gold : LOOK.tipLit).multiplyScalar(b.gold ? 0.9 : hot));
-        g++;
+    const bs = this.city.buildings, W = this.theme.world, parts = this.parts;
+    const A = this.aState.array;
+    let bodiesDirty = false, colorsDirty = false;
+    // district waves and the FULL POWER sweep feed a per-building pulse
+    const pulse = this.#pulse;
+    pulse.fill(0);
+    let anyWave = false;
+    for (let d = 0; d < this.#wave.length; d++) {
+      const t0 = this.#wave[d];
+      if (t0 < 0) continue;
+      const dist = this.city.districts[d];
+      const age = time - t0;
+      if (age > 2) { this.#wave[d] = -2; continue; }
+      anyWave = true;
+      const k = Math.min(1, age / 0.6);
+      this.pads.setColorAt(d, _c.set(W.pad).lerp(_c2.set(W.padLit), k));
+      colorsDirty = true;
+      for (const m of dist.members) {
+        const b = bs[m];
+        const r = Math.hypot(b.x - dist.x, b.z - dist.z) / (dist.w * 0.7);
+        const x = age - r * 0.45;
+        if (x > 0 && x < 0.35) pulse[m] = Math.max(pulse[m], 0.55 * (1 - x / 0.35));
       }
     }
-    for (let d = 0; d < this.city.districts.length; d++) this.pads.setColorAt(d, _c.set(sim.districtDone[d] ? LOOK.blockLit : LOOK.block));
-    this.glows.count = g;
-    this.glows.instanceMatrix.needsUpdate = true;
-    this.glows.instanceColor.needsUpdate = true;
-    this.buildings.instanceColor.needsUpdate = true;
-    this.tips.instanceColor.needsUpdate = true;
-    this.pads.instanceColor.needsUpdate = true;
-    // Storm front flickers while the strike charges.
+    if (this.#sweepAt >= 0) {
+      const age = time - this.#sweepAt, reach = Math.max(this.city.width, this.city.depth) * 0.75;
+      if (age > 2.2) this.#sweepAt = -1;
+      else {
+        anyWave = true;
+        for (const b of bs) {
+          const x = age - (Math.hypot(b.x, b.z) / reach) * 1.2;
+          if (x > 0 && x < 0.4) pulse[b.id] = Math.max(pulse[b.id], 0.8 * (1 - x / 0.4));
+        }
+      }
+    }
+    for (let i = 0; i < bs.length; i++) {
+      const b = bs[i], at = sim.litAt[i];
+      if (at !== this.#lastLit[i]) { this.#lastLit[i] = at; this.#settled[i] = 0; }
+      if (this.#settled[i] && pulse[i] === 0) continue;
+      let fill = 0, hot = 0;
+      if (at >= 0) {
+        const age = Math.max(0, sim.t - at);
+        const k = Math.min(1, age / FILL_SEC);
+        fill = 1 - (1 - k) * (1 - k);
+        hot = Math.max(0, 1 - age / HOT_SEC);
+        if (k >= 1 && hot === 0 && pulse[i] === 0) this.#settled[i] = 1;
+      } else if (pulse[i] === 0) this.#settled[i] = 1;
+      const flash = Math.min(1, hot * 0.85 + pulse[i]);
+      const P = parts[i];
+      const fillH = fill * (b.h - BASE + 0.8);
+      for (const s of P.segs) { A[s * 4] = fillH; A[s * 4 + 2] = flash; }
+      bodiesDirty = true;
+      // roof, caps and the rod ball light when the flood reaches the top
+      const top = Math.max(0, Math.min(1, (fill - 0.8) / 0.2));
+      const lc = this.litColor[i];
+      _c.set(W.trim).lerp(_c2.copy(lc).lerp(WHITE, 0.4), top).lerp(WHITE, flash * 0.6);
+      for (const t of P.trims) this.trims.setColorAt(t, _c);
+      if (P.roof >= 0) {
+        const mesh = P.roofKind === "dome" ? this.domes : P.roofKind === "spire" ? this.spires : this.pyramids;
+        _c.set(W.trim).lerp(lc, top).lerp(WHITE, flash * 0.6);
+        mesh.setColorAt(P.roof, _c);
+        mesh.instanceColor.needsUpdate = true;
+      }
+      if (!b.gold) this.tips.setColorAt(P.pole, _c.set(at >= 0 ? LOOK.tipLit : LOOK.tipDark).lerp(WHITE, flash));
+      colorsDirty = true;
+    }
+    if (bodiesDirty) this.aState.needsUpdate = true;
+    if (colorsDirty) {
+      if (this.trims.instanceColor) this.trims.instanceColor.needsUpdate = true;
+      this.tips.instanceColor.needsUpdate = true;
+      this.pads.instanceColor.needsUpdate = true;
+    }
+    if (!anyWave) for (let d = 0; d < this.#wave.length; d++) if (sim.districtDone[d] && this.#wave[d] === -1) { this.pads.setColorAt(d, _c.set(W.padLit)); this.pads.instanceColor.needsUpdate = true; this.#wave[d] = -2; }
+    // the storm front flickers while the strike charges
     const flick = holding ? Math.min(1, charge) * (0.55 + 0.45 * Math.sin(time * 37) * Math.sin(time * 23)) : 0;
-    this.cloudMat.emissiveIntensity = 0.12 + Math.max(0, flick) * 0.7;
+    this.cloudMat.emissiveIntensity = Math.max(0, flick) * 0.9;
   }
 
-  dispose() { this.clear(); this.glowTex.dispose(); }
+  dispose() { this.clear(); }
 }
+
+const WHITE = new Color(1, 1, 1);

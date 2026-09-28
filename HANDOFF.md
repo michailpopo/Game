@@ -149,7 +149,8 @@ and re-run `node tools/qa/balance.mjs campaign 60 1-20`.
 `viewports`, `ad-ui-style`, `performance` - software WebGL, p95 1167 ms, not a Chromebook number).
 Poly budget: max 12.9k tris / 39 draw calls in play at city 1 (budget 60k / 60); idle city 36: 32k tris / 39 calls.
 Boot 0.23 MB to first gameplayStart. `npm run build` OK, `node tools/qa/sim-health.mjs --selftest` PASS.
-Playtest page updated (version 2): https://claude.ai/artifact/NiMqU6S1QUtHXMyUzwPKd1
+Playtest page (current build = version 7, cloud shape): https://claude.ai/artifact/NiMqU6S1QUtHXMyUzwPKd1
+After the cloud-shape change: `--only boot,poly-budget,touch` 0 FAIL (17.3k tris / 39 calls in play at city 1).
 
 **First job for the next chat:** owner playtest answers (FULL POWER reachable now? island look? sounds), fix what
 they say, then HANDOFF section 4 steps 3-4 (full QA + crazygames-qa audit `docs/CG_QA_AUDIT.md`, launch package).

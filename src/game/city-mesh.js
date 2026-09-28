@@ -25,6 +25,7 @@ import { createRng } from "../core/rng.js";
 import { chamferPrismGeometry, propGeometries, toyBlockMaterial, toyTrimMaterial } from "../render/city-kit.js";
 import { enhance } from "../render/materials.js";
 import { LOOK, shoreOf } from "./look.js";
+import { mergeVertices } from "three/addons/utils/BufferGeometryUtils.js";
 
 const _m = new Matrix4();
 const _p = new Vector3();
@@ -36,11 +37,55 @@ const _up = new Vector3(0, 1, 0);
 const ID = new Quaternion();
 const BASE = 0.35;              // pad top: buildings stand on their district pad
 
-/** A cloud puff: a smooth sphere whose underside is squashed flat (clouds have flat bottoms). */
-function puffGeometry() {
-  const g = new SphereGeometry(1, 20, 14);
-  const pos = g.attributes.position;
-  for (let i = 0; i < pos.count; i++) { const y = pos.getY(i); if (y < 0) pos.setY(i, y * 0.35); }
+/**
+ * A cloud as ONE smooth surface: a dense sphere around the middle base puff whose every vertex is pushed out along
+ * its ray to the outer envelope of the puffs (ellipsoids [x, y, z, rx, ry, rz]), cut flat underneath, then relaxed
+ * (Laplacian) so the seams between puffs become soft folds instead of ball edges. `base` = index of the ray origin.
+ */
+function cloudGeometry(puffs, base) {
+  // an even icosphere (no crowded poles), its directions stretched to the cloud's extents so the vertices spread
+  // evenly over the long, low cloud instead of bunching on its top and bottom (keeps < 5k triangles)
+  const g = mergeVertices(new IcosahedronGeometry(1, 14).deleteAttribute("normal").deleteAttribute("uv"));
+  const pos = g.attributes.position, n = pos.count;
+  const [ox, oy, oz] = puffs[base];
+  let floorY = Infinity, ex = 1, ey = 1, ez = 1;
+  for (const [x, y, z, rx, ry, rz] of puffs) {
+    floorY = Math.min(floorY, y - ry * 0.35);
+    ex = Math.max(ex, Math.abs(x - ox) + rx); ey = Math.max(ey, Math.abs(y - oy) + ry); ez = Math.max(ez, Math.abs(z - oz) + rz);
+  }
+  for (let i = 0; i < n; i++) {
+    let dx = pos.getX(i) * ex, dy = pos.getY(i) * ey, dz = pos.getZ(i) * ez;
+    const dl = Math.hypot(dx, dy, dz);
+    dx /= dl; dy /= dl; dz /= dl;
+    let far = 0;
+    for (const [px, py, pz, rx, ry, rz] of puffs) {
+      // ray (O + t d) against the ellipsoid, in its unit-sphere space: |o + t v|^2 = 1, keep the far root
+      const qx = (ox - px) / rx, qy = (oy - py) / ry, qz = (oz - pz) / rz, vx = dx / rx, vy = dy / ry, vz = dz / rz;
+      const a = vx * vx + vy * vy + vz * vz, b = qx * vx + qy * vy + qz * vz, c = qx * qx + qy * qy + qz * qz - 1;
+      const disc = b * b - a * c;
+      if (disc >= 0) far = Math.max(far, (-b + Math.sqrt(disc)) / a);
+    }
+    pos.setXYZ(i, ox + dx * far, Math.max(floorY, oy + dy * far), oz + dz * far);
+  }
+  // relax: each vertex moves halfway to the average of its neighbours (seams soften, the silhouette stays)
+  const idx = g.index.array, nb = Array.from({ length: n }, () => new Set());
+  for (let f = 0; f < idx.length; f += 3) {
+    const a = idx[f], b = idx[f + 1], c = idx[f + 2];
+    nb[a].add(b); nb[a].add(c); nb[b].add(a); nb[b].add(c); nb[c].add(a); nb[c].add(b);
+  }
+  const p = pos.array, tmp = new Float32Array(p.length);
+  for (let it = 0; it < 2; it++) {
+    for (let i = 0; i < n; i++) {
+      let sx = 0, sy = 0, sz = 0;
+      for (const j of nb[i]) { sx += p[j * 3]; sy += p[j * 3 + 1]; sz += p[j * 3 + 2]; }
+      const m = nb[i].size || 1;
+      tmp[i * 3] = p[i * 3] * 0.5 + (sx / m) * 0.5;
+      tmp[i * 3 + 1] = Math.max(floorY, p[i * 3 + 1] * 0.5 + (sy / m) * 0.5);
+      tmp[i * 3 + 2] = p[i * 3 + 2] * 0.5 + (sz / m) * 0.5;
+    }
+    p.set(tmp);
+  }
+  pos.needsUpdate = true;
   g.computeVertexNormals();
   return g;
 }
@@ -374,17 +419,19 @@ export class CityMesh {
     const layout = [   // [t along the front (-0.5..0.5), dy (m / k), toward the camera (m / k), radius (m / k), squash]
       [-0.42, -2, 0, 5.5, 0.45], [-0.21, -2, 0, 7, 0.45], [0, -2, 0, 7.5, 0.45], [0.21, -2, 0, 7, 0.45], [0.42, -2, 0, 5.5, 0.45],
       [-0.28, 1.2, -1, 6.5, 0.8], [-0.08, 2, 1, 8, 0.8], [0.12, 2, -1, 8, 0.8], [0.30, 1, 1, 6, 0.8],
-      [-0.10, 4.5, 0, 6.5, 0.85], [0.10, 5, -0.5, 7, 0.85],
+      [-0.20, 3.8, 0, 6, 0.9], [0.02, 5.5, -0.5, 7.5, 0.9], [0.22, 3.6, 0.5, 5.8, 0.9],
       [-0.18, -1.6, 4, 6, 0.7], [0.16, -1.4, 4, 6.5, 0.7],
     ];
-    const cloud = new InstancedMesh(this.#own(puffGeometry()), cloudMat, layout.length);
-    cloud.name = "storm-cloud";
-    layout.forEach(([t, dy, dv, r0, sq], i) => {
+    // One object, not a pile of balls: the puffs only define the envelope; cloudGeometry() skins it as a single
+    // smooth surface (one silhouette, one rim) with a flat underside where strikes start.
+    const puffs = layout.map(([t, dy, dv, r0, sq]) => {
       const r = r0 * k * rng.range(0.93, 1.07);
-      const along = (t + rng.range(-0.015, 0.015)) * across, toward = dv * k + rng.range(-1, 1);
-      const x = cx + Math.cos(yaw) * along + Math.sin(yaw) * toward, z = cz - Math.sin(yaw) * along + Math.cos(yaw) * toward;
-      cloud.setMatrixAt(i, _m.compose(_p.set(x, this.cloudY + (dy - 1) * k, z), ID, _s.set(r * 1.15, r * sq, r)));   // -1: the flat underside sits where strikes start
+      return [(t + rng.range(-0.015, 0.015)) * across, (dy - 1) * k, dv * k + rng.range(-1, 1), r * 1.15, r * sq, r];
     });
+    const cloud = new Mesh(this.#own(cloudGeometry(puffs, 2)), cloudMat);
+    cloud.name = "storm-cloud";
+    cloud.position.set(cx, this.cloudY, cz);
+    cloud.rotation.y = yaw;              // local x runs along the front, local z toward the city / camera
     this.cloudMat = cloudMat;
     this.cloudGroup = new Group();
     this.cloudGroup.add(cloud);

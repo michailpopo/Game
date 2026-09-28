@@ -75,3 +75,4 @@ npm run qa           # all automated checks + COMPLIANCE_REPORT.md
 | 2026-09-28 | Brighter surroundings pass (ffe8823) reverted | owner: "nevermind mach zurück" | keeping the brighter colours |
 | 2026-09-28 | Storm cloud rebuild reverted | owner: "mach zurück sofort" | keeping the new cloud |
 | 2026-09-28 | Storm cloud: shape only reworked (cumulus of flat-bottomed puffs, tallest in the middle); colour, position, lightning unchanged | owner screenshot: the row of equal puffs looked wrong; "only the form, nothing else" | new colours / position (reverted earlier) |
+| 2026-09-28 | Storm cloud skinned as one smooth mesh (envelope of the puffs, 4.5k tris) | owner: "must look like one object, not balls" | instanced spheres; marching-cubes addon (heavier, more triangles) |

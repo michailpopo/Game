@@ -81,6 +81,11 @@ game logic: I have not reached 100% on any level"):
   strike origin and flicker; now 13 smooth flat-bottomed puffs (`puffGeometry`) in a cumulus layout - flat base row,
   fuller body, crown tallest in the middle, some depth - 0.95 x city wide instead of 1.1 x. Stills
   `qa/cloud/v3-L{12,26}-play.png` (before: `qa/cloud/before-*`); tool `node tools/qa/cloud-shots.mjs`. Playtest v7.
+- **Cloud as ONE object** (owner: "it must look like one object, now it is obvious it's just balls"): the puff
+  layout only defines an envelope; `cloudGeometry()` in city-mesh.js skins it as one mesh - an icosphere (detail 14,
+  4.5k tris = the one allowed "hero" geometry) whose directions are stretched to the cloud's extents, each vertex
+  pushed to the far ray hit of the puff ellipsoids, cut flat underneath, 2 Laplacian passes. Same material, colour,
+  position, strike origin. Stills `qa/cloud/one4-L{12,26}-play.png`. Playtest v8.
 - Harness: `revive-offer` waits for the ring digit to change (the ring counts game time; 1 fps software WebGL).
 
 Open look notes for the owner to judge: in portrait the "FREE" upgrade button sits low under the Voltage card.
@@ -149,8 +154,9 @@ and re-run `node tools/qa/balance.mjs campaign 60 1-20`.
 `viewports`, `ad-ui-style`, `performance` - software WebGL, p95 1167 ms, not a Chromebook number).
 Poly budget: max 12.9k tris / 39 draw calls in play at city 1 (budget 60k / 60); idle city 36: 32k tris / 39 calls.
 Boot 0.23 MB to first gameplayStart. `npm run build` OK, `node tools/qa/sim-health.mjs --selftest` PASS.
-Playtest page (current build = version 7, cloud shape): https://claude.ai/artifact/NiMqU6S1QUtHXMyUzwPKd1
-After the cloud-shape change: `--only boot,poly-budget,touch` 0 FAIL (17.3k tris / 39 calls in play at city 1).
+Playtest page (current build = version 8, cloud as one object): https://claude.ai/artifact/NiMqU6S1QUtHXMyUzwPKd1
+After the one-object cloud: `--only boot,poly-budget,touch` 0 FAIL (15.1k tris / 39 calls in play at city 1; heaviest
+geometry storm-cloud 4,500 tris x1, the one hero allowed up to 5,000).
 
 **First job for the next chat:** owner playtest answers (FULL POWER reachable now? island look? sounds), fix what
 they say, then HANDOFF section 4 steps 3-4 (full QA + crazygames-qa audit `docs/CG_QA_AUDIT.md`, launch package).

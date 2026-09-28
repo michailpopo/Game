@@ -340,11 +340,12 @@ export class GameView {
             this.cityMesh.sweep(this.time);
             const tall = [...bs].sort((p, q) => q.tipY - p.tipY).slice(0, 5);
             tall.forEach((b, i) => {
-              _a.set(b.x, b.tipY, b.z);
+              // fireworks: radial bursts high above the tallest towers, staggered by height
+              _a.set(b.x, b.tipY + 14 + i * 3, b.z);
               const col = this.theme?.lit[i % this.theme.lit.length] ?? LOOK.gold;
-              for (let k = 0; k < 2; k++) fx.streak(_a, (Math.random() - 0.5) * 30, 30 + Math.random() * 14, (Math.random() - 0.5) * 30, { color: col, width: 1.5, life: 1, gravity: 10 });
-              fx.sparks(_a, { count: 18, colors: this.theme?.lit, speed: 8, up: 6, size: 0.26, life: 1.1, gravity: 5 });
-              fx.glow(_a, { color: col, size: 4, grow: 1.6, life: 0.6, intensity: 2 });
+              fx.sparks(_a, { count: 30, colors: [col, "#ffffff", LOOK.gold], speed: 9, up: 0, size: 0.3, life: 1.3, gravity: 2.5, stretch: 0.03 });
+              fx.glow(_a, { color: col, size: 5, grow: 1.6, life: 0.5, intensity: 2 });
+              fx.sparks(_b.set(b.x, b.tipY, b.z), { count: 10, color: LOOK.gold, speed: 5, up: 6, size: 0.22, life: 0.9 });
             });
             this.audio.play("powerSweep");
             this.audio.play("fanfare", { volume: 0.9 });

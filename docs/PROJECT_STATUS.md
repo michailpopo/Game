@@ -1,12 +1,12 @@
 # Project status - Storm Grid
 
-Updated: 2026-09-27 · Project folder: /home/user/Game (repo michailpopo/Game, branch claude/festive-darwin-7ukgnb)
+Updated: 2026-09-28 · Project folder: /home/user/Game (repo michailpopo/Game, branch claude/festive-darwin-7ukgnb)
 
 ## Where we are
-- **Phase:** 3 Build - Storm Grid (concept T1 Volt City, 3D)
+- **Phase:** 3 Build - Storm Grid (3D). Handoff to a new chat on 2026-09-28: read HANDOFF.md first.
 - **Current objective:** an original, dopamine-hitting game that looks premium, upload-ready this session.
-- **Next action (one concrete step):** verify WP-30 (3D core) when the engineer returns; then WP-31 (wire the look kit + juice + sound) and WP-32 (meta, offers, shop) in parallel; then full QA + crazygames-qa audit; then covers/videos/upload package.
-- **Waiting on the user:** nothing; next: approve the restyled city (WP-21), then play the first build.
+- **Next action (one concrete step):** finish + verify WP-31 (toy city, bolts, juice, sounds in the real game) and WP-32 (shop, offers) - both stopped near the end and unverified; then owner playtest, full QA + crazygames-qa audit, launch package (HANDOFF.md section 4).
+- **Waiting on the user:** nothing until the next playtest build; then: play it and audition the sounds.
 
 ## Gates
 | Gate | Status | Date | Evidence |
@@ -36,15 +36,15 @@ npm run qa           # all automated checks + COMPLIANCE_REPORT.md
 | Metric | Value | Date | How |
 |---|---|---|---|
 | Bytes to first gameplayStart | 0.18 MB (template demo) | 2026-09-26 | browser-qa boot |
-| Total dist size / files | 0.64 MB / 6 files (template demo) | 2026-09-26 | check-bundle |
+| Total dist size / files | ~0.8 MB (Storm Grid build) | 2026-09-28 | du -sh dist |
 | p95 frame time @4x CPU throttle | | | browser-qa performance |
 | Draw calls / triangles in play | | | `__GS_QA__.renderInfo()` |
 | Compliance verdict | NOT VERIFIED (template demo: 16 PASS, 46 unverified) | 2026-09-26 | report.mjs |
 | Docs freshness | UNCHANGED vs register 2026.09.11 | 2026-09-26 | check-docs-freshness.mjs |
 
 ## Top 3 problems (reorder after every playtest)
-1. Nothing playable of Storm Grid yet has been verified by the planner (WP-30 in progress).
-2. The chain must read clearly in 3D and feel great on a real GPU (container renders in software; owner playtest needed).
+1. WP-31/WP-32 unverified; last screenshots show a weak bolt / pale lit colours in the game and the shop over the old dark city (HANDOFF.md section 3).
+2. No owner playtest of Storm Grid yet; sounds not auditioned.
 3. Economy numbers are model numbers (Monte Carlo) until a human playtest.
 
 ## Known bugs
@@ -66,3 +66,4 @@ npm run qa           # all automated checks + COMPLIANCE_REPORT.md
 | 2026-09-26 | Concept T1 Volt City, fully 3D; renamed Storm Grid | owner's picks ("It must be 3d game"; Volt City collides with a Volt Casino game) | T2 Shatterfall, T3 Magnet Heap; keeping the casino-colliding name |
 | 2026-09-26 | Look kit WP-20 done: Neutral tone mapping (ACES/AgX washed colours out), bloom only on high/ultra tiers | side-by-side captures in qa/wp20/ | ACES, AgX |
 | 2026-09-27 | Keep the UI; restyle the city from hit-game references, keep it simple | owner: "good in general, the ui looks great but the city is still looking too ai generated, grab some visual inspo from games with a lot of likes that are made in html5, do not overcomplicate" | neon-cyberpunk city |
+| 2026-09-28 | Stopped both specialists and wrote HANDOFF.md | owner wants to continue in a new chat to save context tokens; the account hit its usage limit twice | keep agents running here |

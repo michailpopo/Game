@@ -76,6 +76,11 @@ game logic: I have not reached 100% on any level"):
   **reverted at the owner's request** ("nevermind mach zurück") - the island colours above are the current ones.
 - A stylised-cumulonimbus rebuild of the storm cloud (moved back-left over the sea) was **reverted at the owner's
   request** ("mach zurück sofort") - the cloud is the original row of slate puffs behind the city again.
+- **Cloud SHAPE only** (owner, with a screenshot: "only rework the form of the cloud, nothing else, until it looks
+  normal"; the old 14 equal stretched spheres in one row read as a caterpillar): same material, colour, position,
+  strike origin and flicker; now 13 smooth flat-bottomed puffs (`puffGeometry`) in a cumulus layout - flat base row,
+  fuller body, crown tallest in the middle, some depth - 0.95 x city wide instead of 1.1 x. Stills
+  `qa/cloud/v3-L{12,26}-play.png` (before: `qa/cloud/before-*`); tool `node tools/qa/cloud-shots.mjs`. Playtest v7.
 - Harness: `revive-offer` waits for the ring digit to change (the ring counts game time; 1 fps software WebGL).
 
 Open look notes for the owner to judge: in portrait the "FREE" upgrade button sits low under the Voltage card.

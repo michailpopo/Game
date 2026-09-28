@@ -35,6 +35,15 @@ const _c2 = new Color();
 const _up = new Vector3(0, 1, 0);
 const ID = new Quaternion();
 const BASE = 0.35;              // pad top: buildings stand on their district pad
+
+/** A cloud puff: a smooth sphere whose underside is squashed flat (clouds have flat bottoms). */
+function puffGeometry() {
+  const g = new SphereGeometry(1, 20, 14);
+  const pos = g.attributes.position;
+  for (let i = 0; i < pos.count; i++) { const y = pos.getY(i); if (y < 0) pos.setY(i, y * 0.35); }
+  g.computeVertexNormals();
+  return g;
+}
 const ISLAND_RIM = 14;          // m of grass between the asphalt plate and the beach
 
 /** A rounded-rectangle slab, top face at y = 0, `h` deep, bevelled edge; caps = group 0, sides + bevel = group 1. */
@@ -358,16 +367,24 @@ export class CityMesh {
     this.cloudCenter = new Vector3(cx, this.cloudY, cz);
     const cloudMat = this.#own(enhance(new MeshStandardMaterial({ color: LOOK.cloud, roughness: 1, emissive: LOOK.cloudGlow, emissiveIntensity: 0, envMapIntensity: 0.3 }),
       { rim: 0.4, rimPower: 2.4, rimColor: "#ffe0ec", rimTint: 0 }));
-    const puffs = 14;
-    const cloud = new InstancedMesh(this.#own(new SphereGeometry(1, 12, 8)), cloudMat, puffs);
+    // Shape: a cumulus - a flat base row, a fuller body, a crown that is tallest in the middle; puffs of mixed
+    // sizes with some depth, flat-bottomed and smooth (a straight row of equal stretched spheres read as a caterpillar).
+    const k = Math.max(1, size / 60);
+    const across = Math.max(46, size * 0.95);
+    const layout = [   // [t along the front (-0.5..0.5), dy (m / k), toward the camera (m / k), radius (m / k), squash]
+      [-0.42, -2, 0, 5.5, 0.45], [-0.21, -2, 0, 7, 0.45], [0, -2, 0, 7.5, 0.45], [0.21, -2, 0, 7, 0.45], [0.42, -2, 0, 5.5, 0.45],
+      [-0.28, 1.2, -1, 6.5, 0.8], [-0.08, 2, 1, 8, 0.8], [0.12, 2, -1, 8, 0.8], [0.30, 1, 1, 6, 0.8],
+      [-0.10, 4.5, 0, 6.5, 0.85], [0.10, 5, -0.5, 7, 0.85],
+      [-0.18, -1.6, 4, 6, 0.7], [0.16, -1.4, 4, 6.5, 0.7],
+    ];
+    const cloud = new InstancedMesh(this.#own(puffGeometry()), cloudMat, layout.length);
     cloud.name = "storm-cloud";
-    const across = Math.max(40, size * 1.1);
-    for (let i = 0; i < puffs; i++) {
-      const t = i / (puffs - 1) - 0.5;
-      const s = rng.range(5.5, 9.5) * (1 - Math.abs(t) * 0.6) * Math.max(1, size / 60);
-      const x = cx + Math.cos(yaw) * t * across + rng.range(-3, 3), z = cz - Math.sin(yaw) * t * across + rng.range(-3, 3);
-      cloud.setMatrixAt(i, _m.compose(_p.set(x, this.cloudY + rng.range(-2, 5) + (1 - Math.abs(t) * 2) * 4, z), ID, _s.set(s * 1.25, s * 0.8, s)));
-    }
+    layout.forEach(([t, dy, dv, r0, sq], i) => {
+      const r = r0 * k * rng.range(0.93, 1.07);
+      const along = (t + rng.range(-0.015, 0.015)) * across, toward = dv * k + rng.range(-1, 1);
+      const x = cx + Math.cos(yaw) * along + Math.sin(yaw) * toward, z = cz - Math.sin(yaw) * along + Math.cos(yaw) * toward;
+      cloud.setMatrixAt(i, _m.compose(_p.set(x, this.cloudY + (dy - 1) * k, z), ID, _s.set(r * 1.15, r * sq, r)));   // -1: the flat underside sits where strikes start
+    });
     this.cloudMat = cloudMat;
     this.cloudGroup = new Group();
     this.cloudGroup.add(cloud);

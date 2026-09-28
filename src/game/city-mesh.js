@@ -36,6 +36,21 @@ const _up = new Vector3(0, 1, 0);
 const ID = new Quaternion();
 const BASE = 0.35;              // pad top: buildings stand on their district pad
 const ISLAND_RIM = 14;          // m of grass between the asphalt plate and the beach
+const SHORE_LIFT = 0.28;        // emissive share of the island/sea colours: they stay bright under the dusk light
+
+/** Emissive tinted by the per-instance / vertex colour (emissive white x lift would wash everything to white). */
+function enhanceTint(mat) {
+  mat.onBeforeCompile = (shader) => {
+    shader.fragmentShader = shader.fragmentShader.replace("#include <emissivemap_fragment>", `#include <emissivemap_fragment>
+#if defined( USE_COLOR ) || defined( USE_INSTANCING_COLOR )
+  totalEmissiveRadiance *= vColor.rgb;
+#endif`);
+  };
+  mat.customProgramCacheKey = () => "storm-tint-emissive";
+}
+
+/** Surroundings material: its own colour as a soft emissive lift, so the dusk rig cannot grey it out. */
+const shoreMat = (color, o = {}) => new MeshStandardMaterial({ color, emissive: color, emissiveIntensity: SHORE_LIFT, roughness: 0.9, ...o });
 
 /** A rounded-rectangle slab, top face at y = 0, `h` deep, bevelled edge; caps = group 0, sides + bevel = group 1. */
 function roundedSlabGeometry(w, d, r, h, bevel) {
@@ -232,21 +247,21 @@ export class CityMesh {
     const islW = plateW + 2 * ISLAND_RIM, islD = plateD + 2 * ISLAND_RIM;
     // island: grass top (caps) with an earth edge (sides + bevel); its top is the old field level
     const field = new Mesh(this.#own(roundedSlabGeometry(islW, islD, 12, 5, 0.9)),
-      [this.#own(new MeshStandardMaterial({ color: sh.ground, roughness: 0.95 })), this.#own(new MeshStandardMaterial({ color: sh.earth, roughness: 0.95 }))]);
+      [this.#own(shoreMat(sh.ground)), this.#own(shoreMat(sh.earth))]);
     field.position.y = -0.05;
     field.receiveShadow = true;
     field.name = "island";
-    const beach = new Mesh(this.#own(roundedSlabGeometry(islW + 9, islD + 9, 16, 3, 1.2)), this.#own(new MeshStandardMaterial({ color: sh.sand, roughness: 0.9 })));
+    const beach = new Mesh(this.#own(roundedSlabGeometry(islW + 9, islD + 9, 16, 3, 1.2)), this.#own(shoreMat(sh.sand)));
     beach.position.y = -1.0;
     beach.name = "beach";
-    const lagoon = new Mesh(this.#own(roundedSlabGeometry(islW + 34, islD + 34, 30, 0.2, 0)), this.#own(new MeshStandardMaterial({ color: sh.shallow, roughness: 0.25, transparent: true, opacity: 0.8 })));
+    const lagoon = new Mesh(this.#own(roundedSlabGeometry(islW + 34, islD + 34, 30, 0.2, 0)), this.#own(shoreMat(sh.shallow, { roughness: 0.25, transparent: true, opacity: 0.85 })));
     lagoon.position.y = -1.42;
-    const foam = new Mesh(this.#own(roundedSlabGeometry(islW + 12, islD + 12, 18, 0.2, 0)), this.#own(new MeshStandardMaterial({ color: "#ffffff", roughness: 0.6, transparent: true, opacity: 0.75 })));
+    const foam = new Mesh(this.#own(roundedSlabGeometry(islW + 12, islD + 12, 18, 0.2, 0)), this.#own(shoreMat("#ffffff", { roughness: 0.6, transparent: true, opacity: 0.85 })));
     foam.position.y = -1.34;
     foam.name = "surf";
     lagoon.name = "lagoon";
     this.lagoon = lagoon;
-    const sea = new Mesh(this.#own(new PlaneGeometry(size * 14 + 600, size * 14 + 600)), this.#own(new MeshStandardMaterial({ color: sh.sea, roughness: 0.3, metalness: 0.05 })));
+    const sea = new Mesh(this.#own(new PlaneGeometry(size * 14 + 600, size * 14 + 600)), this.#own(shoreMat(sh.sea, { roughness: 0.3, metalness: 0.05 })));
     sea.rotation.x = -Math.PI / 2;
     sea.position.y = -1.6;
     sea.name = "sea";
@@ -260,11 +275,11 @@ export class CityMesh {
       if (isles.some((o) => Math.hypot(o.x - x, o.z - z) < 40)) continue;
       isles.push({ x, z, r: isleRng.range(9, 20), h: isleRng.range(0.3, 0.55), rot: isleRng.range(0, 6.28) });
     }
-    const isleMesh = new InstancedMesh(this.#own(new IcosahedronGeometry(1, 1)), this.#own(new MeshStandardMaterial({ color: sh.islet, roughness: 0.9, flatShading: true })), Math.max(1, isles.length));
+    const isleMesh = new InstancedMesh(this.#own(new IcosahedronGeometry(1, 1)), this.#own(shoreMat(sh.islet, { flatShading: true })), Math.max(1, isles.length));
     isleMesh.name = "islets";
     isles.forEach((o, i) => isleMesh.setMatrixAt(i, _m.compose(_p.set(o.x, -1.6, o.z), _q.setFromAxisAngle(_up, o.rot), _s.set(o.r, o.r * o.h, o.r * 0.8))));
     isleMesh.count = isles.length;
-    const isleSand = new InstancedMesh(this.#own(new CylinderGeometry(1, 1, 1, 14)), this.#own(new MeshStandardMaterial({ color: sh.sand, roughness: 0.9 })), Math.max(1, isles.length));
+    const isleSand = new InstancedMesh(this.#own(new CylinderGeometry(1, 1, 1, 14)), this.#own(shoreMat(sh.sand)), Math.max(1, isles.length));
     isleSand.name = "islet-beaches";
     isles.forEach((o, i) => isleSand.setMatrixAt(i, _m.compose(_p.set(o.x, -1.55, o.z), _q.setFromAxisAngle(_up, o.rot), _s.set(o.r * 1.25, 0.3, o.r))));
     isleSand.count = isles.length;
@@ -329,23 +344,25 @@ export class CityMesh {
       if (!onRoad(v, along ? zs : xs)) continue;
       cars.push(along ? { kind: "car", x: c + side * 1.6, z: v, s: 1.35, r: side > 0 ? 0 : Math.PI } : { kind: "car", x: v, z: c + side * 1.6, s: 1.35, r: side > 0 ? Math.PI / 2 : -Math.PI / 2 });
     }
-    const propMesh = (list, kind, cast, name, y0 = 0) => {
+    const propMesh = (list, kind, cast, name, y0 = 0, palette = W.trees, lift = 0) => {
       const items = list.filter((p) => p.kind === kind);
       if (!items.length) return;
-      const mesh = new InstancedMesh(geos[kind], this.#own(new MeshStandardMaterial({ vertexColors: true, roughness: kind === "car" ? 0.45 : 0.85 })), items.length);
+      const mat = new MeshStandardMaterial({ vertexColors: true, roughness: kind === "car" ? 0.45 : 0.85 });
+      if (lift) { mat.emissive.set("#ffffff"); mat.emissiveIntensity = lift; enhanceTint(mat); }
+      const mesh = new InstancedMesh(geos[kind], this.#own(mat), items.length);
       mesh.name = name;
       mesh.castShadow = cast;
       mesh.receiveShadow = kind !== "car";
       items.forEach((p, i) => {
         mesh.setMatrixAt(i, _m.compose(_p.set(p.x, kind === "car" ? 0.1 : y0, p.z), _q.setFromAxisAngle(_up, p.r), _s.setScalar(p.s)));
-        mesh.setColorAt(i, _c.set(kind === "car" ? ["#ff5a5f", "#ffd23f", "#4f8dff", "#ffffff", "#ff9f40"][i % 5] : W.trees[i % W.trees.length]));
+        mesh.setColorAt(i, _c.set(kind === "car" ? ["#ff5a5f", "#ffd23f", "#4f8dff", "#ffffff", "#ff9f40"][i % 5] : palette[i % palette.length]));
       });
       this.group.add(mesh);
     };
-    propMesh(trees, "roundTree", small, "park-trees", BASE);
-    propMesh(trees, "coneTree", small, "park-pines", BASE);
-    propMesh(ring, "roundTree", false, "ring-trees");
-    propMesh(ring, "coneTree", false, "ring-pines");
+    propMesh(trees, "roundTree", small, "park-trees", BASE, sh.trees, SHORE_LIFT);
+    propMesh(trees, "coneTree", small, "park-pines", BASE, sh.trees, SHORE_LIFT);
+    propMesh(ring, "roundTree", false, "ring-trees", 0, sh.trees, SHORE_LIFT);
+    propMesh(ring, "coneTree", false, "ring-pines", 0, sh.trees, SHORE_LIFT);
     propMesh(cars, "car", false, "cars");
 
     // ---------------------------------------------------------------- storm front (behind the city, top of frame)

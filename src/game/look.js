@@ -94,18 +94,20 @@ export const themeOf = (city) => THEMES[(city?.theme ?? 0) % THEMES.length];
  *   ground (island top, replaces world.field) · earth (island sides) · sand · shallow · sea · islet
  */
 export const SHORES = {
-  downtown: { ground: "#7cc463", earth: "#b98a5e", sand: "#f4e0a6", shallow: "#8fe6dc", sea: "#35a9dc", islet: "#62b85a" },
-  harbour: { ground: "#80cf6a", earth: "#a9825f", sand: "#f6e3b2", shallow: "#96e6f2", sea: "#2f82d8", islet: "#5fb87a" },
-  oldtown: { ground: "#8cbf5a", earth: "#b07a55", sand: "#f1dba9", shallow: "#94e2cc", sea: "#3aa9ba", islet: "#74b04e" },
-  hills: { ground: "#6cb85a", earth: "#9c7b5b", sand: "#efe1b2", shallow: "#a1e9e2", sea: "#3fa1d2", islet: "#52a24c" },
-  neonbay: { ground: "#3552a8", earth: "#2b2b6c", sand: "#e8c8f1", shallow: "#7d6cea", sea: "#3b2b91", islet: "#3fc48a" },
-  snowpeak: { ground: "#eef2fb", earth: "#9eabcb", sand: "#ffffff", shallow: "#d2ecff", sea: "#7fb9e2", islet: "#f6f8ff" },
-  desert: { ground: "#e6c186", earth: "#c28b5b", sand: "#f6dda9", shallow: "#86e2d2", sea: "#2fb9ba", islet: "#d9a96b" },
-  skyport: { ground: "#f4f6ff", earth: "#9ba7d8", sand: "#e9edfc", shallow: "#ffffff", sea: "#d4dcff", islet: "#ffffff" },
+  // 2026-09-28 owner: "the colours around are too dim" -> saturated, bright candy-toy values (+ an emissive lift in
+  // city-mesh.js), and a clear horizon fog, so the dusk light no longer greys them out. The city keeps its palette.
+  downtown: { ground: "#62d94a", earth: "#d8894a", sand: "#ffe38a", shallow: "#52f2e2", sea: "#1c9cff", islet: "#4fe06a", horizon: "#9fd8ff", trees: ["#3fcf4a", "#8fe83a", "#1fb86a"] },
+  harbour: { ground: "#6be052", earth: "#d88a50", sand: "#ffe69a", shallow: "#5cf0ff", sea: "#1a7dff", islet: "#48d67a", horizon: "#a4d4ff", trees: ["#3fcf5a", "#8fe84a", "#1fb87a"] },
+  oldtown: { ground: "#86d84a", earth: "#d67f48", sand: "#ffe0a0", shallow: "#58f0d0", sea: "#14b0d0", islet: "#6ad84a", horizon: "#ffd0b0", trees: ["#5fcf3a", "#a8e83a", "#2fb85a"] },
+  hills: { ground: "#57d44a", earth: "#c9844e", sand: "#ffe6a0", shallow: "#6af5ea", sea: "#1fa4ff", islet: "#3fd05a", horizon: "#b0dcff", trees: ["#2fc84a", "#7fe03a", "#1fae5a"] },
+  neonbay: { ground: "#35e0b0", earth: "#6a2fd0", sand: "#ff8ae0", shallow: "#3fe8ff", sea: "#2a3ad8", islet: "#ff6ad0", horizon: "#ff9ae0", trees: ["#ff5ad0", "#3fe8ff", "#ffd23f"] },
+  snowpeak: { ground: "#f4f8ff", earth: "#8fa8e8", sand: "#ffffff", shallow: "#a8e6ff", sea: "#3fb0ff", islet: "#ffffff", horizon: "#d8f0ff", trees: ["#1fbf7a", "#3fd08a", "#0fa86a"] },
+  desert: { ground: "#ffcf6a", earth: "#e08040", sand: "#ffe6a8", shallow: "#48f0d8", sea: "#10c0c8", islet: "#ffb85a", horizon: "#ffd6a0", trees: ["#7fd83a", "#a8e83a", "#4fc04a"] },
+  skyport: { ground: "#f6f8ff", earth: "#8f9cff", sand: "#eef0ff", shallow: "#ffffff", sea: "#c8d4ff", islet: "#ffffff", horizon: "#e0e6ff", trees: ["#4fe08a", "#8ff0a0", "#2fc87a"] },
 };
 export const shoreOf = (theme) => SHORES[theme?.id] || SHORES.downtown;
 
 /** The look.js backdrop preset for a theme: the dusk sky with the theme's overrides. */
 export function backdropFor(theme) {
-  return { ...BACKDROPS.dusk, ...theme.sky };
+  return { ...BACKDROPS.dusk, ...theme.sky, fog: shoreOf(theme).horizon ?? theme.sky.fog ?? BACKDROPS.dusk.fog };
 }

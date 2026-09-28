@@ -10,20 +10,21 @@
  * glowing fill line, a white flash on the hit; its roof, cap and rod ball light when the flood reaches the top.
  * BLOCK POWERED: the district pad turns warm in a wave from its centre and its buildings pulse in order.
  * FULL POWER: sweep() ripples a flash across the whole city.
- * Ground: a calm field to the horizon, the asphalt plate, rounded district pads, lane dashes, park trees in
- * empty lots, a tree ring (no shadows), a few toy cars; the storm front is a row of slate puffs behind the city.
+ * Ground: the city's island (grass top, earth edge, sand beach, shallow lagoon, open sea, islets on the horizon;
+ * colours per theme in look.js SHORES), the asphalt plate, rounded district pads, lane dashes, park trees in
+ * empty lots, trees on the island rim (no shadows), a few toy cars; the storm front is a row of slate puffs.
  * Built once per city (disposed on rebuild); per frame only the instance attributes that changed are uploaded.
  */
 
 import {
-  Color, ConeGeometry, CylinderGeometry, DynamicDrawUsage, Group, InstancedBufferAttribute, OctahedronGeometry,
-  InstancedMesh, Matrix4, Mesh, MeshStandardMaterial, PlaneGeometry, Quaternion, SphereGeometry, Vector3,
+  Color, ConeGeometry, CylinderGeometry, DynamicDrawUsage, ExtrudeGeometry, Group, IcosahedronGeometry, InstancedBufferAttribute,
+  OctahedronGeometry, InstancedMesh, Matrix4, Mesh, MeshStandardMaterial, PlaneGeometry, Quaternion, Shape, SphereGeometry, Vector3,
 } from "three";
 import { STORM } from "../config.js";
 import { createRng } from "../core/rng.js";
 import { chamferPrismGeometry, propGeometries, toyBlockMaterial, toyTrimMaterial } from "../render/city-kit.js";
 import { enhance } from "../render/materials.js";
-import { LOOK } from "./look.js";
+import { LOOK, shoreOf } from "./look.js";
 
 const _m = new Matrix4();
 const _p = new Vector3();
@@ -34,6 +35,21 @@ const _c2 = new Color();
 const _up = new Vector3(0, 1, 0);
 const ID = new Quaternion();
 const BASE = 0.35;              // pad top: buildings stand on their district pad
+const ISLAND_RIM = 14;          // m of grass between the asphalt plate and the beach
+
+/** A rounded-rectangle slab, top face at y = 0, `h` deep, bevelled edge; caps = group 0, sides + bevel = group 1. */
+function roundedSlabGeometry(w, d, r, h, bevel) {
+  const s = new Shape(), x = -w / 2, y = -d / 2;
+  r = Math.min(r, w / 2 - 0.01, d / 2 - 0.01);
+  s.moveTo(x + r, y); s.lineTo(x + w - r, y); s.quadraticCurveTo(x + w, y, x + w, y + r);
+  s.lineTo(x + w, y + d - r); s.quadraticCurveTo(x + w, y + d, x + w - r, y + d);
+  s.lineTo(x + r, y + d); s.quadraticCurveTo(x, y + d, x, y + d - r);
+  s.lineTo(x, y + r); s.quadraticCurveTo(x, y, x + r, y);
+  const g = new ExtrudeGeometry(s, { depth: h, bevelEnabled: bevel > 0, bevelThickness: bevel, bevelSize: bevel, bevelSegments: 2, curveSegments: 6 });
+  g.rotateX(Math.PI / 2);            // shape XY -> world XZ, extrusion goes down
+  g.translate(0, -bevel, 0);         // top face at y = 0
+  return g;
+}
 const FILL_SEC = 0.45;          // dark -> lit, flooding from the ground up
 const HOT_SEC = 0.22;           // the white flash of a hit
 const CAP = 0.55;               // roof rim cap height (m)
@@ -210,14 +226,51 @@ export class CityMesh {
 
     // ---------------------------------------------------------------- ground
     const size = Math.max(city.width, city.depth);
-    const field = new Mesh(this.#own(new PlaneGeometry(size * 14 + 400, size * 14 + 400)), this.#own(new MeshStandardMaterial({ color: W.field, roughness: 0.95 })));
-    field.rotation.x = -Math.PI / 2;
+    const avenue = plan?.avenue ?? 6;
+    const sh = shoreOf(theme);
+    const plateW = city.width + avenue * 2 + 6, plateD = city.depth + avenue * 2 + 6;
+    const islW = plateW + 2 * ISLAND_RIM, islD = plateD + 2 * ISLAND_RIM;
+    // island: grass top (caps) with an earth edge (sides + bevel); its top is the old field level
+    const field = new Mesh(this.#own(roundedSlabGeometry(islW, islD, 12, 5, 0.9)),
+      [this.#own(new MeshStandardMaterial({ color: sh.ground, roughness: 0.95 })), this.#own(new MeshStandardMaterial({ color: sh.earth, roughness: 0.95 }))]);
     field.position.y = -0.05;
     field.receiveShadow = true;
-    field.name = "field";
-    const avenue = plan?.avenue ?? 6;
+    field.name = "island";
+    const beach = new Mesh(this.#own(roundedSlabGeometry(islW + 9, islD + 9, 16, 3, 1.2)), this.#own(new MeshStandardMaterial({ color: sh.sand, roughness: 0.9 })));
+    beach.position.y = -1.0;
+    beach.name = "beach";
+    const lagoon = new Mesh(this.#own(roundedSlabGeometry(islW + 34, islD + 34, 30, 0.2, 0)), this.#own(new MeshStandardMaterial({ color: sh.shallow, roughness: 0.25, transparent: true, opacity: 0.8 })));
+    lagoon.position.y = -1.42;
+    const foam = new Mesh(this.#own(roundedSlabGeometry(islW + 12, islD + 12, 18, 0.2, 0)), this.#own(new MeshStandardMaterial({ color: "#ffffff", roughness: 0.6, transparent: true, opacity: 0.75 })));
+    foam.position.y = -1.34;
+    foam.name = "surf";
+    lagoon.name = "lagoon";
+    this.lagoon = lagoon;
+    const sea = new Mesh(this.#own(new PlaneGeometry(size * 14 + 600, size * 14 + 600)), this.#own(new MeshStandardMaterial({ color: sh.sea, roughness: 0.3, metalness: 0.05 })));
+    sea.rotation.x = -Math.PI / 2;
+    sea.position.y = -1.6;
+    sea.name = "sea";
+    // islets on the horizon (behind and beside the city, never between the camera and it)
+    const isleRng = createRng(`${seed}:isles:${city.level}`), isles = [];
+    const yawC = 35 * Math.PI / 180, cvx = Math.sin(yawC), cvz = Math.cos(yawC);
+    for (let k = 0; k < 40 && isles.length < 7; k++) {
+      const a = isleRng.range(0, Math.PI * 2), rr = Math.max(islW, islD) * isleRng.range(0.95, 1.9) + 30;
+      const x = Math.cos(a) * rr, z = Math.sin(a) * rr;
+      if ((x * cvx + z * cvz) / rr > 0.2) continue;
+      if (isles.some((o) => Math.hypot(o.x - x, o.z - z) < 40)) continue;
+      isles.push({ x, z, r: isleRng.range(9, 20), h: isleRng.range(0.3, 0.55), rot: isleRng.range(0, 6.28) });
+    }
+    const isleMesh = new InstancedMesh(this.#own(new IcosahedronGeometry(1, 1)), this.#own(new MeshStandardMaterial({ color: sh.islet, roughness: 0.9, flatShading: true })), Math.max(1, isles.length));
+    isleMesh.name = "islets";
+    isles.forEach((o, i) => isleMesh.setMatrixAt(i, _m.compose(_p.set(o.x, -1.6, o.z), _q.setFromAxisAngle(_up, o.rot), _s.set(o.r, o.r * o.h, o.r * 0.8))));
+    isleMesh.count = isles.length;
+    const isleSand = new InstancedMesh(this.#own(new CylinderGeometry(1, 1, 1, 14)), this.#own(new MeshStandardMaterial({ color: sh.sand, roughness: 0.9 })), Math.max(1, isles.length));
+    isleSand.name = "islet-beaches";
+    isles.forEach((o, i) => isleSand.setMatrixAt(i, _m.compose(_p.set(o.x, -1.55, o.z), _q.setFromAxisAngle(_up, o.rot), _s.set(o.r * 1.25, 0.3, o.r))));
+    isleSand.count = isles.length;
+    this.group.add(sea, lagoon, foam, beach, isleMesh, isleSand);
     const plate = new Mesh(this.#own(chamferPrismGeometry(0.02)), this.#own(new MeshStandardMaterial({ color: W.asphalt, roughness: 0.9 })));
-    plate.scale.set(city.width + avenue * 2 + 6, 0.12, city.depth + avenue * 2 + 6);
+    plate.scale.set(plateW, 0.12, plateD);
     plate.position.y = -0.02;
     plate.receiveShadow = true;
     plate.name = "asphalt";
@@ -260,14 +313,15 @@ export class CityMesh {
         for (let t = 0; t < k && trees.length < 70; t++) trees.push({ kind: rng.next() < 0.6 ? "roundTree" : "coneTree", x: x + rng.range(-2, 2), z: z + rng.range(-2, 2), s: rng.range(1.7, 2.3), r: rng.range(0, 6.28) });
       }
     }
-    // the tree ring: behind and beside the city only (the camera side stays open), sparse near the plate
-    const outer = size / 2 + avenue + 8, yaw0 = 35 * Math.PI / 180, vx = Math.sin(yaw0), vz = Math.cos(yaw0);
-    for (let k = 0; k < 70 && ring.length < 38; k++) {
-      const a = rng.range(0, Math.PI * 2), rr = outer + rng.range(6, 60);
-      const x = Math.cos(a) * rr, z = Math.sin(a) * rr;
-      if (Math.abs(x) < outer - 2 && Math.abs(z) < outer - 2) continue;
-      if ((x * vx + z * vz) / rr > 0.35) continue;             // not between the camera and the city
-      ring.push({ kind: rng.next() < 0.55 ? "roundTree" : "coneTree", x, z, s: rng.range(1.8, 2.8), r: rng.range(0, 6.28) });
+    // trees on the island rim: behind and beside the city (the camera side keeps only low, sparse ones)
+    const yaw0 = 35 * Math.PI / 180, vx = Math.sin(yaw0), vz = Math.cos(yaw0);
+    const ringMax = Math.min(96, Math.max(44, Math.round((islW + islD) / 4)));   // grows with the island's rim
+    for (let k = 0; k < 400 && ring.length < ringMax; k++) {
+      const x = rng.range(-islW / 2 + 3, islW / 2 - 3), z = rng.range(-islD / 2 + 3, islD / 2 - 3);
+      if (Math.abs(x) < plateW / 2 + 2 && Math.abs(z) < plateD / 2 + 2) continue;   // on the grass, off the plate
+      const front = (x * vx + z * vz) / Math.hypot(x, z) > 0.35;                     // between the camera and the city
+      if (front && rng.next() < 0.75) continue;
+      ring.push({ kind: rng.next() < 0.55 ? "roundTree" : "coneTree", x, z, s: front ? rng.range(1.3, 1.7) : rng.range(1.8, 2.8), r: rng.range(0, 6.28) });
     }
     for (let k = 0; k < Math.min(14, (lx.length + lz.length) * 2); k++) {
       const along = rng.next() < 0.5, list = along ? lx : lz;

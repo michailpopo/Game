@@ -66,7 +66,10 @@ The fill is linear, 0 -> 100% in **1.2 s**. The first city ever: 1.6 s, with a b
   between antenna tips. So tall towers are hubs, and a tall neighbour can be out of reach.
   - `R = 16 m + 0.5 m x Voltage` (16 -> 23.5 m).
   - Each hop costs 1 energy and lights that building.
-  - If no unlit antenna is within R, the bolt **grounds out**: a spark into the street, and that bolt ends.
+  - If no unlit antenna is within R, a **SUPERCHARGE bolt** (and its forks) **LEAPS** to the nearest unlit antenna
+    within 2 x R for 3 energy (gold arc, "LEAP!"); any other bolt, or one with < 3 energy, **grounds out**: a spark into
+    the street, and that bolt ends. (2026-09-28: without the leap, lone dark blocks made FULL POWER nearly impossible -
+    owner playtest + `node tools/qa/balance.mjs`.)
 - **Hop timing:** `0.08 s + 0.07 s x (1 - e / e_strike)`. Fresh bolts leap fast; the last hops slow down (the
   "running out of juice" read).
   - A cascade of 20-40 hops with forks lasts ~2-5 s.
@@ -155,6 +158,11 @@ Formulas:
 
 **Upgrades** (rounded to 5 below 1,000, to 50 above; shown as objects on the storm-control rooftop in the result screen):
 
+**2026-09-28: all upgrade prices doubled** (base x2, same growth) together with the SUPERCHARGE leap: FULL POWER x10 is
+common now, so coins come faster. The price column below shows the OLD bases; the live values are in `src/config.js`
+ECONOMY.upgrades (Voltage 120, Fork 200, Strikes 1200, Capacitor 300, Gold rods 600). Campaign check
+(`node tools/qa/balance.mjs campaign 60 1-20`): "human" player model powers 58-82% of cities fully, passes ~100%.
+
 | Upgrade | Effect per level | Price | Max | Prices | Total |
 |---|---|---|---|---|---|
 | **Voltage** | +2 hops per bolt (E0), +0.5 m range | 60 x 1.45^n | 15 | 60, 85, 125, 185, 265, 385, 560, 810, 1,150, 1,700, 2,450, 3,550, 5,200, 7,500, 10,900 | 34,925 |
@@ -170,7 +178,7 @@ Formulas:
   10,260 (total ~32,500).
 
 **Pace:**
-- The first upgrade (Voltage 60) is affordable after city 1.
+- The first upgrade (Voltage 120 since 2026-09-28) is affordable after city 1 (FULL POWER pays ~470 there).
 - Cities 1-10: an upgrade after almost every run. Cities 10-20: every 1-2 runs. All upgrades max near city 30 for an
   average player.
 - A skin every ~3-5 runs if saved for.

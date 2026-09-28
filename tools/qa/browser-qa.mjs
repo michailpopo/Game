@@ -620,10 +620,12 @@ await scenario("revive-offer", async () => {
   await page.evaluate((a) => window.__GS_QA__.forceFail(a), reviveAt);
   await page.waitForSelector('.modal:not([hidden]) button[data-id="revive"]', { timeout: 8000 });
   const ring1 = await page.textContent(".dialog .ring b");
-  await sleep(1300);
-  const ring2 = await page.textContent(".dialog .ring b");
+  // The ring counts GAME time (a paused game holds it), so on a 1-3 fps software renderer a wall-clock second is
+  // only a fraction of a countdown second: wait for the digit to change instead of sleeping a fixed time.
+  await page.waitForFunction((r1) => document.querySelector(".dialog .ring b")?.textContent !== r1, ring1, { timeout: 30000 }).catch(() => {});
+  const ring2 = await page.textContent(".dialog .ring b").catch(() => ring1);
   if (!(Number(ring2) < Number(ring1))) problems.push(`countdown not running (${ring1} -> ${ring2})`);
-  await page.waitForSelector('.modal:not([hidden]) button[data-id="revive"]', { state: "detached", timeout: 12000 }).catch(() => problems.push("revive offer still there after the countdown"));
+  await page.waitForSelector('.modal:not([hidden]) button[data-id="revive"]', { state: "detached", timeout: 90000 }).catch(() => problems.push("revive offer still there after the countdown"));
   let s = await state(page);
   if (s.adsLog.some((e) => e.type === "rewarded" && e.context === "fail-revive")) problems.push("an ad was requested when the countdown ran out");
   if (!s.adsLog.some((e) => e.type === "offer" && e.context === "fail-revive" && e.outcome === "expired")) problems.push("expiry not logged in the offer funnel");

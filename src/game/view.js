@@ -270,7 +270,12 @@ export class GameView {
           const a = bs[ev.from], b = bs[ev.to];
           const gen = Math.min(4, ev.gen);
           _a.set(a.x, a.tipY, a.z); _b.set(b.x, b.tipY, b.z);
-          fx.bolt(_a, _b, { color: glow, width: 2.9 + gen * 0.12, forks: 1, forkLength: 0.3, arc: 1.4, jag: 0.12, life: 0.6, intensity: 1.5, core: 3.2, beads: 2, fromHalo: false, haloSize: 2 });
+          if (ev.leap) {
+            // A SUPERCHARGE bolt jumping an avenue to the next dark block: a gold arc, wider and higher than a hop.
+            fx.bolt(_a, _b, { color: LOOK.super, width: 3.6, forks: 2, forkLength: 0.2, arc: 4, jag: 0.1, life: 0.7, intensity: 1.6, core: 3.4, beads: 3, fromHalo: false, haloSize: 2.6 });
+            const s = this.toScreen(b.x, b.tipY + 4, b.z, _scr);
+            if (s.visible) this.#floatAt(s.x, s.y - 30, t("leap"), "gold");
+          } else fx.bolt(_a, _b, { color: glow, width: 2.9 + gen * 0.12, forks: 1, forkLength: 0.3, arc: 1.4, jag: 0.12, life: 0.6, intensity: 1.5, core: 3.2, beads: 2, fromHalo: false, haloSize: 2 });
           fx.glow(_b, { color: glow, size: 2.6, grow: 1.5, life: 0.4, intensity: 2.2 });
           fx.sparks(_b, { count: 6, color: LOOK.spark, speed: 5, up: 3, size: 0.18, life: 0.45 });
           // Crackle on a major-pentatonic ladder: one step per depth, +-3% detune.

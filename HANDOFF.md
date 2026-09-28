@@ -60,8 +60,23 @@ Session 2026-09-28 (2nd chat) changed:
 - New tool `tools/qa/look-frames.mjs` (stills incl. a frame sequence right after a strike).
 - Playtest published (private): https://claude.ai/artifact/NiMqU6S1QUtHXMyUzwPKd1 (dist/ without the SDK tag).
 
-Open look notes for the owner to judge: no sky is visible at the play camera (top-down over a green field, like
-Holey.io) - keep or tilt? In portrait the "FREE" upgrade button sits low under the Voltage card.
+Session 2026-09-28 (3rd round, owner: "maps must look better - keep the city, work on everything around it;
+game logic: I have not reached 100% on any level"):
+- **Game logic:** `node tools/qa/balance.mjs` (new Monte Carlo: fixed cities or `campaign` with coins + greedy
+  upgrades; player models pro / casual / human) showed FULL POWER was nearly impossible: lone dark blocks strand the
+  last % because a bolt with nothing dark within R grounds out. New rule (`src/game/sim.js`, `STORM.chain.leap*`):
+  a **SUPERCHARGE bolt LEAPS** to the nearest dark antenna within 2 x R for 3 energy (gold arc + "LEAP!" in
+  `view.js`; hint text "SUPERCHARGE leaps to dark blocks"). Upgrade prices doubled (`ECONOMY.upgrades`) because
+  FULL POWER x10 is common now. Result, "human" model campaign: 100% in 58-82% of cities, pass ~100%; pro ~100%.
+- **Surroundings (city untouched):** the city now stands on an island - grass top with an earth edge, sand beach,
+  white surf line, pale lagoon, open sea, 3-7 islets on the horizon, trees on the island rim (count grows with the
+  island). Colours per theme in `src/game/look.js` SHORES (harbour blue sea, snow/ice, desert oasis, neon violet,
+  Sky Port = cloud sea). Stills: `qa/frames/level{6,21,26,36}.png`, `ready/charge-1280x720.png`.
+- Harness: `revive-offer` waits for the ring digit to change (the ring counts game time; 1 fps software WebGL).
+
+Open look notes for the owner to judge: in portrait the "FREE" upgrade button sits low under the Voltage card.
+Is the FULL POWER rate now right (too easy / too hard)? Tune with `STORM.chain.leapRange/leapCost` + upgrade prices
+and re-run `node tools/qa/balance.mjs campaign 60 1-20`.
 
 ## 4. What is left to be upload-ready (in this order)
 
@@ -118,14 +133,14 @@ Holey.io) - keep or tilt? In portrait the "FREE" upgrade button sits low under t
   economical: no extra iterations". Agents burned ~500k tokens each per package here.
 - Run the slow browser harness once per package with `--only <scenarios>`, not the full set every time.
 
-## 8. Browser QA (2026-09-28, 2nd chat, full harness after the fixes)
+## 8. Browser QA (2026-09-28, after the island + leap changes)
 
-`PW_CHROMIUM_PATH=/opt/pw-browsers/chromium node tools/qa/browser-qa.mjs --serve` (~25 min here):
-**22 checks: 19 PASS, 0 FAIL, 3 UNVERIFIED** (need eyes: `viewports`, `ad-ui-style`, `performance` - the last is a
-dev machine at 4x throttle with software WebGL, p95 1117 ms; 18 draw calls, 7.9k tris; not a Chromebook number).
-Also: `npm run build` OK (739 kB JS, 203 kB gzip), `node tools/qa/sim-health.mjs --selftest` PASS.
-Poly budget: max 10.5k tris / 32 draw calls per frame (budget 60k / 60). Boot: 0.22 MB to first gameplayStart.
-The old 11 PASS / 9 FAIL baseline is in `docs/handoff-qa.txt` (history only).
+`PW_CHROMIUM_PATH=/opt/pw-browsers/chromium node tools/qa/browser-qa.mjs --serve` (~25 min here): 18 PASS,
+1 FAIL (`revive-offer`: harness timing, fixed, then `--only revive-offer` PASS), 3 UNVERIFIED (need eyes:
+`viewports`, `ad-ui-style`, `performance` - software WebGL, p95 1167 ms, not a Chromebook number).
+Poly budget: max 12.9k tris / 39 draw calls in play at city 1 (budget 60k / 60); idle city 36: 32k tris / 39 calls.
+Boot 0.23 MB to first gameplayStart. `npm run build` OK, `node tools/qa/sim-health.mjs --selftest` PASS.
+Playtest page updated (version 2): https://claude.ai/artifact/NiMqU6S1QUtHXMyUzwPKd1
 
-**First job for the next chat:** get the owner's playtest answers + sound audition, fix what they say, then
-HANDOFF section 4 steps 3-4 (full QA + crazygames-qa audit, launch package).
+**First job for the next chat:** owner playtest answers (FULL POWER reachable now? island look? sounds), fix what
+they say, then HANDOFF section 4 steps 3-4 (full QA + crazygames-qa audit `docs/CG_QA_AUDIT.md`, launch package).

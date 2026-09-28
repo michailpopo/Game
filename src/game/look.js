@@ -88,6 +88,23 @@ export const THEMES = [
 
 export const themeOf = (city) => THEMES[(city?.theme ?? 0) % THEMES.length];
 
+/**
+ * The island around each city (city-mesh.js "surroundings"): the city stands on a grass island with an earth
+ * edge, a sand beach, a pale shallow-water lagoon and the open sea, with a few islets on the horizon.
+ *   ground (island top, replaces world.field) · earth (island sides) · sand · shallow · sea · islet
+ */
+export const SHORES = {
+  downtown: { ground: "#7cc463", earth: "#b98a5e", sand: "#f4e0a6", shallow: "#8fe6dc", sea: "#35a9dc", islet: "#62b85a" },
+  harbour: { ground: "#80cf6a", earth: "#a9825f", sand: "#f6e3b2", shallow: "#96e6f2", sea: "#2f82d8", islet: "#5fb87a" },
+  oldtown: { ground: "#8cbf5a", earth: "#b07a55", sand: "#f1dba9", shallow: "#94e2cc", sea: "#3aa9ba", islet: "#74b04e" },
+  hills: { ground: "#6cb85a", earth: "#9c7b5b", sand: "#efe1b2", shallow: "#a1e9e2", sea: "#3fa1d2", islet: "#52a24c" },
+  neonbay: { ground: "#3552a8", earth: "#2b2b6c", sand: "#e8c8f1", shallow: "#7d6cea", sea: "#3b2b91", islet: "#3fc48a" },
+  snowpeak: { ground: "#eef2fb", earth: "#9eabcb", sand: "#ffffff", shallow: "#d2ecff", sea: "#7fb9e2", islet: "#f6f8ff" },
+  desert: { ground: "#e6c186", earth: "#c28b5b", sand: "#f6dda9", shallow: "#86e2d2", sea: "#2fb9ba", islet: "#d9a96b" },
+  skyport: { ground: "#f4f6ff", earth: "#9ba7d8", sand: "#e9edfc", shallow: "#ffffff", sea: "#d4dcff", islet: "#ffffff" },
+};
+export const shoreOf = (theme) => SHORES[theme?.id] || SHORES.downtown;
+
 /** The look.js backdrop preset for a theme: the dusk sky with the theme's overrides. */
 export function backdropFor(theme) {
   return { ...BACKDROPS.dusk, ...theme.sky };

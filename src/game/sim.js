@@ -18,7 +18,9 @@
  *    floor(1.3 x E0) leave the impact; HOT (band .. 100%, or released while overcharged) E0; held
  *    0.35 s past 100% the strike fires by itself as a FIZZLE (3 hops, never forks)
  *  - the strike lights the target building; each bolt then hops to the NEAREST UNLIT antenna within
- *    R (3D between tips), costs 1 energy and lights it; nothing unlit in range = it grounds out
+ *    R (3D between tips), costs 1 energy and lights it; nothing unlit in range = a SUPERCHARGE bolt LEAPS
+ *    to the nearest unlit antenna within leapRange x R for leapCost energy (hop event `leap: true`), any
+ *    other bolt grounds out - the gold band is the skill that reaches the last dark blocks
  *  - on each hop a bolt forks with chance F (gold rods: always, +4 energy first) into two bolts
  *    that each carry ceil(0.6 x (e - 1))
  *  - a building pays round((1 + floors/8) x 1.06^(city-1) x min(2, 1 + 0.02 x depth)) (x10 gold);
@@ -40,7 +42,7 @@
  *     chargeStart                               a new charge began
  *     band      { band: "super" | "over" }      the charge entered the SUPERCHARGE band / went past 100%
  *     strike    { n, target, band, energy, bolts, charge, x, y, z, t }   band: weak|charged|super|hot|fizzle
- *     hop       { bolt, from, to, gen, depth, chain, t }                  a bolt leapt tip to tip
+ *     hop       { bolt, from, to, gen, depth, chain, leap, t }            a bolt leapt tip to tip (leap: a long jump)
  *     light     { b, value, gen, depth, gold, bolt, x, y, z, t }          a building lit ("+N" = value)
  *     fork      { bolt, child, at, gen, bolts, forced, t }                one bolt became two (bolts = in the air)
  *     district  { d, bonus, x, z, t }                                     BLOCK POWERED
@@ -235,7 +237,7 @@ export function createSim({ level = 1, seed = "storm", up = {}, extraStrikes = 0
     needRelease: false,                // after an auto-FIZZLE the button must be let go first
     charge: 0,
     lastRelease: null,                 // { charge, band, energy, bolts, target }
-    bolts: [],                         // active: { id, at, e, eStrike, gen, depth, next, strike, noFork }
+    bolts: [],                         // active: { id, at, e, eStrike, gen, depth, next, strike, noFork, leaps }
     boltSeq: 0,
     cascadeHops: 0,                    // hops in the current strike (all bolts)
     cascadeValue: 0,                   // "+N" paid by the current strike (merged float at its end)
@@ -384,7 +386,7 @@ function release(s, input, time, fizzle) {
   const gen = r.bolts > 1 ? 1 : 0;
   let first = null;
   for (let k = 0; k < r.bolts; k++) {
-    const bolt = spawnBolt(s, target, r.energy, gen, time, r.band === "fizzle");
+    const bolt = spawnBolt(s, target, r.energy, gen, time, r.band === "fizzle", r.band === "super" || !S.chain.leapSuperOnly);
     if (!first) first = bolt;
     else s.events.push({ type: "fork", bolt: first.id, child: bolt.id, at: target, gen, bolts: s.bolts.length, forced: true, t: time });
   }
@@ -395,8 +397,8 @@ function hopTime(bolt) {
   return c.hopFast + c.hopSlow * clamp(1 - bolt.e / bolt.eStrike, 0, 1);
 }
 
-function spawnBolt(s, at, energy, gen, time, noFork) {
-  const bolt = { id: s.boltSeq++, at, e: energy, eStrike: Math.max(1, energy), gen, depth: 0, next: 0, strike: s.strikeCount, noFork };
+function spawnBolt(s, at, energy, gen, time, noFork, leaps = false) {
+  const bolt = { id: s.boltSeq++, at, e: energy, eStrike: Math.max(1, energy), gen, depth: 0, next: 0, strike: s.strikeCount, noFork, leaps };
   bolt.next = time + hopTime(bolt);
   s.bolts.push(bolt);
   return bolt;
@@ -414,18 +416,22 @@ function runCascade(s, t1) {
     if (bi < 0 || bt > t1) break;
     const bolt = s.bolts[bi];
     const from = bolt.at;
-    const to = bolt.e > 0 ? nextTarget(s, from) : -1;
+    let to = bolt.e > 0 ? nextTarget(s, from) : -1;
+    let leap = false;
+    // Nothing dark in range: a SUPERCHARGE bolt (leapSuperOnly) with energy to spare LEAPS to the nearest dark antenna within
+    // leapRange x R (costs leapCost), so a lone dark block no longer strands the last few percent.
+    if (to < 0 && bolt.leaps && bolt.e >= c.leapCost) { to = leapTarget(s, from); leap = to >= 0; }
     if (to < 0) {
       s.bolts.splice(bi, 1);
       s.events.push({ type: "boltEnd", bolt: bolt.id, at: from, t: bt, grounded: bolt.e > 0 });
       if (s.bolts.length === 0) cascadeEnd(s, bt);
       continue;
     }
-    bolt.e--;
+    bolt.e -= leap ? c.leapCost : 1;
     bolt.depth++;
     bolt.at = to;
     s.cascadeHops++;
-    s.events.push({ type: "hop", bolt: bolt.id, from, to, gen: bolt.gen, depth: bolt.depth, chain: s.cascadeHops, t: bt });
+    s.events.push({ type: "hop", bolt: bolt.id, from, to, gen: bolt.gen, depth: bolt.depth, chain: s.cascadeHops, leap, t: bt });
     light(s, to, bolt.gen, bolt.depth, bt, bolt.id);
     const gold = s.city.buildings[to].gold;
     if (gold) bolt.e += S.gold.energy;
@@ -433,7 +439,7 @@ function runCascade(s, t1) {
       const e = Math.ceil(c.forkShare * bolt.e);
       bolt.e = e;
       bolt.gen = Math.min(12, bolt.gen + 1);
-      const child = spawnBolt(s, to, e, bolt.gen, bt, false);
+      const child = spawnBolt(s, to, e, bolt.gen, bt, false, bolt.leaps);
       child.eStrike = bolt.eStrike;
       child.depth = bolt.depth;
       child.next = bt + hopTime(child);
@@ -448,6 +454,18 @@ function nextTarget(s, from) {
   const list = s.near[from];
   for (let k = 0; k < list.length; k++) if (!s.lit[list[k]]) return list[k];
   return -1;
+}
+
+/** Nearest unlit antenna within leapRange x R (ties: lower id), or -1. */
+function leapTarget(s, from) {
+  const bs = s.city.buildings, a = bs[from], max = s.params.range * S.chain.leapRange;
+  let best = -1, bd = Infinity;
+  for (let j = 0; j < bs.length; j++) {
+    if (s.lit[j]) continue;
+    const d = hopDistance(a, bs[j]);
+    if (d <= max && d < bd) { bd = d; best = j; }
+  }
+  return best;
 }
 
 /** "+N" for lighting building b at chain depth `depth`. */

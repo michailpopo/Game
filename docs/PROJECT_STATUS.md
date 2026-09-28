@@ -39,15 +39,16 @@ npm run qa           # all automated checks + COMPLIANCE_REPORT.md
 | Total dist size / files | ~0.8 MB (Storm Grid build) | 2026-09-28 | du -sh dist |
 | Bytes to first gameplayStart | 0.22 MB (Storm Grid) | 2026-09-28 | browser-qa boot |
 | p95 frame time @4x CPU throttle | 1117 ms (software WebGL in the cloud container - not meaningful) | 2026-09-28 | browser-qa performance |
-| Draw calls / triangles in play | max 32 / 10.5k (budget 60 / 60k) | 2026-09-28 | browser-qa poly-budget |
-| Browser harness | 19 PASS, 0 FAIL, 3 UNVERIFIED | 2026-09-28 | browser-qa.mjs --serve |
+| Draw calls / triangles in play | max 39 / 12.9k at city 1, 39 / 32k idle at city 36 (budget 60 / 60k) | 2026-09-28 | browser-qa poly-budget, renderInfo |
+| Browser harness | 19 PASS, 0 FAIL, 3 UNVERIFIED (revive-offer re-run alone after a harness fix) | 2026-09-28 | browser-qa.mjs --serve |
+| FULL POWER rate, "human" model campaign cities 1-20 | 58-82% (was ~0-35%) | 2026-09-28 | tools/qa/balance.mjs campaign 60 1-20 |
 | Compliance verdict | NOT VERIFIED (template demo: 16 PASS, 46 unverified) | 2026-09-26 | report.mjs |
 | Docs freshness | UNCHANGED vs register 2026.09.11 | 2026-09-26 | check-docs-freshness.mjs |
 
 ## Top 3 problems (reorder after every playtest)
-1. No owner playtest of Storm Grid yet; sounds not auditioned (page published 2026-09-28).
-2. Look questions for the owner: no sky at the play camera (top-down field); portrait "FREE" button placement.
-3. Economy numbers are model numbers (Monte Carlo) until a human playtest.
+1. Owner playtest of the new build (island map, SUPERCHARGE leap): is FULL POWER reachable and still exciting? Sounds not auditioned yet.
+2. Owner said FULL POWER was never reached - balance is now model-based (balance.mjs), needs the owner's confirmation.
+3. Portrait "FREE" upgrade button placement.
 
 ## Known bugs
 | Id | Severity (P0-P3) | Description | Status |
@@ -70,3 +71,4 @@ npm run qa           # all automated checks + COMPLIANCE_REPORT.md
 | 2026-09-27 | Keep the UI; restyle the city from hit-game references, keep it simple | owner: "good in general, the ui looks great but the city is still looking too ai generated, grab some visual inspo from games with a lot of likes that are made in html5, do not overcomplicate" | neon-cyberpunk city |
 | 2026-09-28 | Stopped both specialists and wrote HANDOFF.md | owner wants to continue in a new chat to save context tokens; the account hit its usage limit twice | keep agents running here |
 | 2026-09-28 | Harness fixes instead of game changes for the 9 FAILs; bolts wider, darker outline, drawn over buildings; lighter shop backdrop | FAILs were software-renderer timing (game muted on adStarted already); stills showed a faint bolt and a dark shop | slowing the game for QA; bigger look rework |
+| 2026-09-28 | SUPERCHARGE bolts leap to the nearest dark antenna within 2R (3 energy); upgrade prices x2; the city stands on a themed island (beach, surf, lagoon, sea, islets) | owner: "no level at 100%", "maps must look better, keep the city"; balance.mjs showed lone dark blocks stranded FULL POWER | leap for every bolt (100% for everyone), cheaper leap (too easy), bigger cities; floating island in the sky, plain recoloured field |

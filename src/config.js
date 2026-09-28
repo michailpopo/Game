@@ -101,6 +101,9 @@ export const STORM = {
     hopFast: 0.08,              // hop time = hopFast + hopSlow x (1 - e / e_strike): fresh bolts leap fast
     hopSlow: 0.07,
     maxBolts: 64,               // concurrent bolts (forks stop splitting beyond it)
+    leapRange: 2,               // nothing dark within R: leap to the nearest dark antenna within leapRange x R ...
+    leapCost: 3,                // ... for this much energy (a bolt with less grounds out)
+    leapSuperOnly: true,        // only SUPERCHARGE bolts (and their forks) leap
   },
   gold: { pay: 10, energy: 4 }, // a gold antenna pays x10, always forks and gives the bolt +4 energy
   payout: {
@@ -126,12 +129,14 @@ export const STORM = {
  * run at the best city reached (the brief's Monte Carlo table, interpolated), x the streak multiplier.
  */
 export const ECONOMY = {
+  // Prices doubled 2026-09-28 with the SUPERCHARGE leap: FULL POWER (x10) is common now, so coins come faster
+  // (tools/qa/balance.mjs campaign: a typical player powers ~60-80% of cities fully, a pro nearly all).
   upgrades: {
-    voltage: { max: 15, base: 60, growth: 1.45 },    // +2 hops per bolt (E0), +0.5 m range
-    fork: { max: 10, base: 100, growth: 1.55 },      // +3% fork chance
-    strikes: { max: 3, base: 600, growth: 3 },       // +1 strike per city (3 -> 6)
-    capacitor: { max: 5, base: 150, growth: 1.9 },   // SUPERCHARGE band 3 points wider
-    gold: { max: 5, base: 300, growth: 2.1 },        // +1 gold rod per city (from city 3)
+    voltage: { max: 15, base: 120, growth: 1.45 },    // +2 hops per bolt (E0), +0.5 m range
+    fork: { max: 10, base: 200, growth: 1.55 },      // +3% fork chance
+    strikes: { max: 3, base: 1200, growth: 3 },       // +1 strike per city (3 -> 6)
+    capacitor: { max: 5, base: 300, growth: 1.9 },   // SUPERCHARGE band 3 points wider
+    gold: { max: 5, base: 600, growth: 2.1 },        // +1 gold rod per city (from city 3)
   },
   skins: { base: 250, growth: 1.45 },                // "Unlock random": 250 x 1.45^(owned-1)
   gift: {

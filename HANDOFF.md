@@ -115,6 +115,18 @@ What I saw in the last screenshots (fix first):
   economical: no extra iterations". Agents burned ~500k tokens each per package here.
 - Run the slow browser harness once per package with `--only <scenarios>`, not the full set every time.
 
-## 8. Browser QA at handoff (2026-09-28, full harness, current HEAD)
+## 8. Browser QA at handoff (2026-09-28, full harness)
 
-See `docs/handoff-qa.txt` (written by the planner at handoff).
+Full run: **11 PASS, 9 FAIL, 1 UNVERIFIED** - details and the planner's reading in `docs/handoff-qa.txt`.
+- **Real bug:** `ads-fill` - audio mutes when the ad is REQUESTED, must mute on `adStarted` and unmute on
+  `adFinished`/`adError` (CrazyGames rule).
+- **Regressions from WP-31/32:** `persistence` and `poly-budget` also fail when run alone (timeouts waiting for a
+  dialog / a phase) - fix first.
+- `touch` passes alone; the other crashes (dead-air, ad-ui, revive-offer, shop, performance) may be a cascade from the
+  slow software renderer - re-run each with `--only` after the fixes.
+- Passing: boot (0.22 MB to first gameplayStart), sdk-events, no-sdk, sdk-disabled, sdk-init-hang, ads-basic-launch,
+  ads-slow-fill, adblock, mute-priority, tab-hidden, console-errors; `sim-health --selftest` PASS; build OK.
+- WP-30 alone had all of these at PASS on 2026-09-27, so compare against commit `WP-30 done` if stuck.
+
+**First job for the next chat:** fix ads-fill, persistence, poly-budget -> re-run the harness -> fix the visual items
+in section 3 -> publish a playtest for the owner.

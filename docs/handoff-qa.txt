@@ -1,0 +1,36 @@
+Browser QA at handoff - 2026-09-28, HEAD 7312fd8, PW_CHROMIUM_PATH=/opt/pw-browsers/chromium node tools/qa/browser-qa.mjs --serve
+
+## Full run
+PASS       boot                   ready in 3784 ms; 0.22 MB transferred up to first gameplayStart (limit 50 MB, mobile homepage 20 MB)
+PASS       sdk-events             order ok: mockInstalled > init > loadingStart > hasAdblock > reportGameCompletedPercentage > loadingStop > gameplayStart > setGameContext > gameplayStop > clearGameCo
+UNVERIFIED viewports              no scroll/overflow/overlap at 12 sizes (returning player's ready screen), smallest text 12px - LOOK at qa/shots/viewport-*.png to judge legibility
+PASS       no-sdk                 SDK script blocked: platform=none, phase=run, errors=0
+PASS       sdk-disabled           environment "disabled": platform=none, phase=run, errors=0
+PASS       sdk-init-hang          init never resolves: game playable after 12253 ms
+PASS       ads-basic-launch       ads disabled: reward granted on error=false, dead offer removed=true, note="", next level playable=true
+FAIL       ads-fill               muted on request instead of on adStarted; not muted while the ad played
+PASS       ads-slow-fill          4 s fill: blocker visible=true, pause=menu+ad, still on level 1
+PASS       adblock                adblock: rewarded offer shown=false, notice="Unavailable with an ad blocker", keeps playing=true
+PASS       mute-priority          ?muteAudio=true + in-game toggles: gain=0; muteAudio flipped mid-game: gain=0
+PASS       tab-hidden             pauses + silences + flushes save on hide, no gameplayStop, resumes on return
+FAIL       persistence            scenario crashed: page.waitForSelector: Timeout 8000ms exceeded.
+FAIL       touch                  scenario crashed: page.waitForFunction: Timeout 30000ms exceeded.
+FAIL       poly-budget            scenario crashed: page.waitForFunction: Timeout 30000ms exceeded.
+FAIL       dead-air               scenario crashed: page.waitForFunction: Timeout 30000ms exceeded.
+FAIL       ad-ui                  scenario crashed: page.waitForFunction: Timeout 30000ms exceeded.
+FAIL       revive-offer           scenario crashed: page.waitForFunction: Timeout 30000ms exceeded.
+FAIL       shop                   scenario crashed: page.waitForFunction: Timeout 30000ms exceeded.
+FAIL       performance            scenario crashed: page.waitForFunction: Timeout 30000ms exceeded.
+PASS       console-errors         no console errors or page errors across all scenarios
+21 checks: 9 FAIL, 1 UNVERIFIED (need eyes), evidence in qa/evidence/browser-qa.json
+
+## Isolated re-run (--only touch,poly-budget,persistence)
+FAIL persistence   scenario crashed: page.waitForSelector: Timeout 8000ms exceeded.
+PASS touch         tap on 800x450 touch device starts the run: phase=run
+FAIL poly-budget   scenario crashed: page.waitForFunction: Timeout 30000ms exceeded.
+
+## Planner's reading
+- ads-fill FAIL is a real bug: audio is muted when the ad is REQUESTED instead of on adStarted (CrazyGames rule: mute on adStarted, unmute on adFinished/adError). Likely in the WP-32 offer flow in src/main.js or src/core/ads.js usage.
+- persistence and poly-budget fail even in isolation -> real regressions from WP-31/WP-32 (e.g. a result-dialog selector the harness waits for changed, or a phase/autopilot condition never reached). Investigate first.
+- touch passes in isolation, so part of the full-run crash cascade (touch, dead-air, ad-ui, revive-offer, shop, performance) may be the slow software renderer; re-run each with --only after fixing the two above.
+- WP-30 (before WP-31/32) had all of these at PASS on 2026-09-27.

@@ -72,11 +72,8 @@ game logic: I have not reached 100% on any level"):
   white surf line, pale lagoon, open sea, 3-7 islets on the horizon, trees on the island rim (count grows with the
   island). Colours per theme in `src/game/look.js` SHORES (harbour blue sea, snow/ice, desert oasis, neon violet,
   Sky Port = cloud sea). Stills: `qa/frames/level{6,21,26,36}.png`, `ready/charge-1280x720.png`.
-- Owner then: "the building stays as it is, but the things around better - the colours are too dim". Done: vivid
-  SHORES palette (grass, sand, lagoon, sea, islets, own tree colours for rim + park trees), an emissive lift of each
-  surface's own colour (`SHORE_LIFT` 0.28 in city-mesh.js; trees tint the lift by instance colour) and a clear
-  per-theme horizon fog (`SHORES.*.horizon` via `backdropFor`). Buildings/materials untouched. Neon Bay got
-  contrast colours (mint island, pink beach, cyan lagoon). Stills `qa/frames/bright{1,6,21,26}.png`. Playtest v3.
+- A brighter colour pass for the surroundings (commit ffe8823: saturated SHORES, emissive lift, horizon fog) was
+  **reverted at the owner's request** ("nevermind mach zurück") - the island colours above are the current ones.
 - Harness: `revive-offer` waits for the ring digit to change (the ring counts game time; 1 fps software WebGL).
 
 Open look notes for the owner to judge: in portrait the "FREE" upgrade button sits low under the Voltage card.
@@ -145,8 +142,7 @@ and re-run `node tools/qa/balance.mjs campaign 60 1-20`.
 `viewports`, `ad-ui-style`, `performance` - software WebGL, p95 1167 ms, not a Chromebook number).
 Poly budget: max 12.9k tris / 39 draw calls in play at city 1 (budget 60k / 60); idle city 36: 32k tris / 39 calls.
 Boot 0.23 MB to first gameplayStart. `npm run build` OK, `node tools/qa/sim-health.mjs --selftest` PASS.
-Playtest page updated (version 3, brighter surroundings): https://claude.ai/artifact/NiMqU6S1QUtHXMyUzwPKd1
-After the colour pass: `--only boot,poly-budget,dead-air,touch,persistence` 0 FAIL (12.9k tris / 39 calls).
+Playtest page updated (version 2): https://claude.ai/artifact/NiMqU6S1QUtHXMyUzwPKd1
 
 **First job for the next chat:** owner playtest answers (FULL POWER reachable now? island look? sounds), fix what
 they say, then HANDOFF section 4 steps 3-4 (full QA + crazygames-qa audit `docs/CG_QA_AUDIT.md`, launch package).

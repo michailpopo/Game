@@ -36,42 +36,6 @@ const _up = new Vector3(0, 1, 0);
 const ID = new Quaternion();
 const BASE = 0.35;              // pad top: buildings stand on their district pad
 const ISLAND_RIM = 14;          // m of grass between the asphalt plate and the beach
-const CLOUD_BACK = -8;          // storm cloud: m behind the city's back edge ...
-const CLOUD_SIDE = 24;          // ... m beyond its left edge ...
-const CLOUD_LIFT = 6;           // ... and m above the tallest antenna
-
-/** A cloud puff: a smooth sphere whose underside is squashed flat (stylised clouds have flat bottoms). */
-function puffGeometry() {
-  const g = new SphereGeometry(1, 18, 12);
-  const pos = g.attributes.position;
-  for (let i = 0; i < pos.count; i++) { const y = pos.getY(i); if (y < 0) pos.setY(i, y * 0.28); }
-  g.computeVertexNormals();
-  return g;
-}
-
-/** Vertical two-tone shading in world space: `low` at y <= base (storm underside) to `high` at y >= crest. */
-function cloudGradient(mat, low, high, base, crest) {
-  const u = { gsCloudLow: { value: new Color(low) }, gsCloudHigh: { value: new Color(high) }, gsCloudBase: { value: base }, gsCloudCrest: { value: crest } };
-  mat.onBeforeCompile = (shader) => {
-    Object.assign(shader.uniforms, u);
-    shader.vertexShader = shader.vertexShader
-      .replace("#include <common>", "#include <common>\nvarying float vGsCloudY;")
-      .replace("#include <project_vertex>", `#include <project_vertex>
-  vec4 gsW = vec4( transformed, 1.0 );
-#ifdef USE_INSTANCING
-  gsW = instanceMatrix * gsW;
-#endif
-  vGsCloudY = ( modelMatrix * gsW ).y;`);
-    shader.fragmentShader = shader.fragmentShader
-      .replace("#include <common>", "#include <common>\nvarying float vGsCloudY;\nuniform vec3 gsCloudLow;\nuniform vec3 gsCloudHigh;\nuniform float gsCloudBase;\nuniform float gsCloudCrest;")
-      .replace("#include <color_fragment>", `#include <color_fragment>
-  float gsK = smoothstep( gsCloudBase, gsCloudCrest, vGsCloudY );
-  diffuseColor.rgb *= mix( gsCloudLow, gsCloudHigh, gsK * gsK * ( 3.0 - 2.0 * gsK ) );`);
-  };
-  mat.customProgramCacheKey = () => "storm-cloud-gradient";
-  mat.userData.cloud = u;
-  return mat;
-}
 
 /** A rounded-rectangle slab, top face at y = 0, `h` deep, bevelled edge; caps = group 0, sides + bevel = group 1. */
 function roundedSlabGeometry(w, d, r, h, bevel) {
@@ -388,43 +352,22 @@ export class CityMesh {
     let top = 0;
     for (const b of bs) top = Math.max(top, b.tipY);
     this.top = top;
-    this.cloudY = top + CLOUD_LIFT;
-    // Back-left of the city as the camera sees it: over the open sea, clear of the title and the HUD, so the
-    // cloud is always in frame and every strike slants in from the upper left.
-    const yaw = 35 * Math.PI / 180, far = size * 0.5 + CLOUD_BACK, side = size * 0.5 + CLOUD_SIDE;
-    const cx = -Math.sin(yaw) * far - Math.cos(yaw) * side, cz = -Math.cos(yaw) * far + Math.sin(yaw) * side;
+    this.cloudY = top + 16;
+    const yaw = 35 * Math.PI / 180, far = size * 0.5 + 14;
+    const cx = -Math.sin(yaw) * far, cz = -Math.cos(yaw) * far;
     this.cloudCenter = new Vector3(cx, this.cloudY, cz);
-    // A stylised cumulonimbus (hit-game cloud rules): three stacked heads - the middle one biggest - on a wide
-    // flat base, flat-bottomed puffs, a bright lavender top fading to a dark storm underside, a soft pink rim.
-    const k = Math.max(1, size / 60);
-    const base = this.cloudY - 1 * k, crest = this.cloudY + 14 * k;
-    const cloudMat = this.#own(enhance(cloudGradient(new MeshStandardMaterial({ color: "#ffffff", roughness: 1, emissive: LOOK.cloudGlow, emissiveIntensity: 0, envMapIntensity: 0.3 }),
-      LOOK.cloudLow, LOOK.cloudHigh, base, crest), { rim: 0.45, rimPower: 2.2, rimColor: "#ffd6ec", rimTint: 0 }));
-    const ux = Math.cos(yaw), uz = -Math.sin(yaw);            // along the front
-    const wx = Math.sin(yaw), wz = Math.cos(yaw);             // toward the city / camera
-    const across = Math.max(40, size * 0.8);
-    const puffs = [];                                         // [t along (-0.5..0.5), dy, dv (toward camera), radius, squash]
-    for (let i = 0; i < 7; i++) {                             // the flat base
-      const t = (i / 6 - 0.5) * 0.92;
-      puffs.push([t + rng.range(-0.02, 0.02), 0, rng.range(-2, 2), (7.5 - Math.abs(t) * 4) * k, 0.55]);
-    }
-    for (const [t, R] of [[-0.28, 5.8], [0.02, 8.2], [0.3, 6.3]]) {     // the heads
-      const r = R * k * rng.range(0.92, 1.08);
-      puffs.push([t, r * 0.5, 0, r, 0.85]);
-      puffs.push([t - r * 0.62 / across, r * 0.3, rng.range(-1, 1), r * 0.66, 0.85]);
-      puffs.push([t + r * 0.62 / across, r * 0.32, rng.range(-1, 1), r * 0.7, 0.85]);
-      puffs.push([t + rng.range(-0.02, 0.02), r * 0.28, r * 0.45, r * 0.62, 0.8]);
-      puffs.push([t + rng.range(-0.03, 0.03), r * 0.8, -r * 0.2, r * 0.5, 0.85]);
-    }
-    for (const t of [-0.56, 0.57]) puffs.push([t, -0.5 * k, 0, 4.2 * k, 0.6]);   // trailing wisps
-    const cloud = new InstancedMesh(this.#own(puffGeometry()), cloudMat, puffs.length);
+    const cloudMat = this.#own(enhance(new MeshStandardMaterial({ color: LOOK.cloud, roughness: 1, emissive: LOOK.cloudGlow, emissiveIntensity: 0, envMapIntensity: 0.3 }),
+      { rim: 0.4, rimPower: 2.4, rimColor: "#ffe0ec", rimTint: 0 }));
+    const puffs = 14;
+    const cloud = new InstancedMesh(this.#own(new SphereGeometry(1, 12, 8)), cloudMat, puffs);
     cloud.name = "storm-cloud";
-    this.cloudPuffs = puffs.map(([t, dy, dv, r, sq], i) => {
-      const p = { x: cx + ux * t * across + wx * dv, y: this.cloudY + dy, z: cz + uz * t * across + wz * dv, r, sq, ph: rng.range(0, 6.28) };
-      cloud.setMatrixAt(i, _m.compose(_p.set(p.x, p.y, p.z), ID, _s.set(r * 1.12, r * sq, r)));
-      return p;
-    });
-    this.cloudMesh = cloud;
+    const across = Math.max(40, size * 1.1);
+    for (let i = 0; i < puffs; i++) {
+      const t = i / (puffs - 1) - 0.5;
+      const s = rng.range(5.5, 9.5) * (1 - Math.abs(t) * 0.6) * Math.max(1, size / 60);
+      const x = cx + Math.cos(yaw) * t * across + rng.range(-3, 3), z = cz - Math.sin(yaw) * t * across + rng.range(-3, 3);
+      cloud.setMatrixAt(i, _m.compose(_p.set(x, this.cloudY + rng.range(-2, 5) + (1 - Math.abs(t) * 2) * 4, z), ID, _s.set(s * 1.25, s * 0.8, s)));
+    }
     this.cloudMat = cloudMat;
     this.cloudGroup = new Group();
     this.cloudGroup.add(cloud);
@@ -443,7 +386,7 @@ export class CityMesh {
   strikeOrigin(b, out) {
     const c = this.cloudCenter;
     out.x = c.x + (b.x - c.x) * 0.18;
-    out.y = this.cloudY - 2;
+    out.y = this.cloudY - 5;
     out.z = c.z + (b.z - c.z) * 0.18;
     return out;
   }
@@ -533,17 +476,9 @@ export class CityMesh {
       this.pads.instanceColor.needsUpdate = true;
     }
     if (!anyWave) for (let d = 0; d < this.#wave.length; d++) if (sim.districtDone[d] && this.#wave[d] === -1) { this.pads.setColorAt(d, _c.set(W.padLit)); this.pads.instanceColor.needsUpdate = true; this.#wave[d] = -2; }
-    // the storm front flickers while the strike charges, and swells a little with the charge
+    // the storm front flickers while the strike charges
     const flick = holding ? Math.min(1, charge) * (0.55 + 0.45 * Math.sin(time * 37) * Math.sin(time * 23)) : 0;
-    this.cloudMat.emissiveIntensity = Math.max(0, flick) * 0.45;
-    // puffs breathe slowly (a living cloud), ~26 instance matrices per frame
-    const swell = 1 + (holding ? Math.min(1, charge) * 0.06 : 0);
-    const cm = this.cloudMesh;
-    for (let i = 0; i < this.cloudPuffs.length; i++) {
-      const p = this.cloudPuffs[i], b = (1 + 0.035 * Math.sin(time * 0.9 + p.ph)) * swell;
-      cm.setMatrixAt(i, _m.compose(_p.set(p.x, p.y + 0.4 * Math.sin(time * 0.6 + p.ph), p.z), ID, _s.set(p.r * 1.12 * b, p.r * p.sq * b, p.r * b)));
-    }
-    cm.instanceMatrix.needsUpdate = true;
+    this.cloudMat.emissiveIntensity = Math.max(0, flick) * 0.3;
   }
 
   dispose() { this.clear(); }

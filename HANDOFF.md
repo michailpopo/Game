@@ -74,13 +74,8 @@ game logic: I have not reached 100% on any level"):
   Sky Port = cloud sea). Stills: `qa/frames/level{6,21,26,36}.png`, `ready/charge-1280x720.png`.
 - A brighter colour pass for the surroundings (commit ffe8823: saturated SHORES, emissive lift, horizon fog) was
   **reverted at the owner's request** ("nevermind mach zurück") - the island colours above are the current ones.
-- **Storm cloud rebuilt** (owner: "the cloud looks bad"; external reference-image hosts are blocked by this
-  container's network policy, so it follows common stylised-cloud rules instead): a cumulonimbus of 26 instanced
-  flat-bottomed puffs (`puffGeometry`) - wide base + three heads, the middle one biggest - with a world-space
-  gradient from a dark indigo underside to a lavender top (`cloudGradient`, `LOOK.cloudLow/High`), soft pink rim,
-  slow breathing + swell and cyan flicker while charging. Placed back-LEFT of the city over the sea
-  (`CLOUD_BACK/SIDE/LIFT` in city-mesh.js) so it stays in frame in play and next to the title; strikes now slant in
-  from the upper left. Stills `qa/frames/cloud{1,26}-play.png`, `cloud6-ready.png`. Playtest v5.
+- A stylised-cumulonimbus rebuild of the storm cloud (moved back-left over the sea) was **reverted at the owner's
+  request** ("mach zurück sofort") - the cloud is the original row of slate puffs behind the city again.
 - Harness: `revive-offer` waits for the ring digit to change (the ring counts game time; 1 fps software WebGL).
 
 Open look notes for the owner to judge: in portrait the "FREE" upgrade button sits low under the Voltage card.

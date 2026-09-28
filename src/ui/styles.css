@@ -279,7 +279,7 @@
 .btn.cant b { color: #ffd0d6; }
 
 /* ---------- skins shop ---------- */
-.shop-modal { position: absolute; inset: 0; z-index: 40; display: grid; place-items: center; background: rgba(6, 3, 24, 0.6); pointer-events: auto; }
+.shop-modal { position: absolute; inset: 0; z-index: 40; display: grid; place-items: center; background: radial-gradient(ellipse at 50% 45%, rgba(20, 10, 60, 0.12), rgba(6, 3, 24, 0.5));   /* light dim: the toy city stays visible behind the shop */ pointer-events: auto; }
 .shop-modal[hidden] { display: none; }
 /* Bot names only appear next to an "Offline Arena" label; the shop has none, so the tags hide behind it. */
 #ui.shop-open .bubbles { display: none; }

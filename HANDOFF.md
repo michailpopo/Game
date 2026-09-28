@@ -1,4 +1,4 @@
-# Storm Grid - handoff for the next chat (2026-09-28)
+# Storm Grid - handoff for the next chat (2026-09-28, updated by the 2nd chat)
 
 Read this file first. It replaces reading the long history. Only open other docs at the sections named below.
 
@@ -40,35 +40,37 @@ with the `game-studio` skill (planner + specialist agents) and checked with the 
 |---|---|---|
 | WP-20 | Premium look kit: tone mapping, light rig + soft shadows, bloom on high tier, materials, particle kit, number pops, UI styles | done, verified |
 | WP-21 | Toy-city restyle from hit-game references (`src/render/city-kit.js`, refs in `qa/refs/`) | done, verified, owner saw frames |
-| WP-30 | 3D core: city generator, charge/strike, hop/fork chain, lighting, % powered, plates, result, QA hooks | done, verified (build, sim-health, 13 browser scenarios 0 FAIL) |
-| WP-31 | Wire toy city + bolts + juice + ZzFX sounds into the real game (`src/game/view.js`, `city-mesh.js`, `look.js`, `sfx.js`, `src/fx/*`) | **stopped near the end, NOT verified by the planner** |
-| WP-32 | Shop, upgrades, 12 skins, all 7 offers, daily gift, midgame from city 4, completion %, save | **stopped near the end, NOT verified by the planner** (all offer functions exist in `src/game/offers.js`) |
+| WP-30 | 3D core: city generator, charge/strike, hop/fork chain, lighting, % powered, plates, result, QA hooks | done, verified |
+| WP-31 | Toy city + bolts + juice + ZzFX sounds in the real game (`src/game/view.js`, `city-mesh.js`, `look.js`, `sfx.js`, `src/fx/*`) | **done, verified by the planner 2026-09-28** (full harness 0 FAIL, stills in `qa/frames/`) |
+| WP-32 | Shop, upgrades, 12 skins, all 7 offers, daily gift, midgame from city 4, completion %, save | **done, verified by the planner 2026-09-28** (shop, ad-ui, revive-offer, persistence PASS) |
 | WP-13 | Launch package: covers x3, preview videos x2, store text, portal checklist | todo |
 | WP-QA | CrazyGames QA audit report `docs/CG_QA_AUDIT.md` (crazygames-qa skill format) | todo |
 
-State at handoff: `npm run build` OK, `node tools/qa/sim-health.mjs --selftest` PASS. Full browser harness result at
-handoff: see section 8. Screenshots of the latest work: `qa/wp31/*.png` (game with toy city) and `qa/wp32/*.png`
-(shop, offers) - `qa/` is gitignored, copies are in the handoff ZIP under `screenshots/`.
+Session 2026-09-28 (2nd chat) changed:
+- `tools/qa/browser-qa.mjs`: the 9 FAILs were harness timing on the software renderer (~2 fps), not game bugs.
+  `ads-fill` now samples mute/overlay/gameplay inside the page at each mock SDK event (`__CG_MOCK_ON_RECORD__`)
+  instead of wall-clock sleeps (the game already muted only on adStarted, `src/core/ads.js`); crashed scenarios now
+  close their browser contexts (a leaked page kept rendering and starved the next scenario = the "cascade");
+  boot wait 60 s, result-dialog wait 20 s; `persistence` closes its first page before the fallback check.
+- Look fixes: bolts 35-40% wider, outline alpha 0.55 -> 0.85, bolts drawn over buildings (no depth test) so a bolt
+  behind a tower still reads (`src/game/view.js`). Lit buildings were already clear candy colours (poly-budget.png).
+  Shop backdrop dims less (`.shop-modal` in `styles.css`): the toy city stays visible behind it.
+- Skins: `view.recolor()` feeds the skin's glow colour into every strike/hop bolt (code-checked; not seen in a still).
+  Max 2 video buttons per screen: `ad-ui` PASS (ready screen has exactly 2: FREE upgrade + "+2 strikes").
+- New tool `tools/qa/look-frames.mjs` (stills incl. a frame sequence right after a strike).
+- Playtest published (private): https://claude.ai/artifact/NiMqU6S1QUtHXMyUzwPKd1 (dist/ without the SDK tag).
 
-What I saw in the last screenshots (fix first):
-1. `qa/wp31/fork-1280x720.png`: the toy city is in the game, but the lightning barely shows in that frame and the lit
-   buildings flood pale white/orange instead of clear candy colours; no sky visible at that camera angle. The bolt
-   must be the brightest, most saturated thing on screen (WP-21 rule).
-2. `qa/wp32/shop-1280x720.png`: the shop panel works (Random 250 coins / video +55), but it sits over the OLD dark
-   plain city background - the shop/menus must render over the new toy city.
-3. Check that bolt skins actually recolour the bolt in play, and that every offer screen has at most 2 video buttons.
+Open look notes for the owner to judge: no sky is visible at the play camera (top-down over a green field, like
+Holey.io) - keep or tilt? In portrait the "FREE" upgrade button sits low under the Voltage card.
 
 ## 4. What is left to be upload-ready (in this order)
 
-1. **Finish + verify WP-31 and WP-32** (fix the 3 items above). Checks:
-   `npm run build`, `node tools/qa/sim-health.mjs --selftest`,
-   `PW_CHROMIUM_PATH=/opt/pw-browsers/chromium node tools/qa/browser-qa.mjs --serve` (all scenarios, 0 FAIL),
-   look at `qa/shots/*.png`.
-2. **Owner playtest (Gate 2):** publish `dist/` as a private page (Artifact tool; strip the SDK script tag, keep
-   `assets/*` as supporting files - the page runs without the SDK) or `npm run dev -- --host`. Ask: what did you try
-   first, when did it get fun, when did you want to stop. The owner must also **audition the sounds** (Claude cannot
-   hear): charge hum, supercharge ding, strike boom, hop crackle ladder, fork zap, block-powered chord, full-power
-   fanfare, coin ticks, click.
+1. ~~Finish + verify WP-31 and WP-32~~ done 2026-09-28.
+2. **Owner playtest (Gate 2)** - the page above. Ask: what did you try first, when did it get fun, when did you want
+   to stop. The owner must also **audition the sounds** (Claude cannot hear): charge hum, supercharge ding, strike
+   boom, hop crackle ladder, fork zap, block-powered chord, full-power fanfare, coin ticks, click. Fix what they say.
+   To republish after changes: `npm run build`, copy `dist/assets` + `dist/index.html` without the SDK `<script>` and
+   without doctype/html/head/body tags to the scratchpad, publish with the Artifact tool to the same URL.
 3. **Full QA:** `npm run qa` (writes `COMPLIANCE_REPORT.md`, exit 0) + the **crazygames-qa audit** in its report format
    into `docs/CG_QA_AUDIT.md` (technical, gameplay, ads, covers; FAIL blocks). Run
    `NODE_USE_ENV_PROXY=1 node <game-studio>/scripts/docs/check-docs-freshness.mjs` first.
@@ -106,7 +108,8 @@ What I saw in the last screenshots (fix first):
   (presentation), `meta.js` + `offers.js` + `src/config.js` (`STORM`, `OFFERS`, economy), `src/main.js` (flow),
   `src/ui/ui.js` + `styles.css` (DOM UI), `src/platform/platform.js` (only file touching `window.CrazyGames`),
   `src/core/*` (ads, save, pause, gameplay events, audio, input, quality).
-- Git: repo `michailpopo/Game`, branch `claude/festive-darwin-7ukgnb` (everything is pushed). No PR opened.
+- Git: repo `michailpopo/Game`, working branch `claude/admiring-bell-26ljck` (everything is pushed; earlier work on
+  `claude/festive-darwin-7ukgnb`). No PR opened.
 
 ## 7. How to save tokens in the next chat
 
@@ -115,18 +118,14 @@ What I saw in the last screenshots (fix first):
   economical: no extra iterations". Agents burned ~500k tokens each per package here.
 - Run the slow browser harness once per package with `--only <scenarios>`, not the full set every time.
 
-## 8. Browser QA at handoff (2026-09-28, full harness)
+## 8. Browser QA (2026-09-28, 2nd chat, full harness after the fixes)
 
-Full run: **11 PASS, 9 FAIL, 1 UNVERIFIED** - details and the planner's reading in `docs/handoff-qa.txt`.
-- **Real bug:** `ads-fill` - audio mutes when the ad is REQUESTED, must mute on `adStarted` and unmute on
-  `adFinished`/`adError` (CrazyGames rule).
-- **Regressions from WP-31/32:** `persistence` and `poly-budget` also fail when run alone (timeouts waiting for a
-  dialog / a phase) - fix first.
-- `touch` passes alone; the other crashes (dead-air, ad-ui, revive-offer, shop, performance) may be a cascade from the
-  slow software renderer - re-run each with `--only` after the fixes.
-- Passing: boot (0.22 MB to first gameplayStart), sdk-events, no-sdk, sdk-disabled, sdk-init-hang, ads-basic-launch,
-  ads-slow-fill, adblock, mute-priority, tab-hidden, console-errors; `sim-health --selftest` PASS; build OK.
-- WP-30 alone had all of these at PASS on 2026-09-27, so compare against commit `WP-30 done` if stuck.
+`PW_CHROMIUM_PATH=/opt/pw-browsers/chromium node tools/qa/browser-qa.mjs --serve` (~25 min here):
+**22 checks: 19 PASS, 0 FAIL, 3 UNVERIFIED** (need eyes: `viewports`, `ad-ui-style`, `performance` - the last is a
+dev machine at 4x throttle with software WebGL, p95 1117 ms; 18 draw calls, 7.9k tris; not a Chromebook number).
+Also: `npm run build` OK (739 kB JS, 203 kB gzip), `node tools/qa/sim-health.mjs --selftest` PASS.
+Poly budget: max 10.5k tris / 32 draw calls per frame (budget 60k / 60). Boot: 0.22 MB to first gameplayStart.
+The old 11 PASS / 9 FAIL baseline is in `docs/handoff-qa.txt` (history only).
 
-**First job for the next chat:** fix ads-fill, persistence, poly-budget -> re-run the harness -> fix the visual items
-in section 3 -> publish a playtest for the owner.
+**First job for the next chat:** get the owner's playtest answers + sound audition, fix what they say, then
+HANDOFF section 4 steps 3-4 (full QA + crazygames-qa audit, launch package).

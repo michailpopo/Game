@@ -75,7 +75,10 @@ export class GameView {
     // QA only (?qa=1): the look, so the harness can force a shadow-map refresh frame and read its cost.
     if (typeof location !== "undefined" && new URLSearchParams(location.search).get("qa") === "1") { window.__GS_LOOK__ = this.look; window.__GS_VIEW__ = this; }
     this.cityMesh = new CityMesh(stage.scene);
-    this.fx = new FxKit(stage.scene, { unit: U, sprites: 1400, ribbons: 30, outline: { color: LOOK.boltOutline, alpha: 0.55 } });
+    this.fx = new FxKit(stage.scene, { unit: U, sprites: 1400, ribbons: 30, outline: { color: LOOK.boltOutline, alpha: 0.85 } });
+    // Bolts draw over the buildings (no depth test): a bolt hidden behind a tower reads as "nothing happened".
+    this.fx.ribbons.mesh.material.depthTest = false;
+    if (this.fx.ribbons.outline) this.fx.ribbons.outline.material.depthTest = false;
     const root = typeof document !== "undefined" ? document.getElementById("ui") : null;
     this.pops = root ? createNumberPops(root, { max: 8 }) : null;
     this.shake = new CameraShake({ maxOffset: 4, maxRoll: 0, decay: 1.4 });
@@ -245,10 +248,10 @@ export class GameView {
           this.cityMesh.strikeOrigin(b, _o3);
           _a.set(b.x, b.tipY, b.z);
           fx.strike(_o3, _a, {
-            color: sup ? LOOK.super : glow, width: fizzle ? 0.9 : sup ? 3.2 : 2.6, forks: fizzle ? 0 : sup ? 3 : 2, forkLength: 0.25,
+            color: sup ? LOOK.super : glow, width: fizzle ? 0.9 : sup ? 4.4 : 3.6, forks: fizzle ? 0 : sup ? 3 : 2, forkLength: 0.25,
             arc: 0, jag: 0.09, life: 0.55, intensity: 1.5, core: 3.2, haloSize: fizzle ? 1.4 : sup ? 3 : 2.4, sparks: fizzle ? 8 : 34, sparkSize: 0.2, ringDrop: 3, beads: 3,
           });
-          if (sup) fx.bolt(_o3, _a, { color: glow, width: 1.8, forks: 1, jag: 0.14, life: 0.5, fromHalo: false, beads: 0 });
+          if (sup) fx.bolt(_o3, _a, { color: glow, width: 2.4, forks: 1, jag: 0.14, life: 0.5, fromHalo: false, beads: 0 });
           this.shake.add(fizzle ? 0.08 : sup ? 0.18 : 0.13);
           this.shake.trauma = Math.min(0.32, this.shake.trauma);
           this.punch = fizzle ? 0 : 0.12;
@@ -267,7 +270,7 @@ export class GameView {
           const a = bs[ev.from], b = bs[ev.to];
           const gen = Math.min(4, ev.gen);
           _a.set(a.x, a.tipY, a.z); _b.set(b.x, b.tipY, b.z);
-          fx.bolt(_a, _b, { color: glow, width: 2.1 + gen * 0.12, forks: 1, forkLength: 0.3, arc: 1.4, jag: 0.12, life: 0.6, intensity: 1.5, core: 3.2, beads: 2, fromHalo: false, haloSize: 2 });
+          fx.bolt(_a, _b, { color: glow, width: 2.9 + gen * 0.12, forks: 1, forkLength: 0.3, arc: 1.4, jag: 0.12, life: 0.6, intensity: 1.5, core: 3.2, beads: 2, fromHalo: false, haloSize: 2 });
           fx.glow(_b, { color: glow, size: 2.6, grow: 1.5, life: 0.4, intensity: 2.2 });
           fx.sparks(_b, { count: 6, color: LOOK.spark, speed: 5, up: 3, size: 0.18, life: 0.45 });
           // Crackle on a major-pentatonic ladder: one step per depth, +-3% detune.

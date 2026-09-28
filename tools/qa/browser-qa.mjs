@@ -64,8 +64,13 @@ if (!baseUrl) { console.error("pass --serve or --url <game url>"); process.exit(
 
 const browser = await chromium.launch({ executablePath: process.env.PW_CHROMIUM_PATH || undefined, headless: !flag("headed"), args: ["--use-angle=d3d11", "--enable-gpu", "--ignore-gpu-blocklist", "--enable-unsafe-swiftshader"] });
 
+// Contexts opened by the running scenario; closed even when it crashes, so a crash cannot leave a page
+// rendering in the background and starve the next scenario (the old "cascade" of 30 s boot timeouts).
+const openContexts = new Set();
+
 async function openGame(query = "", { viewport = { width: 1280, height: 720 }, blockSdk = false, touch = false, context = null } = {}) {
   const ctx = context || await browser.newContext({ viewport, deviceScaleFactor: 1, hasTouch: touch, isMobile: touch });
+  openContexts.add(ctx);
   await ctx.route(/sdk\.crazygames\.com\/crazygames-sdk-v3\.js/, (route) =>
     blockSdk ? route.abort() : route.fulfill({ path: MOCK, contentType: "text/javascript" }));
   const page = await ctx.newPage();
@@ -81,7 +86,7 @@ async function openGame(query = "", { viewport = { width: 1280, height: 720 }, b
   const url = `${baseUrl}${baseUrl.includes("?") ? "&" : "?"}qa=1${query ? `&${query}` : ""}`;
   const t0 = Date.now();
   await page.goto(url, { waitUntil: "domcontentloaded" });
-  await page.waitForFunction(() => window.__GS_QA__ && document.getElementById("boot")?.classList.contains("done"), null, { timeout: 30000 });
+  await page.waitForFunction(() => window.__GS_QA__ && document.getElementById("boot")?.classList.contains("done"), null, { timeout: 60000 });
   return { ctx, page, errors, bootMs: Date.now() - t0 };
 }
 
@@ -98,13 +103,18 @@ async function reachResult(page, kind = "win") {
   await startRun(page);
   await sleep(600);
   await page.evaluate((k) => (k === "win" ? window.__GS_QA__.forceWin() : window.__GS_QA__.forceFail()), kind);
-  await page.waitForSelector(".modal:not([hidden]) .dialog button", { timeout: 8000 });
+  // 20 s: the result waits for a 1.3 s camera orbit, and a software-rendered page (cloud CI) runs at 1-3 fps.
+  await page.waitForSelector(".modal:not([hidden]) .dialog button", { timeout: 20000 });
 }
 
 async function scenario(id, fn) {
   if (opt("only") && !opt("only").split(",").includes(id)) return;
   try { await fn(); }
   catch (e) { record({ id, status: "FAIL", requirements: [], summary: `scenario crashed: ${e.message.split("\n")[0]}` }); }
+  finally {
+    for (const c of openContexts) await c.close().catch(() => {});
+    openContexts.clear();
+  }
 }
 
 // ------------------------------------------------------------------ scenarios
@@ -271,27 +281,43 @@ await scenario("ads-basic-launch", async () => {
 
 await scenario("ads-fill", async () => {
   // Adapter (Storm Grid): the very first city result has no video offer (GAME_BRIEF "Claim x3 ... from run 2").
+  // The game's mute/overlay/gameplay state is sampled INSIDE the page at each mock SDK event, so the check
+  // does not depend on wall-clock sleeps (a software-rendered page runs at 1-3 fps and shifts every sleep).
+  // The mock records each event BEFORE it calls the game's callback: at "adRequested" and "adStarted" the
+  // game must still be unmuted, at "adFinished" it must be muted (it was muted by adStarted).
   const { ctx, page, errors } = await openGame("runs=2&mockAdDelay=900&mockAdLength=900");
   await reachResult(page, "win");
   const before = (await state(page)).coins;
+  await page.evaluate(() => {
+    window.__QA_AD_TRACE__ = [];
+    window.__CG_MOCK_ON_RECORD__ = (e) => {
+      if (!/^ad(Requested|Started|Finished|Error)$/.test(e.event)) return;
+      const s = window.__GS_QA__.state;
+      const ov = document.querySelector(".ad-block");
+      const overlay = !!ov && !ov.hidden && getComputedStyle(ov).display !== "none" && getComputedStyle(ov).visibility !== "hidden";
+      window.__QA_AD_TRACE__.push({ event: e.event, adMute: s.audio.adMute, overlay, gameplay: s.gameplayReported });
+    };
+  });
   await page.click('button[data-id="claim_x"]');
-  await sleep(350);   // requested, not started yet
-  const during = await state(page);
-  const overlay = await page.isVisible(".ad-block");
-  await sleep(900);    // started
-  const playing = await state(page);
-  await sleep(1500);
+  await page.waitForFunction(() => window.__QA_AD_TRACE__.some((e) => e.event === "adFinished" || e.event === "adError"), null, { timeout: 20000 });
+  await page.waitForFunction(() => !window.__GS_QA__.state.audio.adMute, null, { timeout: 10000 }).catch(() => {});
+  const trace = await page.evaluate(() => window.__QA_AD_TRACE__);
   const after = await state(page);
+  const at = (ev) => trace.find((e) => e.event === ev);
+  const req = at("adRequested"), start = at("adStarted"), fin = at("adFinished");
   const problems = [];
-  if (!overlay) problems.push("no blocking overlay while the ad was requested");
-  if (during.audio.adMute) problems.push("muted on request instead of on adStarted");
-  if (!playing.audio.adMute) problems.push("not muted while the ad played");
+  if (!req || !start || !fin) problems.push(`ad did not run through requested/started/finished: ${trace.map((e) => e.event).join(" > ")}`);
+  else {
+    if (!req.overlay) problems.push("no blocking overlay while the ad was requested");
+    if (req.adMute || start.adMute) problems.push("muted on request instead of on adStarted");
+    if (!fin.adMute) problems.push("not muted while the ad played");
+    if (req.gameplay || start.gameplay || fin.gameplay) problems.push("gameplay reported during the ad");
+  }
   if (after.audio.adMute) problems.push("still muted after the ad");
-  if (during.gameplayReported || playing.gameplayReported) problems.push("gameplay reported during the ad");
   if (after.coins <= before) problems.push("reward not granted after adFinished");
   allErrors.push(...errors);
   record({ id: "ads-fill", requirements: ["CG-ADS-003", "CG-ADS-004", "CG-ADS-013", "CG-SDK-003"], status: problems.length ? "FAIL" : "PASS",
-    summary: problems.length ? problems.join("; ") : `overlay during request, mute only while playing, coins ${before} -> ${after.coins}`, evidence: { during: during.audio, playing: playing.audio } });
+    summary: problems.length ? problems.join("; ") : `overlay during request, mute only between adStarted and adFinished, coins ${before} -> ${after.coins}`, evidence: { trace, after: after.audio } });
   await ctx.close();
 });
 
@@ -395,16 +421,17 @@ await scenario("persistence", async () => {
   await page.waitForFunction(() => window.__GS_QA__ && document.getElementById("boot")?.classList.contains("done"));
   const after = await state(page);
   const ok = after.coins === before.coins && after.level === before.level && after.level > 1;
-  const { page: p2, ctx: ctx2 } = await openGame("mockDataDisabled=true");
+  allErrors.push(...errors);
+  await ctx.close();   // one rendering page at a time: two software-rendered pages halve each other's frame rate
+  const { page: p2, ctx: ctx2, errors: errors2 } = await openGame("mockDataDisabled=true");
   await reachResult(p2, "win");
   await p2.click('button[data-id="claim"]');
   await p2.waitForFunction(() => window.__GS_QA__.state.phase === "ready", null, { timeout: 10000 });
   const fb = await state(p2);
-  allErrors.push(...errors);
+  allErrors.push(...errors2);
   record({ id: "persistence", requirements: ["CG-DATA-001", "CG-DATA-002"], status: ok && fb.save.provider === "localStorage" ? "PASS" : "FAIL",
     summary: `reload keeps level ${after.level} / ${after.coins} coins via ${after.save.provider}; Data module disabled -> ${fb.save.provider}`,
     evidence: { before: before.save, after: after.save, fallback: fb.save, note: "cross-device cloud sync can only be checked on CrazyGames (portal preview)" } });
-  await ctx.close();
   await ctx2.close();
 });
 

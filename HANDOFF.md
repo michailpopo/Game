@@ -98,6 +98,13 @@ game logic: I have not reached 100% on any level"):
 - **Save reset to the beginning** (owner): `GAME.saveVersion` 3 -> 4, migration 4 keeps only the mute choice, so
   every older save (incl. the owner's city 44 / 423k coins) restarts at city 1. Node check: v3 save -> level 1,
   0 coins, muted kept, "migrated v3->v4". Playtest v10.
+- **Sounds (in progress):** owner allowed `kenney.nl` in the network policy. Downloaded 7 Kenney audio packs (CC0,
+  licence text in `docs/licenses/kenney-audio-License.txt`) to `assets-src/kenney/` (gitignored, 13 MB, re-download
+  from kenney.nl/assets/<pack>). Measured all 559 files in Chromium (`tools/audio/scan-sounds.mjs`) and picked 3
+  candidates per game sound (`tools/audio/sound-candidates.json`, 17 sounds). Audition page (private):
+  https://claude.ai/artifact/SLPJpVUS49CdYSpu6wsWLY - "Now" (current ZzFX) vs A/B/C, ladder/hum playback, a
+  "Copy picks" line. **Waiting on the owner's picks**; then: convert picks to small WAVs, load them in AudioService
+  with the ZzFX sound as fallback, add rows to docs/ASSET_MANIFEST.md, run the harness.
 - Harness: `revive-offer` waits for the ring digit to change (the ring counts game time; 1 fps software WebGL).
 
 Open look notes for the owner to judge: in portrait the "FREE" upgrade button sits low under the Voltage card.

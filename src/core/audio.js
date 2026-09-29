@@ -14,9 +14,7 @@
  *   - iOS interrupts the context when backgrounded; resume() must run inside a
  *     touchend/click handler, visibilitychange alone is not enough (CG-TECH-017).
  *
- * Sounds are procedural (ZzFX, MIT) so the template ships zero audio files. `files` ({ name: url }) swaps chosen
- * sounds for small audio files: they load after the unlock gesture (not part of the first download) and replace the
- * procedural buffer of the same name; a file that fails to load or decode keeps the procedural sound.
+ * Sounds are procedural (ZzFX, MIT) so the template ships zero audio files.
  * Claude cannot listen to these: tune them in the ZzFX designer
  * (killedbyapixel.github.io/ZzFX) and have a human audition every sound.
  */
@@ -40,12 +38,11 @@ export const SFX = {
 export class AudioService {
   #defs; #ctx = null; #master = null; #sfx = null;
   #platformMute = false; #adMute = false; #hiddenMute = false; #userMute = false;
-  #buffers = new Map(); #lastPlay = new Map(); #active = new Map(); #files = {};
+  #buffers = new Map(); #lastPlay = new Map(); #active = new Map();
   #listeners = new Set();
 
-  constructor({ sounds = SFX, files = {}, userMuted = false } = {}) {
+  constructor({ sounds = SFX, userMuted = false } = {}) {
     this.#defs = sounds;
-    this.#files = files;
     this.#userMute = userMuted;
   }
 
@@ -91,7 +88,6 @@ export class AudioService {
       this.#sfx.gain.value = 0.9;
       this.#sfx.connect(this.#master);
       for (const [name, params] of Object.entries(this.#defs)) this.#build(name, params);
-      this.#loadFiles();
       this.#apply();
     }
     if (this.#ctx.state !== "running") this.#ctx.resume().catch(() => {});
@@ -128,17 +124,6 @@ export class AudioService {
     src.onended = () => this.#active.set(name, Math.max(0, (this.#active.get(name) ?? 1) - 1));
     src.start();
     return true;
-  }
-
-  /** Fetch + decode the file sounds; each replaces its procedural buffer once ready (the procedural one plays until then). */
-  #loadFiles() {
-    for (const [name, url] of Object.entries(this.#files)) {
-      fetch(url)
-        .then((r) => { if (!r.ok) throw new Error(`HTTP ${r.status}`); return r.arrayBuffer(); })
-        .then((data) => this.#ctx.decodeAudioData(data))
-        .then((buf) => this.#buffers.set(name, buf))
-        .catch((e) => console.warn(`[audio] ${name}: ${url} not used (${e.message || e}); keeping the procedural sound`));
-    }
   }
 
   #build(name, params) {

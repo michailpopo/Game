@@ -29,19 +29,3 @@ export const STORM_SFX = {
   coinTick: [0.35, 0, 1760, 0, 0.005, 0.05, 1, 2, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0.5, 0.01],              // one coin lands in the pill (pitch steps up)
   click: [0.4, 0, 740, 0, 0.012, 0.035, 1, 1.8, 0, 0, -220, 0.012, 0, 0, 0, 0, 0, 0.45],               // button click (overrides the template's)
 };
-
-/**
- * Sounds the owner picked from free Kenney packs (CC0) on the audition page, 2026-09-29 (tools/audio/picks.json;
- * converted by tools/audio/import-sounds.mjs to 32 kHz mono WAV in public/sfx/). AudioService loads them after the
- * unlock gesture; each replaces the ZzFX sound of the same name, which stays as the fallback. Every other sound
- * above is still the ZzFX one ("Now" on the audition page).
- */
-export const STORM_SFX_FILES = {
-  thunder: "sfx/thunder.wav",       // sci-fi-sounds lowFrequency_explosion_001
-  charge: "sfx/charge.wav",         // sci-fi-sounds forceField_000
-  fizzle: "sfx/fizzle.wav",         // digital-audio phaserDown3
-  fork: "sfx/fork.wav",             // digital-audio phaseJump1
-  powerSweep: "sfx/powerSweep.wav", // digital-audio zapThreeToneUp
-  coinTick: "sfx/coinTick.wav",     // interface-sounds select_007
-  click: "sfx/click.wav",           // interface-sounds click_005
-};

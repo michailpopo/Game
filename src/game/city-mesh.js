@@ -17,7 +17,7 @@
  */
 
 import {
-  Color, ConeGeometry, CylinderGeometry, DynamicDrawUsage, ExtrudeGeometry, Group, IcosahedronGeometry, InstancedBufferAttribute,
+  BufferGeometry, Color, ConeGeometry, Float32BufferAttribute, CylinderGeometry, DynamicDrawUsage, ExtrudeGeometry, Group, IcosahedronGeometry, InstancedBufferAttribute,
   OctahedronGeometry, InstancedMesh, Matrix4, Mesh, MeshStandardMaterial, PlaneGeometry, Quaternion, Shape, SphereGeometry, Vector3,
 } from "three";
 import { STORM } from "../config.js";
@@ -25,7 +25,7 @@ import { createRng } from "../core/rng.js";
 import { chamferPrismGeometry, propGeometries, toyBlockMaterial, toyTrimMaterial } from "../render/city-kit.js";
 import { enhance } from "../render/materials.js";
 import { LOOK, shoreOf } from "./look.js";
-import { mergeVertices } from "three/addons/utils/BufferGeometryUtils.js";
+import { mergeGeometries, mergeVertices } from "three/addons/utils/BufferGeometryUtils.js";
 
 const _m = new Matrix4();
 const _p = new Vector3();
@@ -104,6 +104,52 @@ function roundedSlabGeometry(w, d, r, h, bevel) {
   g.translate(0, -bevel, 0);         // top face at y = 0
   return g;
 }
+/** An organic island outline (seeded): unit radius with a few soft bulges and bays; sample it with outlinePoints(). */
+function isleOutline(rng) {
+  const p1 = rng.range(0, 6.28), p2 = rng.range(0, 6.28), p3 = rng.range(0, 6.28), sx = rng.range(1, 1.35);
+  return (a) => {
+    const r = 1 + 0.13 * Math.sin(2 * a + p1) + 0.08 * Math.sin(3 * a + p2) + 0.05 * Math.sin(5 * a + p3);
+    return [Math.cos(a) * r * sx, Math.sin(a) * r];
+  };
+}
+
+/**
+ * A visible-surface-only island layer: rings of the outline from the outer edge inward, `profile` = [[scale, y], ...]
+ * (outer/lowest first), closed by a fan at the centre. No bottom, no hidden sides - a dome hill is ~140 triangles.
+ */
+function ringLayerGeometry(outline, n, profile) {
+  const pos = [], idx = [];
+  for (const [k, y] of profile) for (let i = 0; i < n; i++) { const [x, z] = outline((i / n) * Math.PI * 2); pos.push(x * k, y, z * k); }
+  const top = profile[profile.length - 1][1];
+  pos.push(0, top + (profile.length > 1 ? (top - profile[profile.length - 2][1]) * 0.35 : 0), 0);
+  const c = pos.length / 3 - 1;
+  for (let r = 0; r < profile.length - 1; r++) {
+    for (let i = 0; i < n; i++) {
+      const a = r * n + i, b = r * n + ((i + 1) % n), a2 = a + n, b2 = b + n;
+      idx.push(a, a2, b, b, a2, b2);
+    }
+  }
+  const last = (profile.length - 1) * n;
+  for (let i = 0; i < n; i++) idx.push(last + i, c, last + ((i + 1) % n));
+  const g = new BufferGeometry();
+  g.setAttribute("position", new Float32BufferAttribute(pos, 3));
+  g.setIndex(idx);
+  g.computeVertexNormals();
+  if (g.attributes.normal.getY(c) < 0) { g.setIndex(idx.reverse()); g.computeVertexNormals(); }   // keep it facing up
+  return g;
+}
+
+/** Dome profile: `rings` steps from the outer edge (y = y0) up to the crown (y = y0 + h), eased like a soft hill. */
+/** Height of an islet's main hill at distance d from its centre (matches domeProfile, a little sunk for the trunks). */
+const isleHillY = (o, d) => {
+  const h = Math.min(4.5, 1.2 + o.r * 0.18), t = Math.min(1, Math.max(0, (1 - d / (o.r * 0.92)) / 0.82));
+  return -0.75 + h * Math.sin(t * Math.PI / 2) - 0.3;
+};
+const domeProfile = (scale, y0, h, rings = 4) => Array.from({ length: rings + 1 }, (_, j) => {
+  const t = j / rings;
+  return [scale * (1 - 0.82 * t), y0 + h * Math.sin(t * Math.PI / 2)];
+});
+
 const FILL_SEC = 0.45;          // dark -> lit, flooding from the ground up
 const HOT_SEC = 0.22;           // the white flash of a hit
 const CAP = 0.55;               // roof rim cap height (m)
@@ -314,15 +360,41 @@ export class CityMesh {
       if (isles.some((o) => Math.hypot(o.x - x, o.z - z) < 40)) continue;
       isles.push({ x, z, r: isleRng.range(9, 20), h: isleRng.range(0.3, 0.55), rot: isleRng.range(0, 6.28) });
     }
-    const isleMesh = new InstancedMesh(this.#own(new IcosahedronGeometry(1, 1)), this.#own(new MeshStandardMaterial({ color: sh.islet, roughness: 0.9, flatShading: true })), Math.max(1, isles.length));
-    isleMesh.name = "islets";
-    isles.forEach((o, i) => isleMesh.setMatrixAt(i, _m.compose(_p.set(o.x, -1.6, o.z), _q.setFromAxisAngle(_up, o.rot), _s.set(o.r, o.r * o.h, o.r * 0.8))));
-    isleMesh.count = isles.length;
-    const isleSand = new InstancedMesh(this.#own(new CylinderGeometry(1, 1, 1, 14)), this.#own(new MeshStandardMaterial({ color: sh.sand, roughness: 0.9 })), Math.max(1, isles.length));
-    isleSand.name = "islet-beaches";
-    isles.forEach((o, i) => isleSand.setMatrixAt(i, _m.compose(_p.set(o.x, -1.55, o.z), _q.setFromAxisAngle(_up, o.rot), _s.set(o.r * 1.25, 0.3, o.r))));
-    isleSand.count = isles.length;
-    this.group.add(sea, lagoon, foam, beach, isleMesh, isleSand);
+    // Each islet is a small copy of the city's island: an organic outline (no circles, no facets) layered as a pale
+    // lagoon, a white surf line, a sand beach and a soft grass hill (+ a second rise on the bigger ones), with trees.
+    // Only visible surfaces (ringLayerGeometry); one merged geometry per layer = 4 draw calls for all islets.
+    const layers = { lagoon: [], surf: [], beach: [], hill: [] }, isleTrees = [];
+    for (const o of isles) {
+      const outline = isleOutline(isleRng);
+      const at = (g, y = 0) => g.rotateY(o.rot).translate(o.x, y, o.z);
+      layers.lagoon.push(at(ringLayerGeometry(outline, 24, [[o.r * 1.75, -1.42]])));
+      layers.surf.push(at(ringLayerGeometry(outline, 24, [[o.r * 1.3, -1.34]])));
+      // the beach: rises out of the water with a rounded rim, then a flat sand top
+      layers.beach.push(at(ringLayerGeometry(outline, 24, [[o.r * 1.18, -1.6], [o.r * 1.12, -1.0], [o.r * 1.04, -0.7], [o.r * 0.95, -0.62]])));
+      // the hill: a soft dome that starts on the sand and fades into it (no terrace step)
+      layers.hill.push(at(ringLayerGeometry(outline, 16, domeProfile(o.r * 0.92, -0.75, Math.min(4.5, 1.2 + o.r * 0.18)))));
+      if (o.r > 12) layers.hill.push(at(ringLayerGeometry(isleOutline(isleRng), 16, domeProfile(o.r * 0.38, 0.4, o.r * 0.14, 3)).translate(o.r * 0.14, 0, -o.r * 0.1)));
+      const nTrees = 2 + Math.floor(o.r / 5);
+      for (let t = 0; t < nTrees; t++) {
+        const a = isleRng.range(0, Math.PI * 2), d = o.r * isleRng.range(0.1, 0.5);
+        isleTrees.push({ kind: isleRng.next() < 0.6 ? "roundTree" : "coneTree", x: o.x + Math.cos(a) * d, z: o.z + Math.sin(a) * d, y: isleHillY(o, d), s: isleRng.range(1.6, 2.4), r: isleRng.range(0, 6.28) });
+      }
+    }
+    const layerMesh = (list, mat, name) => {
+      if (!list.length) return null;
+      const mesh = new Mesh(this.#own(mergeGeometries(list, false)), this.#own(mat));
+      for (const g of list) g.dispose();
+      mesh.name = name;
+      mesh.receiveShadow = true;
+      return mesh;
+    };
+    const isleParts = [
+      layerMesh(layers.lagoon, new MeshStandardMaterial({ color: sh.shallow, roughness: 0.25, transparent: true, opacity: 0.8 }), "islet-lagoons"),
+      layerMesh(layers.surf, new MeshStandardMaterial({ color: "#ffffff", roughness: 0.6, transparent: true, opacity: 0.75 }), "islet-surf"),
+      layerMesh(layers.beach, new MeshStandardMaterial({ color: sh.sand, roughness: 0.9 }), "islet-beaches"),
+      layerMesh(layers.hill, new MeshStandardMaterial({ color: sh.ground, roughness: 0.95 }), "islets"),
+    ].filter(Boolean);
+    this.group.add(sea, lagoon, foam, beach, ...isleParts);
     const plate = new Mesh(this.#own(chamferPrismGeometry(0.02)), this.#own(new MeshStandardMaterial({ color: W.asphalt, roughness: 0.9 })));
     plate.scale.set(plateW, 0.12, plateD);
     plate.position.y = -0.02;
@@ -391,13 +463,14 @@ export class CityMesh {
       mesh.castShadow = cast;
       mesh.receiveShadow = kind !== "car";
       items.forEach((p, i) => {
-        mesh.setMatrixAt(i, _m.compose(_p.set(p.x, kind === "car" ? 0.1 : y0, p.z), _q.setFromAxisAngle(_up, p.r), _s.setScalar(p.s)));
+        mesh.setMatrixAt(i, _m.compose(_p.set(p.x, kind === "car" ? 0.1 : p.y ?? y0, p.z), _q.setFromAxisAngle(_up, p.r), _s.setScalar(p.s)));
         mesh.setColorAt(i, _c.set(kind === "car" ? ["#ff5a5f", "#ffd23f", "#4f8dff", "#ffffff", "#ff9f40"][i % 5] : W.trees[i % W.trees.length]));
       });
       this.group.add(mesh);
     };
     propMesh(trees, "roundTree", small, "park-trees", BASE);
     propMesh(trees, "coneTree", small, "park-pines", BASE);
+    ring.push(...isleTrees);
     propMesh(ring, "roundTree", false, "ring-trees");
     propMesh(ring, "coneTree", false, "ring-pines");
     propMesh(cars, "car", false, "cars");

@@ -45,6 +45,8 @@ export const DEFAULT_SAVE = {
  * Save migrations (SaveService runs every step from the saved version up):
  *  v1 -> v2  Comet Chain -> Storm Grid: a different game; keep the coins and the mute choice only
  *  v2 -> v3  WP-32 fields (daily gift, tried skins, boost cadence); skin ids unchanged
+ *  v3 -> v4  fresh start (owner, 2026-09-29): the SUPERCHARGE leap and doubled upgrade prices changed the economy, so
+ *            old saves (coins earned at the old prices) restart at city 1; only the mute choice is kept
  */
 export const MIGRATIONS = {
   2: (d) => ({ coins: Math.max(0, d.coins | 0), userMuted: !!d.userMuted }),
@@ -56,6 +58,7 @@ export const MIGRATIONS = {
     lastBoostRun: Number.isFinite(d.lastBoostRun) ? d.lastBoostRun : -99,
     owned: Array.isArray(d.owned) && d.owned.length ? d.owned : ["cyan"],
   }),
+  4: (d) => ({ userMuted: !!d.userMuted }),
 };
 
 /**

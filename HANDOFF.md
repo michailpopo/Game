@@ -91,6 +91,13 @@ game logic: I have not reached 100% on any level"):
   rounded rim, a soft dome hill (+ a second rise on big ones) and 2-6 trees. `ringLayerGeometry` builds only the
   visible surface (a hill ~140 tris); one merged geometry per layer = 4 draw calls. Main island untouched.
   Stills `qa/isles/v3-L{1,12}-*.png`. Playtest v9.
+- **Result dialog scrollbar flash fixed** (owner: "sometimes a slider appears at the bottom for a millisecond"):
+  `.dialog` was `overflow: auto`; its entry animations (the x10 plate slams in from scale 2.2, the amount punches to
+  1.3) overhang the sides for ~0.5 s -> a horizontal scrollbar. Now `overflow-x: hidden; overflow-y: auto`.
+  Measured with `node tools/qa/dialog-overflow.mjs` (freezes the animations at 0-760 ms at 3 viewports).
+- **Save reset to the beginning** (owner): `GAME.saveVersion` 3 -> 4, migration 4 keeps only the mute choice, so
+  every older save (incl. the owner's city 44 / 423k coins) restarts at city 1. Node check: v3 save -> level 1,
+  0 coins, muted kept, "migrated v3->v4". Playtest v10.
 - Harness: `revive-offer` waits for the ring digit to change (the ring counts game time; 1 fps software WebGL).
 
 Open look notes for the owner to judge: in portrait the "FREE" upgrade button sits low under the Voltage card.
@@ -159,7 +166,8 @@ and re-run `node tools/qa/balance.mjs campaign 60 1-20`.
 `viewports`, `ad-ui-style`, `performance` - software WebGL, p95 1167 ms, not a Chromebook number).
 Poly budget: max 12.9k tris / 39 draw calls in play at city 1 (budget 60k / 60); idle city 36: 32k tris / 39 calls.
 Boot 0.23 MB to first gameplayStart. `npm run build` OK, `node tools/qa/sim-health.mjs --selftest` PASS.
-Playtest page (current build = version 9, new islets): https://claude.ai/artifact/NiMqU6S1QUtHXMyUzwPKd1
+Playtest page (current build = version 10, dialog fix + save reset): https://claude.ai/artifact/NiMqU6S1QUtHXMyUzwPKd1
+After the dialog fix + save v4: `--only boot,sdk-events,persistence,viewports,ads-fill` 0 FAIL (viewports needs eyes).
 After the islets: `--only boot,poly-budget,touch` 0 FAIL (18.7k tris / 41 calls in play at city 1; heaviest
 geometry storm-cloud 4,500 tris x1, the one hero allowed up to 5,000).
 

@@ -90,6 +90,8 @@ const STRINGS = {
     gift_note: "Come back tomorrow for day {n}",
     collect: "Collect",
     collect_x: "Collect ×{m}",
+    bolt_classic: "Bolt: classic",
+    bolt_toon: "Bolt: new (outlined)",
     skin_cyan: "Storm Cyan", skin_magenta: "Magenta", skin_solar: "Solar Gold", skin_plasma: "Plasma Green",
     skin_ember: "Ember", skin_frost: "Frost", skin_violet: "Violet", skin_ruby: "Ruby",
     skin_rainbow: "Neon Rainbow", skin_void: "Void", skin_aurora: "Aurora", skin_legend: "Legend White-Gold",

@@ -30,6 +30,7 @@ import { t } from "../core/i18n.js";
 import { AdaptiveQuality } from "../core/quality.js";
 import { CameraShake } from "../fx/shake.js";
 import { FxKit } from "../fx/fx-kit.js";
+import { ToonBolts } from "../fx/toon-bolts.js";
 import { createNumberPops } from "../fx/number-pop.js";
 import { applyLook } from "../render/look.js";
 import { CityMesh } from "./city-mesh.js";
@@ -74,6 +75,8 @@ export class GameView {
     if (quality) quality.subscribe((tier) => this.look.setQuality(tier));
     // QA only (?qa=1): the look, so the harness can force a shadow-map refresh frame and read its cost.
     if (typeof location !== "undefined" && new URLSearchParams(location.search).get("qa") === "1") { window.__GS_LOOK__ = this.look; window.__GS_VIEW__ = this; }
+    this.boltStyle = "classic";        // "classic" (glow bolts, ribbons.js, the default) | "toon" (outlined bolts, toon-bolts.js)
+    this.toon = null;                  // created the first time the toon style is used
     this.cityMesh = new CityMesh(stage.scene);
     this.fx = new FxKit(stage.scene, { unit: U, sprites: 1400, ribbons: 30, outline: { color: LOOK.boltOutline, alpha: 0.55 } });
     const root = typeof document !== "undefined" ? document.getElementById("ui") : null;
@@ -107,6 +110,22 @@ export class GameView {
     this.marker.renderOrder = 6;
     this.marker.visible = false;
     stage.scene.add(this.marker);
+    if (typeof location !== "undefined" && new URLSearchParams(location.search).get("bolt") === "toon") this.setBoltStyle("toon");
+  }
+
+  // ------------------------------------------------------------------ bolt style (playtest comparison: classic vs toon)
+  /** "classic" = the glow bolts (default, untouched); "toon" = the outlined alternative. */
+  setBoltStyle(style) {
+    this.boltStyle = style === "toon" ? "toon" : "classic";
+    if (this.boltStyle === "toon") this.#toon();
+    return this.boltStyle;
+  }
+
+  toggleBoltStyle() { return this.setBoltStyle(this.boltStyle === "toon" ? "classic" : "toon"); }
+
+  #toon() {
+    if (!this.toon) { this.toon = new ToonBolts(this.stage.scene, this.stage.camera); this.toon.setSkin(this.boltHex); }
+    return this.toon;
   }
 
   setCameraOverride(o) { this.cameraOverride = o; }
@@ -125,6 +144,7 @@ export class GameView {
     this.theme = theme;
     this.look.setBackdrop(backdropFor(theme));
     this.fx.clear();
+    this.toon?.clear();
     this.cityMesh.build(sim.city, sim.seed, theme, this.fx);
     const r = Math.max(sim.city.width, sim.city.depth) * 0.62 + 14;
     this.look.setFocus(0, 0, 0, r);
@@ -141,7 +161,7 @@ export class GameView {
   }
 
   /** The equipped (or tried) bolt skin: its glow colour; the core stays white, the outline deep blue. */
-  recolor(hex) { this.boltHex = hex || LOOK.boltGlow; this.boltColor.set(this.boltHex); }
+  recolor(hex) { this.boltHex = hex || LOOK.boltGlow; this.boltColor.set(this.boltHex); this.toon?.setSkin(this.boltHex); }
 
   toScreen(x, y, z, out = { x: 0, y: 0, visible: false }) {
     _v.set(x, y, z).project(this.stage.camera);
@@ -219,6 +239,74 @@ export class GameView {
     this.#chargeRing(sim);
     this.#chargeCue(sim);
     this.fx.update(dt, this.stage.camera);
+    this.toon?.update(dt, this.stage.camera);
+  }
+
+  // ------------------------------------------------------------------ bolts (the events call these; the bolt lab in tools/qa/shoot.mjs too)
+  /**
+   * The strike: the big bolt from the storm front onto a rooftop rod. band = weak | charged | super | hot | fizzle.
+   * `life` (s) overrides the default so the QA bolt lab can hold a bolt at full strength.
+   */
+  strikeBolt(b, band, life) {
+    if (this.boltStyle === "toon") return this.#strikeToon(b, band, life);
+    // CLASSIC (the owner's liked look): exactly the original values.
+    const fx = this.fx, glow = this.boltHex;
+    const fizzle = band === "fizzle", sup = band === "super";
+    this.cityMesh.strikeOrigin(b, _o3);
+    _a.set(b.x, b.tipY, b.z);
+    fx.strike(_o3, _a, {
+      color: sup ? LOOK.super : glow, width: fizzle ? 0.9 : sup ? 3.2 : 2.6, forks: fizzle ? 0 : sup ? 3 : 2, forkLength: 0.25,
+      arc: 0, jag: 0.09, life: life ?? 0.55, intensity: 1.5, core: 3.2, haloSize: fizzle ? 1.4 : sup ? 3 : 2.4, sparks: fizzle ? 8 : 34, sparkSize: 0.2, ringDrop: 3, beads: 3,
+    });
+    if (sup) fx.bolt(_o3, _a, { color: glow, width: 1.8, forks: 1, jag: 0.14, life: life ?? 0.5, fromHalo: false, beads: 0 });
+  }
+
+  /** One hop from rooftop tip to rooftop tip: the bolt, a flash and sparks where it lands. `gen` = fork generation. */
+  hopBolt(a, b, gen = 0, life) {
+    if (this.boltStyle === "toon") return this.#hopToon(a, b, gen, life);
+    // CLASSIC (the owner's liked look): exactly the original values.
+    const fx = this.fx, glow = this.boltHex;
+    const g = Math.min(4, gen);
+    _a.set(a.x, a.tipY, a.z); _b.set(b.x, b.tipY, b.z);
+    fx.bolt(_a, _b, { color: glow, width: 2.1 + g * 0.12, forks: 1, forkLength: 0.3, arc: 1.4, jag: 0.12, life: life ?? 0.6, intensity: 1.5, core: 3.2, beads: 2, fromHalo: false, haloSize: 2 });
+    fx.glow(_b, { color: glow, size: 2.6, grow: 1.5, life: 0.4, intensity: 2.2 });
+    fx.sparks(_b, { count: 6, color: LOOK.spark, speed: 5, up: 3, size: 0.18, life: 0.45 });
+  }
+
+  /** TOON strike: a chunky outlined zig-zag (white core, skin colour, dark outline), a flat ring and sparks on the roof. */
+  #strikeToon(b, band, life = 0.42) {
+    const fizzle = band === "fizzle", sup = band === "super";
+    this.cityMesh.strikeOrigin(b, _o3);
+    _a.set(b.x, b.tipY, b.z);
+    const toon = this.#toon();
+    toon.strike(_o3, _a, { color: sup ? LOOK.super : this.boltHex, width: (fizzle ? 0.8 : sup ? 2.5 : 2.1) * U, forks: fizzle ? 0 : sup ? 3 : 2, forkLength: 0.2, jag: 0.045, segs: 9, life, flicker: 0.09 });
+    if (sup) toon.strike(_o3, _a, { color: this.boltHex, width: 1.2 * U, forks: 1, forkLength: 0.2, jag: 0.07, segs: 9, life: life * 0.9, flicker: 0.09 });
+    if (!fizzle) this.#flash(sup ? 0.34 : 0.26);
+    this.fx.impact(_a, { color: "#ffffff", size: fizzle ? 1.4 : sup ? 3 : 2.4, sparks: fizzle ? 8 : 34, sparkSize: 0.2, ringDrop: 3 });
+  }
+
+  /** TOON strike only: a short white flash over the whole picture (once per strike, <= 0.34 alpha, 0.14 s - well under 3 flashes/s). */
+  #flash(alpha) {
+    if (typeof document === "undefined") return;
+    if (!this.flashEl) {
+      const root = document.getElementById("ui");
+      if (!root) return;
+      const el = document.createElement("div");
+      el.style.cssText = "position:absolute;inset:0;background:#fff;opacity:0;pointer-events:none;z-index:2";
+      root.prepend(el);
+      this.flashEl = el;
+    }
+    this.flashEl.animate([{ opacity: alpha }, { opacity: 0 }], { duration: 140, easing: "ease-out" });
+  }
+
+  /** TOON hop: a short, sharp, outlined zig-zag; a white flash, a flat ring on the roof and sparks where it lands. */
+  #hopToon(a, b, gen, life = 0.3) {
+    const g = Math.min(4, gen);
+    _a.set(a.x, a.tipY, a.z); _b.set(b.x, b.tipY, b.z);
+    this.#toon().strike(_a, _b, { color: this.boltHex, width: (1.6 + g * 0.1) * U, forks: 1, forkLength: 0.3, jag: 0.15, arc: 0.9 * U, segs: 5, life, flicker: 0.09 });
+    this.fx.glow(_b, { color: "#ffffff", size: 2.0, grow: 1.4, life: 0.22, intensity: 2.2 });
+    this.fx.ring(_o3.set(b.x, b.h + 0.8, b.z), { color: this.boltHex, from: 0.5, to: Math.max(b.w, b.d) / U, life: 0.26, thickness: 0.14, intensity: 1.0, normal: [0, 1, 0] });
+    this.fx.sparks(_b, { count: 6, color: LOOK.spark, speed: 5, up: 3, size: 0.18, life: 0.45 });
   }
 
   // ------------------------------------------------------------------ events -> juice
@@ -242,13 +330,7 @@ export class GameView {
           const b = bs[ev.target];
           const fizzle = ev.band === "fizzle";
           const sup = ev.band === "super";
-          this.cityMesh.strikeOrigin(b, _o3);
-          _a.set(b.x, b.tipY, b.z);
-          fx.strike(_o3, _a, {
-            color: sup ? LOOK.super : glow, width: fizzle ? 0.9 : sup ? 3.2 : 2.6, forks: fizzle ? 0 : sup ? 3 : 2, forkLength: 0.25,
-            arc: 0, jag: 0.09, life: 0.55, intensity: 1.5, core: 3.2, haloSize: fizzle ? 1.4 : sup ? 3 : 2.4, sparks: fizzle ? 8 : 34, sparkSize: 0.2, ringDrop: 3, beads: 3,
-          });
-          if (sup) fx.bolt(_o3, _a, { color: glow, width: 1.8, forks: 1, jag: 0.14, life: 0.5, fromHalo: false, beads: 0 });
+          this.strikeBolt(b, ev.band);
           this.shake.add(fizzle ? 0.08 : sup ? 0.18 : 0.13);
           this.shake.trauma = Math.min(0.32, this.shake.trauma);
           this.punch = fizzle ? 0 : 0.12;
@@ -264,12 +346,7 @@ export class GameView {
           break;
         }
         case "hop": {
-          const a = bs[ev.from], b = bs[ev.to];
-          const gen = Math.min(4, ev.gen);
-          _a.set(a.x, a.tipY, a.z); _b.set(b.x, b.tipY, b.z);
-          fx.bolt(_a, _b, { color: glow, width: 2.1 + gen * 0.12, forks: 1, forkLength: 0.3, arc: 1.4, jag: 0.12, life: 0.6, intensity: 1.5, core: 3.2, beads: 2, fromHalo: false, haloSize: 2 });
-          fx.glow(_b, { color: glow, size: 2.6, grow: 1.5, life: 0.4, intensity: 2.2 });
-          fx.sparks(_b, { count: 6, color: LOOK.spark, speed: 5, up: 3, size: 0.18, life: 0.45 });
+          this.hopBolt(bs[ev.from], bs[ev.to], ev.gen);
           // Crackle on a major-pentatonic ladder: one step per depth, +-3% detune.
           const semis = LADDER[Math.min(LADDER.length - 1, Math.max(0, ev.depth - 1))];
           this.audio.play("crackle", { pitch: 2 ** (semis / 12) * (0.97 + Math.random() * 0.06), minGap: 0.03, maxVoices: 6, volume: 0.8 });

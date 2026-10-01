@@ -6,7 +6,7 @@
  *   PW_CHROMIUM_PATH=/opt/pw-browsers/chromium node tools/qa/shoot.mjs --serve --shots ready,charge,fork --sizes 1280x720,450x800
  *   node tools/qa/shoot.mjs --url http://127.0.0.1:4173/ --out qa/look
  *
- * Shots: ready, ready-returning, charge, supercharge, fork, district, result, result-fail, revive, shop, paused, mid
+ * Shots: ready, ready-returning, charge, supercharge, fork, district, result, result-fail, revive, shop, paused, mid, boltlab, boltlab-lit, lit, film
  * Each state is staged with the ?qa=1 hooks (window.__GS_QA__: freezeWhen / freeze / setHold / setAim / forceWin ...),
  * frozen on the frame, then captured after the (slow, software) renderer has drawn at least two more frames.
  * Output: <out>/<shot>-<WxH>.png (default qa/look, gitignored). Software WebGL is slow here: judge stills, not fps.
@@ -29,6 +29,7 @@ mkdirSync(OUT, { recursive: true });
 const MOCK = resolve(root, "dev/mock-crazygames-sdk.js");
 const WANT = (opt("shots", "ready,charge,fork,result") || "").split(",").filter(Boolean);
 const SIZES = (opt("sizes", "1280x720") || "").split(",").filter(Boolean).map((s) => s.split("x").map(Number));
+const TWEAK = opt("tweakFile") ? (await import("node:fs")).readFileSync(resolve(opt("tweakFile")), "utf8") : opt("tweak", "");   // JS run in the page after boot (look-dev: window.__GS_LOOK__ / __GS_VIEW__, ?qa=1 only)
 const EXTRA = opt("query", "");          // extra query string for every shot, e.g. quality=low
 const LEVEL = opt("level", "");          // pin the city number for every shot
 
@@ -54,7 +55,7 @@ async function open([w, h], query = "") {
   page.on("pageerror", (e) => errors.push(`pageerror: ${e.message}`));
   const q = ["qa=1", LEVEL ? `level=${LEVEL}` : "", EXTRA, query].filter(Boolean).join("&");
   await page.goto(`${baseUrl}${baseUrl.includes("?") ? "&" : "?"}${q}`, { waitUntil: "domcontentloaded" });
-  await page.waitForFunction(() => window.__GS_QA__ && document.getElementById("boot")?.classList.contains("done"), null, { timeout: 60000 });
+  await page.waitForFunction(() => (window.__GS_QA__ || window.__GS_CAPTURE__) && document.getElementById("boot")?.classList.contains("done"), null, { timeout: 60000 });
   return { ctx, page, errors };
 }
 
@@ -149,6 +150,71 @@ const SHOTS = {
     await page.click(".icon-btn.pause");
     await sleep(900); await frames(page, 2);
   },
+  // Bolt lab: the game's own strikeBolt / hopBolt on a real city, frozen at full strength (no ageing, no flicker), so the
+  // bolt look can be judged and tuned without catching it mid-fade on a slow renderer. `boltlab-lit` runs it over a lit city.
+  async boltlab(page, size, lit = false) {
+    if (lit) {
+      await qa(page, () => window.__GS_QA__.start());
+      await sleep(400);
+      await qa(page, () => window.__GS_QA__.forceFail(0.55));
+      await page.waitForSelector(".modal:not([hidden]) .dialog button", { timeout: 30000 });
+      await qa(page, () => { document.querySelector(".modal").hidden = true; document.querySelector(".paused")?.setAttribute("hidden", ""); });
+      await sleep(1500);
+    } else await sleep(1200);
+    const box = await qa(page, () => {
+      const v = window.__GS_VIEW__, bs = v.cityMesh.city.buildings;
+      const dist = (a, b) => Math.hypot(a.x - b.x, a.z - b.z, a.tipY - b.tipY);
+      const free = (used) => bs.filter((b) => !used.has(b.id));
+      const start = bs.reduce((m, b) => (Math.hypot(b.x, b.z) < Math.hypot(m.x, m.z) ? b : m), bs[0]);
+      const used = new Set([start.id]);
+      const nodes = [start];
+      v.strikeBolt(start, "super", 1000);
+      const chain = (from, n, gen0) => {
+        let a = from;
+        for (let k = 0; k < n; k++) {
+          const next = free(used).sort((p, q) => dist(a, p) - dist(a, q))[0];
+          if (!next || dist(a, next) > 24) break;
+          used.add(next.id); nodes.push(next);
+          v.hopBolt(a, next, gen0 + k, 1000);
+          a = next;
+        }
+      };
+      chain(start, 4, 0);
+      chain(start, 3, 1);
+      v.fxScale = 0;                       // freeze the effects (and the camera) exactly here
+      v.fx.update(0, v.stage.camera);
+      const pts = nodes.map((b) => v.toScreen(b.x, b.tipY, b.z, {}));
+      const x0 = Math.min(...pts.map((p) => p.x)), x1 = Math.max(...pts.map((p) => p.x));
+      const y0 = Math.min(...pts.map((p) => p.y)) - 120, y1 = Math.max(...pts.map((p) => p.y));
+      return [Math.max(0, Math.round(x0 - 60)), Math.max(0, Math.round(y0)), Math.round(x1 - x0 + 120), Math.round(y1 - y0 + 70)];
+    });
+    console.log(`     boltlab box x,y,w,h = ${box.join(",")}`);
+    await sleep(300); await frames(page, 2);
+  },
+  async "boltlab-lit"(page, size) { return SHOTS.boltlab(page, size, true); },
+  // A city powered to ~55% with the dialog hidden: the lit candy colours against the calm unlit ones, no bolts.
+  async lit(page) {
+    await qa(page, () => window.__GS_QA__.start());
+    await sleep(400);
+    await qa(page, () => window.__GS_QA__.forceFail(0.55));
+    await page.waitForSelector(".modal:not([hidden]) .dialog button", { timeout: 30000 });
+    await qa(page, () => { document.querySelector(".modal").hidden = true; window.__GS_VIEW__.fxScale = 0; });
+    await sleep(600); await frames(page, 3);
+  },
+  // Filmstrip: the deterministic capture mode (?capture=1, the autopilot plays) stepped at exactly 1/30 s per drawn frame, so the
+  // juice is judged as a 30 fps player sees it even though this container draws a frame per second. FILM_FROM / FILM_TO /
+  // FILM_EVERY (frames) pick the window; files: <out>/film-<WxH>-<frame>.png
+  async film(page, size) {
+    const from = Number(process.env.FILM_FROM || 36), to = Number(process.env.FILM_TO || 120), every = Number(process.env.FILM_EVERY || 3);
+    let last = null;
+    for (let i = 0; i <= to; i++) {
+      last = await qa(page, () => window.__GS_CAPTURE__.frame(1 / 30));
+      if (i >= from && (i - from) % every === 0) await page.screenshot({ path: resolve(OUT, `film-${size[0]}x${size[1]}-${String(i).padStart(3, "0")}.png`) });
+      if (last.phase !== "run") break;
+    }
+    console.log(`     film ended at frame ${last.frame}: phase ${last.phase}, powered ${(last.progress * 100).toFixed(0)}%`);
+    return "manual";
+  },
 };
 // Query per shot (save fixtures: a returning player has runs / wins / coins).
 const QUERY = {
@@ -156,6 +222,8 @@ const QUERY = {
   fork: "up=2,2,0,0,0&level=3", district: "up=2,2,0,0,0&level=3", mid: "level=3",
   shop: "runs=6&wins=3&coins=130&level=4", supercharge: "level=3", charge: "level=3",
   result: "level=3", "result-fail": "level=3", revive: "runs=3&wins=1&level=3", paused: "level=3",
+  boltlab: "level=3", "boltlab-lit": "level=3",
+  film: "capture=1&capture_level=3", lit: "level=3",
 };
 
 const failed = [];
@@ -169,7 +237,9 @@ for (const size of SIZES) {
       const t0 = Date.now();
       const { ctx, page, errors } = await open(size, QUERY[name] || "");
       ctxHandle = ctx;
-      await fn(page, size);
+      if (TWEAK) { await page.evaluate(`(() => { ${TWEAK}\n})()`); }
+      const manual = (await fn(page, size)) === "manual";
+      if (manual) { console.log(`OK   ${tag.padEnd(28)} ${((Date.now() - t0) / 1000).toFixed(1)}s${errors.length ? `  ERRORS: ${errors.slice(0, 2).join(" | ")}` : ""}`); continue; }
       await page.screenshot({ path: resolve(OUT, `${tag}.png`) });
       const info = await qa(page, () => ({ ...window.__GS_QA__.renderInfo(), phase: window.__GS_QA__.state.phase, lit: window.__GS_QA__.state.lit, of: window.__GS_QA__.state.buildings }));
       console.log(`OK   ${tag.padEnd(28)} ${((Date.now() - t0) / 1000).toFixed(1)}s  calls ${info.calls}  tris ${info.triangles}  phase ${info.phase}  lit ${info.lit}/${info.of}${errors.length ? `  ERRORS: ${errors.slice(0, 2).join(" | ")}` : ""}`);

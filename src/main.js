@@ -226,7 +226,16 @@ async function boot() {
   window.addEventListener("blur", () => { pointer.down = false; pointer.id = null; });
   window.addEventListener("keydown", (e) => {
     if (e.code === "KeyM" && !e.repeat && !e.ctrlKey && !e.metaKey && !e.altKey) toggleSound();
+    // PLAYTEST ONLY - remove once the owner has picked a bolt: B swaps the classic glow bolt and the new toon bolt.
+    if (e.code === "KeyB" && !e.repeat && !e.ctrlKey && !e.metaKey && !e.altKey) swapBolt();
   });
+  /** PLAYTEST ONLY: classic <-> toon bolt (key B, or the ?compare=1 button on touch screens). The classic bolt stays the default. */
+  function swapBolt() {
+    const style = view.toggleBoltStyle();
+    ui.toast(t(style === "toon" ? "bolt_toon" : "bolt_classic"), 1600);
+    if (compareBtn) compareBtn.textContent = t(style === "toon" ? "bolt_toon" : "bolt_classic");
+  }
+  let compareBtn = null;
 
   // ---------------------------------------------------------------- pause (P / pause button; Escape is never bound)
   function pauseRun() {
@@ -877,6 +886,17 @@ async function boot() {
 
   const coverKind = qs.get("cover");
   if (coverKind || qs.get("capture") === "1") return startMarketingMode(coverKind);
+
+  // PLAYTEST ONLY (?compare=1): a small on-screen button for the bolt comparison (touch screens have no B key).
+  if (qs.get("compare") === "1") {
+    compareBtn = document.createElement("button");
+    compareBtn.type = "button";
+    compareBtn.className = "btn compare-btn";
+    compareBtn.style.cssText = "position:absolute;left:0.6em;top:3.4em;font-size:0.8em;min-height:2.2em;padding:0.2em 0.7em;z-index:12";
+    compareBtn.textContent = t("bolt_classic");
+    compareBtn.addEventListener("click", swapBolt);
+    document.getElementById("ui").appendChild(compareBtn);
+  }
 
   // ---------------------------------------------------------------- start
   const qa = qs.get("qa") === "1";

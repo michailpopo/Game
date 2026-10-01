@@ -64,8 +64,22 @@ if (!baseUrl) { console.error("pass --serve or --url <game url>"); process.exit(
 
 const browser = await chromium.launch({ executablePath: process.env.PW_CHROMIUM_PATH || undefined, headless: !flag("headed"), args: ["--use-angle=d3d11", "--enable-gpu", "--ignore-gpu-blocklist", "--enable-unsafe-swiftshader"] });
 
-async function openGame(query = "", { viewport = { width: 1280, height: 720 }, blockSdk = false, touch = false, context = null } = {}) {
+// Every context a scenario opens is closed when the scenario ends (also when it crashes): a page left running keeps
+// drawing and starves the next scenario of CPU (software WebGL here), which used to cascade into more crashes.
+const openContexts = new Set();
+
+/**
+ * `gl` picks how much of the 3D scene the page draws, because the CI container renders in software (0.3-1.2 s per frame,
+ * so the sim, the countdown rings and the harness's own waits fall out of step):
+ *   "lite" (default)  ?quality=low&renderEvery=1500 - logic and UI scenarios run in real time, the canvas refreshes every 1.5 s
+ *   "low"             ?quality=low, every frame - screenshots of the UI over the city (viewports)
+ *   "full"            the player's real adaptive tiers, every frame - poly-budget, look checks
+ * A scenario's own query wins (the game reads the first value of a repeated parameter).
+ */
+async function openGame(query = "", { viewport = { width: 1280, height: 720 }, blockSdk = false, touch = false, context = null, gl = "lite" } = {}) {
   const ctx = context || await browser.newContext({ viewport, deviceScaleFactor: 1, hasTouch: touch, isMobile: touch });
+  openContexts.add(ctx);
+  const glQuery = gl === "lite" ? "quality=low&renderEvery=1500" : gl === "low" ? "quality=low" : "";
   await ctx.route(/sdk\.crazygames\.com\/crazygames-sdk-v3\.js/, (route) =>
     blockSdk ? route.abort() : route.fulfill({ path: MOCK, contentType: "text/javascript" }));
   const page = await ctx.newPage();
@@ -78,10 +92,10 @@ async function openGame(query = "", { viewport = { width: 1280, height: 720 }, b
     errors.push(text);
   });
   page.on("pageerror", (e) => errors.push(`pageerror: ${e.message}`));
-  const url = `${baseUrl}${baseUrl.includes("?") ? "&" : "?"}qa=1${query ? `&${query}` : ""}`;
+  const url = `${baseUrl}${baseUrl.includes("?") ? "&" : "?"}qa=1${[query, glQuery].filter(Boolean).map((q) => `&${q}`).join("")}`;
   const t0 = Date.now();
   await page.goto(url, { waitUntil: "domcontentloaded" });
-  await page.waitForFunction(() => window.__GS_QA__ && document.getElementById("boot")?.classList.contains("done"), null, { timeout: 30000 });
+  await page.waitForFunction(() => window.__GS_QA__ && document.getElementById("boot")?.classList.contains("done"), null, { timeout: 60000 });
   return { ctx, page, errors, bootMs: Date.now() - t0 };
 }
 
@@ -91,25 +105,30 @@ const mockLog = (page) => page.evaluate(() => (window.__CG_MOCK_LOG__ || []).map
 async function startRun(page) {
   const vp = page.viewportSize();
   await page.mouse.click(vp.width / 2, vp.height * 0.7);
-  await page.waitForFunction(() => window.__GS_QA__.state.phase !== "ready", null, { timeout: 5000 });
+  await page.waitForFunction(() => window.__GS_QA__.state.phase !== "ready", null, { timeout: 15000 });
 }
 
 async function reachResult(page, kind = "win") {
   await startRun(page);
   await sleep(600);
   await page.evaluate((k) => (k === "win" ? window.__GS_QA__.forceWin() : window.__GS_QA__.forceFail()), kind);
-  await page.waitForSelector(".modal:not([hidden]) .dialog button", { timeout: 8000 });
+  await page.waitForSelector(".modal:not([hidden]) .dialog button", { timeout: 30000 });
 }
 
 async function scenario(id, fn) {
   if (opt("only") && !opt("only").split(",").includes(id)) return;
   try { await fn(); }
   catch (e) { record({ id, status: "FAIL", requirements: [], summary: `scenario crashed: ${e.message.split("\n")[0]}` }); }
+  finally {
+    for (const c of openContexts) await c.close().catch(() => {});
+    openContexts.clear();
+  }
 }
 
 // ------------------------------------------------------------------ scenarios
 await scenario("boot", async () => {
   const ctx = await browser.newContext({ viewport: { width: 1280, height: 720 }, deviceScaleFactor: 1 });
+  openContexts.add(ctx);
   const page = await ctx.newPage();
   const cdp = await ctx.newCDPSession(page);
   await cdp.send("Network.enable");
@@ -122,8 +141,8 @@ await scenario("boot", async () => {
   const errors = [];
   page.on("pageerror", (e) => errors.push(e.message));
   const t0 = Date.now();
-  await page.goto(`${baseUrl}?qa=1`);
-  await page.waitForFunction(() => window.__GS_QA__ && document.getElementById("boot")?.classList.contains("done"), null, { timeout: 30000 });
+  await page.goto(`${baseUrl}?qa=1&quality=low`);   // transfer size does not depend on the tier; low keeps the software renderer fast
+  await page.waitForFunction(() => window.__GS_QA__ && document.getElementById("boot")?.classList.contains("done"), null, { timeout: 60000 });
   const readyMs = Date.now() - t0;
   const readyBytes = bytes;
   await sleep(300);
@@ -170,8 +189,8 @@ await scenario("viewports", async () => {
   const rows = [];
   for (const [w, h, kind] of [...CG_VIEWPORTS, [1080, 1620, "portrait-2:3"], [390, 844, "phone-portrait"]]) {
     // A returning player's ready screen is the fullest one: hint, upgrade cards, Start boost, shop button.
-    const { ctx, page, errors } = await openGame("runs=3&wins=1&coins=40", { viewport: { width: w, height: h }, touch: kind === "mobile" || kind === "phone-portrait" });
-    await sleep(500);
+    const { ctx, page, errors } = await openGame("runs=3&wins=1&coins=40", { viewport: { width: w, height: h }, touch: kind === "mobile" || kind === "phone-portrait", gl: "low" });
+    await sleep(1500);   // the camera eases into the framing (a software frame takes ~0.3 s)
     const m = await page.evaluate(() => {
       const d = document.documentElement;
       const c = document.getElementById("game");
@@ -257,7 +276,7 @@ await scenario("ads-basic-launch", async () => {
     note = await page.textContent(".dialog .note");
   }
   await page.click('button[data-id="claim"]');
-  await page.waitForFunction(() => window.__GS_QA__.state.phase === "ready" && !window.__GS_QA__.state.pause.length, null, { timeout: 10000 });
+  await page.waitForFunction(() => window.__GS_QA__.state.phase === "ready" && !window.__GS_QA__.state.pause.length, null, { timeout: 30000 });
   await startRun(page);
   const s = await state(page);
   const ok = !grantedOnError && (offerHidden || !offer) && s.phase === "run";
@@ -274,24 +293,41 @@ await scenario("ads-fill", async () => {
   const { ctx, page, errors } = await openGame("runs=2&mockAdDelay=900&mockAdLength=900");
   await reachResult(page, "win");
   const before = (await state(page)).coins;
+  // Event-driven, not sleep-driven: the page reads its own audio/overlay state right after each SDK ad event, so a slow
+  // frame (software WebGL) cannot shift a reading across adStarted / adFinished. The timeout(0) lets the game's own
+  // callback for that event run first (the mock records the event, then calls the game).
+  await page.evaluate(() => {
+    window.__adTrace = [];
+    window.__CG_MOCK_ON_RECORD__ = (e) => {
+      if (!/^ad(Requested|Started|Finished|Error)$/.test(e.event)) return;
+      setTimeout(() => {
+        const q = window.__GS_QA__.state;
+        window.__adTrace.push({ event: e.event, adMute: q.audio.adMute, pause: q.pause, gameplay: q.gameplayReported, overlay: !!document.querySelector(".ad-block:not([hidden])"), coins: q.coins });
+      }, 0);
+    };
+  });
   await page.click('button[data-id="claim_x"]');
-  await sleep(350);   // requested, not started yet
-  const during = await state(page);
-  const overlay = await page.isVisible(".ad-block");
-  await sleep(900);    // started
-  const playing = await state(page);
-  await sleep(1500);
+  await page.waitForFunction(() => window.__adTrace.some((e) => e.event === "adFinished" || e.event === "adError"), null, { timeout: 60000 });
+  await page.waitForFunction((c) => window.__GS_QA__.state.coins > c, before, { timeout: 20000 }).catch(() => {});
+  const trace = await page.evaluate(() => window.__adTrace);
   const after = await state(page);
+  const at = (name) => trace.find((e) => e.event === name);
+  const requested = at("adRequested"), started = at("adStarted"), finished = at("adFinished");
   const problems = [];
-  if (!overlay) problems.push("no blocking overlay while the ad was requested");
-  if (during.audio.adMute) problems.push("muted on request instead of on adStarted");
-  if (!playing.audio.adMute) problems.push("not muted while the ad played");
+  if (!requested || !started || !finished) problems.push(`ad events incomplete: ${trace.map((e) => e.event).join(" > ")}`);
+  else {
+    if (!requested.overlay || !requested.pause.includes("ad")) problems.push("no blocking overlay + pause while the ad was requested");
+    if (requested.adMute) problems.push("muted on request instead of on adStarted");
+    if (!started.adMute) problems.push("not muted when the ad started");
+    if (!started.overlay || !started.pause.includes("ad")) problems.push("overlay or pause dropped while the ad played");
+    if (finished.adMute) problems.push("still muted after adFinished");
+    if (requested.gameplay || started.gameplay) problems.push("gameplay reported during the ad");
+  }
   if (after.audio.adMute) problems.push("still muted after the ad");
-  if (during.gameplayReported || playing.gameplayReported) problems.push("gameplay reported during the ad");
   if (after.coins <= before) problems.push("reward not granted after adFinished");
   allErrors.push(...errors);
   record({ id: "ads-fill", requirements: ["CG-ADS-003", "CG-ADS-004", "CG-ADS-013", "CG-SDK-003"], status: problems.length ? "FAIL" : "PASS",
-    summary: problems.length ? problems.join("; ") : `overlay during request, mute only while playing, coins ${before} -> ${after.coins}`, evidence: { during: during.audio, playing: playing.audio } });
+    summary: problems.length ? problems.join("; ") : `overlay + pause on request, muted only from adStarted to adFinished, reward after adFinished, coins ${before} -> ${after.coins}`, evidence: { trace } });
   await ctx.close();
 });
 
@@ -318,7 +354,7 @@ await scenario("adblock", async () => {
   const note = await page.textContent(".dialog .note");
   await page.screenshot({ path: resolve(SHOTS, "adblock-result.png") });
   await page.click('button[data-id="claim"]');
-  await page.waitForFunction(() => window.__GS_QA__.state.phase === "ready", null, { timeout: 10000 });
+  await page.waitForFunction(() => window.__GS_QA__.state.phase === "ready", null, { timeout: 30000 });
   await startRun(page);
   const s = await state(page);
   allErrors.push(...errors);
@@ -389,7 +425,7 @@ await scenario("persistence", async () => {
   const { ctx, page, errors } = await openGame("");
   await reachResult(page, "win");
   await page.click('button[data-id="claim"]');
-  await page.waitForFunction(() => window.__GS_QA__.state.phase === "ready", null, { timeout: 10000 });
+  await page.waitForFunction(() => window.__GS_QA__.state.phase === "ready", null, { timeout: 30000 });
   const before = await state(page);
   await page.reload();
   await page.waitForFunction(() => window.__GS_QA__ && document.getElementById("boot")?.classList.contains("done"));
@@ -398,7 +434,7 @@ await scenario("persistence", async () => {
   const { page: p2, ctx: ctx2 } = await openGame("mockDataDisabled=true");
   await reachResult(p2, "win");
   await p2.click('button[data-id="claim"]');
-  await p2.waitForFunction(() => window.__GS_QA__.state.phase === "ready", null, { timeout: 10000 });
+  await p2.waitForFunction(() => window.__GS_QA__.state.phase === "ready", null, { timeout: 30000 });
   const fb = await state(p2);
   allErrors.push(...errors);
   record({ id: "persistence", requirements: ["CG-DATA-001", "CG-DATA-002"], status: ok && fb.save.provider === "localStorage" ? "PASS" : "FAIL",
@@ -411,7 +447,7 @@ await scenario("persistence", async () => {
 await scenario("touch", async () => {
   const { ctx, page, errors } = await openGame("mockDevice=mobile", { viewport: { width: 800, height: 450 }, touch: true });
   await page.touchscreen.tap(400, 330);
-  await sleep(600);
+  await page.waitForFunction(() => window.__GS_QA__.state.phase !== "ready", null, { timeout: 15000 }).catch(() => {});
   const s = await state(page);
   allErrors.push(...errors);
   record({ id: "touch", requirements: ["CG-TECH-009"], status: s.phase === "run" ? "PASS" : "FAIL",
@@ -460,12 +496,18 @@ function offerProblems(offers, moment) {
 }
 
 await scenario("poly-budget", async () => {
-  const { ctx, page, errors } = await openGame("");
+  // The worst case a player can get: the HIGH tier (bloom + MSAA post passes count as draw calls), every frame drawn.
+  const { ctx, page, errors } = await openGame("quality=high", { gl: "full" });
   await page.evaluate(() => window.__GS_QA__.setAutopilot?.(true));
   await startRun(page);
   const samples = await page.evaluate(() => new Promise((res) => {
-    const out = []; const t0 = performance.now();
-    const tick = () => { out.push(window.__GS_QA__.renderInfo()); if (performance.now() - t0 < 6000) requestAnimationFrame(tick); else res(out); };
+    // Sample on every drawn frame (a software frame takes ~1 s here, so 12 s covers a strike and its cascade).
+    const out = []; const t0 = performance.now(); let lastFrame = -1;
+    const tick = () => {
+      const info = window.__GS_QA__.renderInfo();
+      if (info.frame !== lastFrame) { lastFrame = info.frame; out.push(info); }
+      if (performance.now() - t0 < 12000) requestAnimationFrame(tick); else res(out);
+    };
     requestAnimationFrame(tick);
   }));
   const stats = await page.evaluate(() => window.__GS_QA__.sceneStats?.() ?? null);
@@ -487,7 +529,7 @@ await scenario("poly-budget", async () => {
   record({
     id: "poly-budget", requirements: [], status: !budgets ? "INFO" : problems.length ? "FAIL" : "PASS",
     summary: problems.length ? problems.join("; ")
-      : `max ${maxTris} tris / ${maxCalls} draw calls per frame over 6 s of play${budgets ? ` (budget ${budgets.trianglesPerFrame} / ${budgets.drawCalls})` : " (no budgets in project.json)"}; heaviest geometry ${top ? `${top.name} ${top.triangles} tris x${top.instances}` : "?"}; ${stats?.geometries ?? "?"} geometries`,
+      : `max ${maxTris} tris / ${maxCalls} draw calls per frame over 12 s of play at the high tier${budgets ? ` (budget ${budgets.trianglesPerFrame} / ${budgets.drawCalls})` : " (no budgets in project.json)"}; heaviest geometry ${top ? `${top.name} ${top.triangles} tris x${top.instances}` : "?"}; ${stats?.geometries ?? "?"} geometries`,
     evidence: { maxTris, maxCalls, stats, budgets },
   });
   await ctx.close();
@@ -500,7 +542,7 @@ await scenario("dead-air", async () => {
   if (autopilot) await page.evaluate(() => window.__GS_QA__.setAutopilot(true));
   await startRun(page);
   const t0 = await page.evaluate(() => performance.now());
-  await page.waitForFunction(() => !["run", "battle", "finish"].includes(window.__GS_QA__.state.phase), null, { timeout: 20000 }).catch(() => {});
+  await page.waitForFunction(() => !["run", "battle", "finish"].includes(window.__GS_QA__.state.phase), null, { timeout: 90000 }).catch(() => {});
   const r = await page.evaluate((start) => ({ end: performance.now(), fb: (window.__GS_QA__.feedback || []).filter(([t]) => t >= start), phase: window.__GS_QA__.state.phase }), t0);
   const times = [t0, ...r.fb.map(([t]) => t), r.end];
   let gap = 0, at = 0;
@@ -530,17 +572,17 @@ await scenario("ad-ui", async () => {
   const during2 = await auditOffers(page);
   const inPlay = [...during1, ...during2];
   await page.evaluate(() => window.__GS_QA__.forceWin());
-  await page.waitForSelector(".modal:not([hidden]) .dialog button", { timeout: 8000 });
+  await page.waitForSelector(".modal:not([hidden]) .dialog button", { timeout: 30000 });
   moments.win = await auditOffers(page);   // same frame the dialog appeared: the decline must already be there
   await sleep(450);                         // screenshot after the entrance animation
   await page.screenshot({ path: resolve(SHOTS, "ad-ui-win.png") });
   await page.click('button[data-id="claim"]');
-  await page.waitForFunction(() => window.__GS_QA__.state.phase === "ready" && !window.__GS_QA__.state.pause.length, null, { timeout: 10000 });
+  await page.waitForFunction(() => window.__GS_QA__.state.phase === "ready" && !window.__GS_QA__.state.pause.length, null, { timeout: 30000 });
   await startRun(page);
   await sleep(300);
   // The revive-type offer needs a near-miss: __GS_QA__.reviveAt (Storm Grid: 85-99% powered).
   await page.evaluate(() => window.__GS_QA__.forceFail(window.__GS_QA__.reviveAt ?? 0.5));
-  await page.waitForSelector('.modal:not([hidden]) button[data-id="revive"]', { timeout: 8000 });
+  await page.waitForSelector('.modal:not([hidden]) button[data-id="revive"]', { timeout: 30000 });
   moments.fail = await auditOffers(page);
   await sleep(450);
   await page.screenshot({ path: resolve(SHOTS, "ad-ui-fail-revive.png") });
@@ -576,10 +618,10 @@ await scenario("revive-offer", async () => {
   };
   // The city result (Retry or Claim) -> the next city intro -> a new run.
   const throughResult = async (label) => {
-    const btn = await page.waitForSelector('.modal:not([hidden]) button[data-id="retry"], .modal:not([hidden]) button[data-id="claim"]', { timeout: 8000 }).catch(() => null);
+    const btn = await page.waitForSelector('.modal:not([hidden]) button[data-id="retry"], .modal:not([hidden]) button[data-id="claim"]', { timeout: 30000 }).catch(() => null);
     if (!btn) { problems.push(`no city result after ${label}`); return; }
     await btn.click();
-    await page.waitForFunction(() => window.__GS_QA__.state.phase === "ready" && !window.__GS_QA__.state.pause.length, null, { timeout: 10000 })
+    await page.waitForFunction(() => window.__GS_QA__.state.phase === "ready" && !window.__GS_QA__.state.pause.length, null, { timeout: 30000 })
       .catch(() => problems.push(`no next city intro after ${label}`));
     await startRun(page);
   };
@@ -591,12 +633,12 @@ await scenario("revive-offer", async () => {
   // 2. the countdown removes the offer at 0 and never requests an ad
   await sleep(300);
   await page.evaluate((a) => window.__GS_QA__.forceFail(a), reviveAt);
-  await page.waitForSelector('.modal:not([hidden]) button[data-id="revive"]', { timeout: 8000 });
+  await page.waitForSelector('.modal:not([hidden]) button[data-id="revive"]', { timeout: 30000 });
   const ring1 = await page.textContent(".dialog .ring b");
   await sleep(1300);
   const ring2 = await page.textContent(".dialog .ring b");
   if (!(Number(ring2) < Number(ring1))) problems.push(`countdown not running (${ring1} -> ${ring2})`);
-  await page.waitForSelector('.modal:not([hidden]) button[data-id="revive"]', { state: "detached", timeout: 12000 }).catch(() => problems.push("revive offer still there after the countdown"));
+  await page.waitForSelector('.modal:not([hidden]) button[data-id="revive"]', { state: "detached", timeout: 30000 }).catch(() => problems.push("revive offer still there after the countdown"));
   let s = await state(page);
   if (s.adsLog.some((e) => e.type === "rewarded" && e.context === "fail-revive")) problems.push("an ad was requested when the countdown ran out");
   if (!s.adsLog.some((e) => e.type === "offer" && e.context === "fail-revive" && e.outcome === "expired")) problems.push("expiry not logged in the offer funnel");
@@ -606,9 +648,9 @@ await scenario("revive-offer", async () => {
   // 3. watch one revive, then the next near-miss of the session gets none (once per session)
   await sleep(300);
   await page.evaluate((a) => window.__GS_QA__.forceFail(a), reviveAt);
-  await page.waitForSelector('.modal:not([hidden]) button[data-id="revive"]', { timeout: 8000 });
+  await page.waitForSelector('.modal:not([hidden]) button[data-id="revive"]', { timeout: 30000 });
   await page.click('button[data-id="revive"]');
-  await page.waitForFunction(() => window.__GS_QA__.state.phase === "run", null, { timeout: 8000 }).catch(() => problems.push("revive did not continue the run"));
+  await page.waitForFunction(() => window.__GS_QA__.state.phase === "run", null, { timeout: 30000 }).catch(() => problems.push("revive did not continue the run"));
   await sleep(300);
   await page.evaluate((a) => window.__GS_QA__.forceFail(a), reviveAt);
   await noOfferThenNextRun("a second near-miss in the same session");
@@ -626,7 +668,7 @@ await scenario("shop", async () => {
   // Cash offer while the next skin is unaffordable, reward only after the video, then a cooldown.
   const { ctx, page, errors } = await openGame("runs=1&coins=0");
   await page.click(".shop-btn");
-  await page.waitForSelector(".shop-modal:not([hidden]) .swatch", { timeout: 5000 });
+  await page.waitForSelector(".shop-modal:not([hidden]) .swatch", { timeout: 30000 });
   const offers = await auditOffers(page);
   problems.push(...offerProblems(offers, "shop"));
   await sleep(350);
@@ -638,7 +680,7 @@ await scenario("shop", async () => {
   else {
     const label = Number((await cash.textContent()).replace(/\D/g, ""));
     await cash.click();
-    await page.waitForFunction((c) => window.__GS_QA__.state.coins > c, before.coins, { timeout: 6000 }).catch(() => problems.push("coins not granted after the video"));
+    await page.waitForFunction((c) => window.__GS_QA__.state.coins > c, before.coins, { timeout: 30000 }).catch(() => problems.push("coins not granted after the video"));
     const after = await state(page);
     if (after.coins - before.coins !== label) problems.push(`granted ${after.coins - before.coins}, button said ${label}`);
     await sleep(700);
@@ -654,7 +696,7 @@ await scenario("shop", async () => {
   // Unlock with coins: always a new skin, price deducted, equipped.
   const { ctx: c2, page: p2, errors: e2 } = await openGame("runs=1&coins=400");
   await p2.click(".shop-btn");
-  await p2.waitForSelector(".shop-modal:not([hidden]) .swatch", { timeout: 5000 });
+  await p2.waitForSelector(".shop-modal:not([hidden]) .swatch", { timeout: 30000 });
   const s0 = await state(p2);
   await p2.click('.shop button[data-act="unlock"]');
   await sleep(700);
@@ -669,21 +711,21 @@ await scenario("shop", async () => {
   // same size; watching it equips the bolt for one city and marks it tried (never offered again).
   const { ctx: c4, page: p4, errors: e4 } = await openGame("runs=5&coins=100");
   await p4.click(".shop-btn");
-  await p4.waitForSelector(".shop-modal:not([hidden]) .swatch.locked", { timeout: 5000 });
+  await p4.waitForSelector(".shop-modal:not([hidden]) .swatch.locked", { timeout: 30000 });
   await p4.click(".shop .swatch.locked");
-  const tryBtn = await p4.waitForSelector('.shop button[data-act="try"]', { timeout: 3000 }).catch(() => null);
+  const tryBtn = await p4.waitForSelector('.shop button[data-act="try"]', { timeout: 30000 }).catch(() => null);
   if (!tryBtn) problems.push("no Try-it offer for a locked bolt at run 5");
   else {
     const tryOffers = await auditOffers(p4);
     problems.push(...offerProblems(tryOffers, "shop-try"));
     if (tryOffers.length > MAX_VIDEO_OFFERS) problems.push(`shop-try: ${tryOffers.length} video offers on one screen`);
     await tryBtn.click();
-    await p4.waitForFunction(() => window.__GS_QA__.state.trialSkin, null, { timeout: 6000 }).catch(() => problems.push("Try it did not equip the bolt after the video"));
+    await p4.waitForFunction(() => window.__GS_QA__.state.trialSkin, null, { timeout: 30000 }).catch(() => problems.push("Try it did not equip the bolt after the video"));
     const t4 = await state(p4);
     if (!t4.tried.includes(t4.trialSkin)) problems.push("the tried bolt was not recorded (once per skin)");
     if (t4.owned.includes(t4.trialSkin)) problems.push("Try it unlocked the bolt instead of lending it");
     await p4.click(".shop-btn").catch(() => {});
-    await p4.waitForSelector(".shop-modal:not([hidden]) .swatch.locked", { timeout: 5000 }).catch(() => {});
+    await p4.waitForSelector(".shop-modal:not([hidden]) .swatch.locked", { timeout: 30000 }).catch(() => {});
     await p4.click(`.shop .swatch[data-id="${t4.trialSkin}"]`).catch(() => {});
     await sleep(300);
     if (await p4.$('.shop button[data-act="try"]')) problems.push("Try it offered again for the same bolt");
@@ -694,7 +736,7 @@ await scenario("shop", async () => {
   const { ctx: c3, page: p3, errors: e3 } = await openGame("runs=1&coins=0&mockAdblock=true");
   await sleep(300);
   await p3.click(".shop-btn");
-  await p3.waitForSelector(".shop-modal:not([hidden]) .swatch", { timeout: 5000 });
+  await p3.waitForSelector(".shop-modal:not([hidden]) .swatch", { timeout: 30000 });
   if (await p3.$('.shop button[data-act="cash"]')) problems.push("adblock: +coins offer still shown in the shop");
   const note3 = await p3.textContent(".shop .note");
   if (!note3.trim()) problems.push("adblock: no notice in the shop");
@@ -706,7 +748,8 @@ await scenario("shop", async () => {
 });
 
 await scenario("performance", async () => {
-  const { ctx, page, errors } = await openGame("");
+  // The Chromebook tier (4 GB devices start on "low") at 4x CPU throttle, every frame drawn. The GPU here is software.
+  const { ctx, page, errors } = await openGame("quality=low", { gl: "full" });
   const cdp = await ctx.newCDPSession(page);
   await cdp.send("Emulation.setCPUThrottlingRate", { rate: 4 });
   await startRun(page);

@@ -85,6 +85,8 @@ async function boot() {
   let resultsThisSession = 0;   // the daily gift waits for the first result of the session
   let offerTick = 0;
   let qaAutopilot = false;
+  const qaRenderEvery = qs.get("qa") === "1" ? Math.max(0, Number(qs.get("renderEvery")) || 0) : 0;   // see render()
+  let qaLastDraw = 0;
   let qaHold = null;            // QA/screenshot override for the hold button (null = real input)
   let qaFrozen = false;         // QA screenshot staging: simulation and effects stopped on this frame
   let qaFreezeWhen = null;      // QA: freeze on the first step where this returns true
@@ -287,6 +289,13 @@ async function boot() {
     offerTick += dt;
     if (offerTick >= 0.5) { offerTick = 0; tickOffers(); }
     quality.update(loop.frameMs, dt);
+    // QA only (?qa=1&renderEvery=ms): draw the 3D scene at most once per N ms, so the logic and UI scenarios run in
+    // real time on the software-rendered CI container (a frame costs 0.3-1.2 s there). Never set in normal play.
+    if (qaRenderEvery > 0) {
+      const now = performance.now();
+      if (now - qaLastDraw < qaRenderEvery) return;
+      qaLastDraw = now;
+    }
     stage.render();
   }
 

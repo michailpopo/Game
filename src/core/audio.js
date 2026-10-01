@@ -35,6 +35,9 @@ export const SFX = {
   clash: [0.4, 0.25, 150, 0, 0.02, 0.07, 4, 1.8, 0, 0, 0, 0, 0, 0.7, 0, 0, 0, 0.4, 0, 0, 2000],
 };
 
+const SFX_GAIN = 0.62;       // all sound effects together (the owner's one volume knob; mute is a separate gain)
+const PEAK_CEILING = 0.9;    // per-sound peak limit before SFX_GAIN
+
 export class AudioService {
   #defs; #ctx = null; #master = null; #sfx = null;
   #platformMute = false; #adMute = false; #hiddenMute = false; #userMute = false;
@@ -83,9 +86,21 @@ export class AudioService {
       if (!AC) return false;
       this.#ctx = new AC();
       this.#master = this.#ctx.createGain();
-      this.#master.connect(this.#ctx.destination);
+      // Comfortable, consistent levels (CG quality guideline): the ZzFX generator is not normalised (a noise
+      // boom can peak at +3 dBFS), and a crackle ladder stacks up to 6 voices. A gentle limiter after the
+      // master gain keeps stacked hits from clipping; the mute gain stays in front of it, so mute is still exact.
+      const limiter = this.#ctx.createDynamicsCompressor?.();
+      if (limiter) {
+        limiter.threshold.value = -10;
+        limiter.knee.value = 8;
+        limiter.ratio.value = 10;
+        limiter.attack.value = 0.002;
+        limiter.release.value = 0.12;
+        this.#master.connect(limiter);
+        limiter.connect(this.#ctx.destination);
+      } else this.#master.connect(this.#ctx.destination);
       this.#sfx = this.#ctx.createGain();
-      this.#sfx.gain.value = 0.9;
+      this.#sfx.gain.value = SFX_GAIN;
       this.#sfx.connect(this.#master);
       for (const [name, params] of Object.entries(this.#defs)) this.#build(name, params);
       this.#apply();
@@ -132,8 +147,14 @@ export class AudioService {
     while (p.length < 21) p.push(undefined);
     const samples = buildSamples(...p, rate);
     if (!samples.length) return;
+    // Never let one sound clip on its own: scale a buffer that peaks above PEAK_CEILING down to it (quieter
+    // sounds keep their designed level, so the mix stays as authored).
+    let peak = 0;
+    for (let i = 0; i < samples.length; i++) { const a = Math.abs(samples[i]); if (a > peak) peak = a; }
+    const k = peak > PEAK_CEILING ? PEAK_CEILING / peak : 1;
     const buf = this.#ctx.createBuffer(1, samples.length, rate);
-    buf.getChannelData(0).set(samples);
+    const out = buf.getChannelData(0);
+    for (let i = 0; i < samples.length; i++) out[i] = samples[i] * k;
     this.#buffers.set(name, buf);
   }
 

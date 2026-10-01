@@ -34,7 +34,7 @@ import { ToonBolts } from "../fx/toon-bolts.js";
 import { createNumberPops } from "../fx/number-pop.js";
 import { applyLook } from "../render/look.js";
 import { CityMesh } from "./city-mesh.js";
-import { LOOK, THEMES, backdropFor, themeOf } from "./look.js";
+import { EXPOSURE, LOOK, THEMES, backdropFor, brightBackdropFor, themeOf } from "./look.js";
 import { bandOf, nearestBuilding } from "./sim.js";
 
 const U = 2.4;                                   // FxKit preset unit in metres (bolt widths, halos, sparks)
@@ -71,10 +71,18 @@ export class GameView {
       keyDir: [-0.75, 0.62, 0.5], rimDir: [0.2, 0.6, -1], bloom: { strength: 0.6, radius: 0.25, threshold: 2.2 },
     });
     this.look.key.shadow.radius = 5;
+    // A restored WebGL context loses the palette environment (a render target drawn on the GPU): rebuild it and the shadow map, or
+    // the city comes back dark and flat (three.js re-uploads everything else by itself).
+    stage.renderer.domElement.addEventListener("webglcontextrestored", () => {
+      const theme = this.theme ?? THEMES[0];
+      this.look.setBackdrop(this.lookStyle === "bright" ? brightBackdropFor(theme) : backdropFor(theme));
+      this.look.refreshShadows();
+    });
     const quality = AdaptiveQuality.of(stage.renderer);
     if (quality) quality.subscribe((tier) => this.look.setQuality(tier));
     // QA only (?qa=1): the look, so the harness can force a shadow-map refresh frame and read its cost.
     if (typeof location !== "undefined" && new URLSearchParams(location.search).get("qa") === "1") { window.__GS_LOOK__ = this.look; window.__GS_VIEW__ = this; }
+    this.lookStyle = "dusk";           // "dusk" (default lighting) | "bright" (playtest alternative, key L / ?look=bright)
     this.boltStyle = "classic";        // "classic" (glow bolts, ribbons.js, the default) | "toon" (outlined bolts, toon-bolts.js)
     this.toon = null;                  // created the first time the toon style is used
     this.cityMesh = new CityMesh(stage.scene);
@@ -110,8 +118,21 @@ export class GameView {
     this.marker.renderOrder = 6;
     this.marker.visible = false;
     stage.scene.add(this.marker);
-    if (typeof location !== "undefined" && new URLSearchParams(location.search).get("bolt") === "toon") this.setBoltStyle("toon");
+    const params = typeof location !== "undefined" ? new URLSearchParams(location.search) : null;
+    if (params?.get("bolt") === "toon") this.setBoltStyle("toon");
+    if (params?.get("look") === "bright") this.setLookStyle("bright");
   }
+
+  // ------------------------------------------------------------------ lighting style (playtest comparison: dusk vs bright)
+  setLookStyle(style) {
+    this.lookStyle = style === "bright" ? "bright" : "dusk";
+    this.stage.renderer.toneMappingExposure = EXPOSURE[this.lookStyle];
+    if (this.theme) this.look.setBackdrop(this.lookStyle === "bright" ? brightBackdropFor(this.theme) : backdropFor(this.theme));
+    this.look.refreshShadows();
+    return this.lookStyle;
+  }
+
+  toggleLookStyle() { return this.setLookStyle(this.lookStyle === "bright" ? "dusk" : "bright"); }
 
   // ------------------------------------------------------------------ bolt style (playtest comparison: classic vs toon)
   /** "classic" = the glow bolts (default, untouched); "toon" = the outlined alternative. */
@@ -142,7 +163,7 @@ export class GameView {
   build(sim) {
     const theme = themeOf(sim.city);
     this.theme = theme;
-    this.look.setBackdrop(backdropFor(theme));
+    this.look.setBackdrop(this.lookStyle === "bright" ? brightBackdropFor(theme) : backdropFor(theme));
     this.fx.clear();
     this.toon?.clear();
     this.cityMesh.build(sim.city, sim.seed, theme, this.fx);

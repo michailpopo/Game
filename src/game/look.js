@@ -88,7 +88,18 @@ export const THEMES = [
 
 export const themeOf = (city) => THEMES[(city?.theme ?? 0) % THEMES.length];
 
+/** Tone-mapping exposure per lighting style. */
+export const EXPOSURE = { dusk: 1.08, bright: 1.12 };
+
 /** The look.js backdrop preset for a theme: the dusk sky with the theme's overrides. */
 export function backdropFor(theme) {
   return { ...BACKDROPS.dusk, ...theme.sky };
+}
+
+/**
+ * The brighter alternative lighting (playtest A/B, key L / ?look=bright): a near-white key light and a strong, neutral sky fill, so the
+ * shaded walls and the roofs keep their own colour instead of a violet cast. Same sky, fog and city; only the light rig changes.
+ */
+export function brightBackdropFor(theme) {
+  return { ...backdropFor(theme), hemiSky: "#eef2ff", hemiGround: "#8d93ac", hemi: 2.0, key: "#fff4e8", keyIntensity: 2.9, rimIntensity: 0.35 };
 }

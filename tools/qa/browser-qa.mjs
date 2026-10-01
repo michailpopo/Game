@@ -455,6 +455,57 @@ await scenario("touch", async () => {
   await ctx.close();
 });
 
+/** The core verb through each real input path: press-and-hold until the charge is in the gold band, release -> a strike (a bolt chain). */
+await scenario("input-strike", async () => {
+  const problems = [];
+  const holdUntilCharged = (page) => page.waitForFunction(() => { const q = window.__GS_QA__.state; return q.holding && q.charge >= 0.72; }, null, { timeout: 30000 });
+  const struck = async (page, label) => {
+    await page.waitForFunction(() => { const q = window.__GS_QA__.state; return q.strikesLeft < q.strikesMax && q.lit >= 2; }, null, { timeout: 30000 })
+      .catch(() => problems.push(`${label}: no strike after the release`));
+    const q = await state(page);
+    return q;
+  };
+  // 1. mouse: press anywhere on the city, hold, release
+  {
+    const { ctx, page, errors } = await openGame("");
+    await page.mouse.move(640, 430);
+    await page.mouse.down();
+    await holdUntilCharged(page).catch(() => problems.push("mouse: the charge never filled while the button was held"));
+    await page.mouse.up();
+    const q = await struck(page, "mouse");
+    if (q.inputMode !== "mouse") problems.push(`mouse: inputMode ${q.inputMode}`);
+    allErrors.push(...errors);
+    await ctx.close();
+  }
+  // 2. keyboard: arrows move the crosshair, Space held = charge, released = strike
+  {
+    const { ctx, page, errors } = await openGame("");
+    await page.keyboard.press("ArrowRight");
+    await page.keyboard.press("ArrowDown");
+    await page.keyboard.down("Space");
+    await holdUntilCharged(page).catch(() => problems.push("keyboard: the charge never filled while Space was held"));
+    await page.keyboard.up("Space");
+    const q = await struck(page, "keyboard");
+    if (q.inputMode !== "keys") problems.push(`keyboard: inputMode ${q.inputMode}`);
+    allErrors.push(...errors);
+    await ctx.close();
+  }
+  // 3. touch: a finger held on the city (CDP touch events: Playwright's touchscreen can only tap)
+  {
+    const { ctx, page, errors } = await openGame("mockDevice=mobile", { viewport: { width: 800, height: 450 }, touch: true });
+    const cdp = await ctx.newCDPSession(page);
+    await cdp.send("Input.dispatchTouchEvent", { type: "touchStart", touchPoints: [{ x: 400, y: 280, id: 1 }] });
+    await holdUntilCharged(page).catch(() => problems.push("touch: the charge never filled while the finger was held"));
+    await cdp.send("Input.dispatchTouchEvent", { type: "touchEnd", touchPoints: [] });
+    const q = await struck(page, "touch");
+    if (q.inputMode !== "touch") problems.push(`touch: inputMode ${q.inputMode}`);
+    allErrors.push(...errors);
+    await ctx.close();
+  }
+  record({ id: "input-strike", requirements: ["CG-TECH-009", "CG-QUAL-001"], status: problems.length ? "FAIL" : "PASS",
+    summary: problems.length ? problems.join("; ") : "hold + release strikes through the mouse, the keyboard (Space + arrows, event.code) and a touch hold", evidence: {} });
+});
+
 // ------------------------------------------------------------------ hypercasual profile: poly, dead air, offers
 /** Every visible rewarded offer (`data-video`) and the alternatives shown next to it. */
 async function auditOffers(page) {
@@ -532,6 +583,90 @@ await scenario("poly-budget", async () => {
       : `max ${maxTris} tris / ${maxCalls} draw calls per frame over 12 s of play at the high tier${budgets ? ` (budget ${budgets.trianglesPerFrame} / ${budgets.drawCalls})` : " (no budgets in project.json)"}; heaviest geometry ${top ? `${top.name} ${top.triangles} tris x${top.instances}` : "?"}; ${stats?.geometries ?? "?"} geometries`,
     evidence: { maxTris, maxCalls, stats, budgets },
   });
+  await ctx.close();
+});
+
+await scenario("bolt-styles", async () => {
+  // Playtest A/B (temporary, remove with the toggle once the owner has picked): the classic glow bolt is the default; key B swaps to
+  // the outlined toon bolt and back, key L swaps the lighting. Both bolt styles must play a whole city without a console error.
+  const { ctx, page, errors } = await openGame("compare=1");
+  const problems = [];
+  const style = () => page.evaluate(() => ({ bolt: window.__GS_VIEW__.boltStyle, look: window.__GS_VIEW__.lookStyle, toon: !!window.__GS_VIEW__.toon }));
+  const s0 = await style();
+  if (s0.bolt !== "classic" || s0.look !== "dusk") problems.push(`defaults are not classic/dusk: ${JSON.stringify(s0)}`);
+  await page.evaluate(() => window.__GS_QA__.setAutopilot(true));
+  for (const [label, key] of [["classic", null], ["toon", "KeyB"], ["classic again", "KeyB"]]) {
+    if (key) { await page.keyboard.press(key); await sleep(150); }
+    if (label === "toon") { await page.keyboard.press("KeyL"); await sleep(150); }
+    const s = await style();
+    if ((label === "toon") !== (s.bolt === "toon")) problems.push(`${label}: style is ${s.bolt}`);
+    await page.evaluate(() => window.__GS_QA__.start());
+    await page.waitForFunction(() => ["won", "failed"].includes(window.__GS_QA__.state.phase), null, { timeout: 90000 }).catch(() => problems.push(`${label}: the run did not end`));
+    const lit = (await state(page)).lit;
+    if (lit < 4) problems.push(`${label}: only ${lit} buildings lit`);
+    await page.waitForSelector(".modal:not([hidden]) .dialog button", { timeout: 30000 }).catch(() => problems.push(`${label}: no result dialog`));
+    await page.click('.modal:not([hidden]) button[data-id="claim"], .modal:not([hidden]) button[data-id="retry"], .modal:not([hidden]) button[data-id="finish"]').catch(() => {});
+    await page.waitForFunction(() => window.__GS_QA__.state.phase === "ready", null, { timeout: 30000 }).catch(() => problems.push(`${label}: no next intro`));
+  }
+  const labels = await page.$$eval("button.compare-btn", (b) => b.slice(0, 3).map((x) => x.textContent));
+  if (!/^Bolt:/.test(labels[0] || "") || !/^Light:/.test(labels[1] || "") || labels[2] !== "Sounds") problems.push(`?compare=1 buttons are ${JSON.stringify(labels)} (want Bolt / Light / Sounds)`);
+  allErrors.push(...errors);
+  record({ id: "bolt-styles", requirements: [], status: problems.length ? "FAIL" : "PASS",
+    summary: problems.length ? problems.join("; ") : "classic + dusk by default; B swaps to the toon bolt and back, L swaps the light; a whole city plays in each without errors", evidence: { s0 } });
+  await ctx.close();
+});
+
+await scenario("context-loss", async () => {
+  // A GPU reset (driver crash, memory pressure on a Chromebook) loses the WebGL context. three.js re-uploads buffers and textures by itself,
+  // the palette environment is rebuilt by view.js: the game must keep running, with no console error, and the picture must not go dark.
+  const { ctx, page, errors } = await openGame("quality=low", { gl: "full" });
+  await startRun(page);
+  const lum = () => page.evaluate(() => new Promise((res) => requestAnimationFrame(() => {
+    // same task as the game's draw: the WebGL buffer is still readable here
+    const c = document.getElementById("game"), t = document.createElement("canvas"); t.width = 32; t.height = 18;
+    const g = t.getContext("2d"); g.drawImage(c, 0, 0, 32, 18);
+    const d = g.getImageData(0, 0, 32, 18).data; let sum = 0; for (let i = 0; i < d.length; i += 4) sum += d[i] * 0.3 + d[i + 1] * 0.59 + d[i + 2] * 0.11;
+    res(sum / (d.length / 4));
+  })));
+  await sleep(1500);
+  const before = await lum();
+  const frame0 = await page.evaluate(() => window.__GS_QA__.renderInfo().frame);
+  await page.evaluate(() => { const gl = window.__GS_VIEW__.stage.renderer.getContext(); window.__loseExt = gl.getExtension("WEBGL_lose_context"); window.__loseExt.loseContext(); });
+  await sleep(700);
+  await page.evaluate(() => window.__loseExt.restoreContext());
+  await page.waitForFunction((f) => window.__GS_QA__.renderInfo().frame > f + 3, frame0, { timeout: 30000 }).catch(() => {});
+  await sleep(2500);
+  const after = await lum();
+  const s = await state(page);
+  const problems = [];
+  const frame1 = await page.evaluate(() => window.__GS_QA__.renderInfo().frame);
+  if (!(frame1 > frame0 + 3)) problems.push(`rendering did not resume after the context was restored (frame ${frame0} -> ${frame1})`);
+  if (!(after > before * 0.7)) problems.push(`the picture went dark after the restore (mean luminance ${before.toFixed(0)} -> ${after.toFixed(0)})`);
+  if (s.phase !== "run") problems.push(`phase after restore: ${s.phase}`);
+  allErrors.push(...errors);
+  record({ id: "context-loss", requirements: ["CG-GAME-004"], status: problems.length ? "FAIL" : "PASS",
+    summary: problems.length ? problems.join("; ") : `WebGL context lost and restored mid-run: frames resumed (${frame0} -> ${frame1}), luminance ${before.toFixed(0)} -> ${after.toFixed(0)}, run still going`, evidence: { before, after, frame0, frame1 } });
+  await ctx.close();
+});
+
+await scenario("no-webgl", async () => {
+  // A browser without WebGL (hardware acceleration off): the player must be told, not left on an endless loading bar.
+  const ctx = await browser.newContext({ viewport: { width: 1280, height: 720 }, deviceScaleFactor: 1 });
+  openContexts.add(ctx);
+  await ctx.route(/sdk\.crazygames\.com\/crazygames-sdk-v3\.js/, (route) => route.fulfill({ path: MOCK, contentType: "text/javascript" }));
+  await ctx.addInitScript(() => {
+    const real = HTMLCanvasElement.prototype.getContext;
+    HTMLCanvasElement.prototype.getContext = function (type, ...a) { return /webgl/i.test(String(type)) ? null : real.call(this, type, ...a); };
+  });
+  const page = await ctx.newPage();
+  const pageErrors = [];
+  page.on("pageerror", (e) => pageErrors.push(e.message));
+  await page.goto(`${baseUrl}?qa=1`, { waitUntil: "domcontentloaded" });
+  await page.waitForFunction(() => /could not start/i.test(document.getElementById("boot")?.textContent || ""), null, { timeout: 30000 }).catch(() => {});
+  const text = (await page.textContent("#boot").catch(() => "")) || "";
+  const shown = /could not start/i.test(text) && /WebGL/.test(text);
+  record({ id: "no-webgl", requirements: ["CG-GAME-004"], status: shown ? "PASS" : "FAIL",
+    summary: shown ? "no WebGL: the loading screen explains it (needs WebGL / hardware acceleration) instead of spinning forever" : `no WebGL: the loading screen says "${text.trim().slice(0, 80)}"`, evidence: { pageErrors } });
   await ctx.close();
 });
 
@@ -704,6 +839,8 @@ await scenario("shop", async () => {
   if (s1.owned.length !== s0.owned.length + 1) problems.push("unlock did not add a skin");
   if (s0.owned.includes(s1.skin)) problems.push("unlock gave a skin the player already owned");
   if (s1.coins >= s0.coins) problems.push("unlock did not cost coins");
+  const boltHex = await p2.evaluate(() => window.__GS_VIEW__.boltHex);
+  if (String(boltHex).toLowerCase() === "#4df3ff") problems.push("the newly equipped bolt skin did not recolour the bolt in play");
   await p2.screenshot({ path: resolve(SHOTS, "shop-unlocked.png") });
   allErrors.push(...e2);
   await c2.close();

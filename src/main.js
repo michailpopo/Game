@@ -134,6 +134,12 @@ async function boot() {
     onBuy: buyUpgrade, onFree: freeUpgrade, onBoost: takeBoost, onBoostCoins: buyBoost, onGift: openGift,
     onShop: openShop, onShopClose: closeShop, onSkin: selectSkin, onPreview: previewSkin, onUnlock: unlockRandom,
     onCash: cashForShop, onTry: trySkin,
+    // A dialog docks to one screen edge: the camera keeps the (lit) city in the rest of the screen, then the intro / run framing returns.
+    onDialogLayout: (insets) => {
+      if (insets) view.setSafeArea({ top: insets.top + 10, bottom: insets.bottom + 10, left: insets.left + 10, right: insets.right + 10 });
+      else if (sim?.phase === "ready") updateSafeArea();
+      else view.setSafeArea(null);
+    },
   });
   const ads = new AdController(pause, audio, ui.adOverlay);
   ads.detectAdblock().then(refreshReady);   // never block boot on this
@@ -228,7 +234,15 @@ async function boot() {
     if (e.code === "KeyM" && !e.repeat && !e.ctrlKey && !e.metaKey && !e.altKey) toggleSound();
     // PLAYTEST ONLY - remove once the owner has picked a bolt: B swaps the classic glow bolt and the new toon bolt.
     if (e.code === "KeyB" && !e.repeat && !e.ctrlKey && !e.metaKey && !e.altKey) swapBolt();
+    if (e.code === "KeyL" && !e.repeat && !e.ctrlKey && !e.metaKey && !e.altKey) swapLook();
   });
+  /** PLAYTEST ONLY: dusk <-> bright lighting (key L, or the ?compare=1 button). Dusk stays the default. */
+  function swapLook() {
+    const style = view.toggleLookStyle();
+    ui.toast(t(style === "bright" ? "look_bright" : "look_dusk"), 1600);
+    if (lookBtn) lookBtn.textContent = t(style === "bright" ? "look_bright" : "look_dusk");
+  }
+  let lookBtn = null;
   /** PLAYTEST ONLY: classic <-> toon bolt (key B, or the ?compare=1 button on touch screens). The classic bolt stays the default. */
   function swapBolt() {
     const style = view.toggleBoltStyle();
@@ -888,7 +902,8 @@ async function boot() {
   if (coverKind || qs.get("capture") === "1") return startMarketingMode(coverKind);
 
   // PLAYTEST ONLY (?compare=1): a small on-screen button for the bolt comparison (touch screens have no B key).
-  if (qs.get("compare") === "1") {
+  // (the playtest page sets window.__PLAYTEST__ because a hosted page cannot take a query string)
+  if (qs.get("compare") === "1" || globalThis.__PLAYTEST__ === true) {
     compareBtn = document.createElement("button");
     compareBtn.type = "button";
     compareBtn.className = "btn compare-btn";
@@ -896,6 +911,34 @@ async function boot() {
     compareBtn.textContent = t("bolt_classic");
     compareBtn.addEventListener("click", swapBolt);
     document.getElementById("ui").appendChild(compareBtn);
+    lookBtn = document.createElement("button");
+    lookBtn.type = "button";
+    lookBtn.className = "btn compare-btn";
+    lookBtn.style.cssText = "position:absolute;left:0.6em;top:6.2em;font-size:0.8em;min-height:2.2em;padding:0.2em 0.7em;z-index:12";
+    lookBtn.textContent = t("look_dusk");
+    lookBtn.addEventListener("click", swapLook);
+    document.getElementById("ui").appendChild(lookBtn);
+    // Sound check (the owner auditions every sound; the rare ones - fanfare, block chord - are otherwise hard to find): each sound once,
+    // through the real mixer (peak ceiling, limiter, volume), so what is heard here is what the game plays.
+    const soundsBtn = document.createElement("button");
+    soundsBtn.type = "button";
+    soundsBtn.className = "btn compare-btn";
+    soundsBtn.style.cssText = "position:absolute;left:0.6em;top:9em;font-size:0.8em;min-height:2.2em;padding:0.2em 0.7em;z-index:12";
+    soundsBtn.textContent = "Sounds";
+    const panel = document.createElement("div");
+    panel.hidden = true;
+    panel.style.cssText = "position:absolute;left:0.6em;top:12em;z-index:12;display:flex;flex-wrap:wrap;gap:0.3em;max-width:min(24em,70vw);pointer-events:auto";
+    for (const name of Object.keys({ ...SFX, ...STORM_SFX })) {
+      const b = document.createElement("button");
+      b.type = "button";
+      b.className = "btn compare-btn";
+      b.style.cssText = "font-size:0.62em;min-height:2em;padding:0.15em 0.55em";
+      b.textContent = name;
+      b.addEventListener("click", () => { audio.unlock(); audio.play(name, { minGap: 0, maxVoices: 8 }); });
+      panel.appendChild(b);
+    }
+    soundsBtn.addEventListener("click", () => { panel.hidden = !panel.hidden; });
+    document.getElementById("ui").append(soundsBtn, panel);
   }
 
   // ---------------------------------------------------------------- start
@@ -994,4 +1037,9 @@ async function boot() {
 
 boot().catch((e) => {
   console.error("[boot] failed", e);
+  // The most likely cause is no WebGL (hardware acceleration off, a blocked GPU): say so instead of an endless loading bar.
+  const overlay = document.getElementById("boot");
+  if (overlay && !overlay.classList.contains("done")) {
+    overlay.innerHTML = '<p style="margin:0;padding:24px;max-width:26em;text-align:center;color:#fff;font:600 18px/1.35 system-ui,sans-serif">Storm Grid could not start.<br><span style="font-weight:400;font-size:15px;opacity:.85">It needs WebGL. Turn on hardware acceleration in your browser settings, or use an up-to-date Chrome or Edge, then reload the page.</span></p>';
+  }
 });

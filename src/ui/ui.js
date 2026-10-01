@@ -47,7 +47,7 @@ const ICON = {
 const swatch = (fill) => `<svg viewBox="0 0 48 48" aria-hidden="true"><path d="M28 4 12 27h10l-3 17 17-25H26z" fill="${fill}"/></svg>`;
 const PLATE_COLORS = { 2: "#4df3ff", 3: "#7cff7a", 5: "#ffcc33", 10: "#ff3fa4" };
 
-export function createUI(root, { onSound, onPause, onResume, onBuy, onFree, onBoost, onBoostCoins, onGift, onShop, onShopClose, onSkin, onPreview, onUnlock, onCash, onTry }) {
+export function createUI(root, { onSound, onPause, onResume, onBuy, onFree, onBoost, onBoostCoins, onGift, onShop, onShopClose, onSkin, onPreview, onUnlock, onCash, onTry, onDialogLayout }) {
   root.innerHTML = `
     <div class="hud">
       <div class="hud-left"><div class="coins"><b>0</b><span class="coin">${ICON.coin}</span></div></div>
@@ -293,9 +293,22 @@ export function createUI(root, { onSound, onPause, onResume, onBuy, onFree, onBo
       setAmount(n) { amountEl.textContent = String(n); amountEl.animate([{ scale: 1 }, { scale: 1.3 }, { scale: 1 }], { duration: 300 }); },
       get amountElement() { return dialog.querySelector(".amount"); },
       get locked() { return locked; },
-      close() { modal.hidden = true; row.onclick = null; countdown = null; ring.hidden = true; },
+      close() { modal.hidden = true; row.onclick = null; countdown = null; ring.hidden = true; onDialogLayout?.(null); },
     };
+    requestAnimationFrame(() => { if (!modal.hidden) onDialogLayout?.(dialogInsets()); });
     return handle;
+  }
+  /**
+   * How far (px) the open dialog reaches in from the screen edge it docks to - the right edge in landscape, the bottom edge in
+   * portrait (styles.css) - so the camera can keep the lit city in the rest of the screen (view.setSafeArea). Layout sizes, not the
+   * entrance animation's scaled rect.
+   */
+  function dialogInsets(el = dialog) {
+    const W = root.clientWidth, H = root.clientHeight;
+    const out = { top: 0, bottom: 0, left: 0, right: 0 };
+    if (portraitQuery.matches) out.bottom = Math.min(H * 0.7, H - el.offsetTop + 8);
+    else out.right = Math.min(W * 0.55, W - el.offsetLeft + 8);
+    return out;
   }
   function drawRing() {
     if (!countdown) return;
@@ -513,9 +526,14 @@ export function createUI(root, { onSound, onPause, onResume, onBuy, onFree, onBo
       giftBtn.classList.toggle("hidden", !on);
       if (on && !was) giftBtn.animate([{ scale: 0.3, rotate: "-20deg" }, { scale: 1.2, rotate: "8deg", offset: 0.6 }, { scale: 1, rotate: "0deg" }], { duration: 520, easing: "ease-out" });
     },
-    openShop(model) { renderShop(model, true); shopModal.hidden = false; root.classList.add("shop-open"); shopModal.querySelector(".shop").animate([{ transform: "scale(.7)", opacity: 0 }, { transform: "scale(1)", opacity: 1 }], { duration: 260, easing: "ease-out" }); },
+    openShop(model) {
+      renderShop(model, true); shopModal.hidden = false; root.classList.add("shop-open");
+      const panel = shopModal.querySelector(".shop");
+      panel.animate([{ transform: "scale(.7)", opacity: 0 }, { transform: "scale(1)", opacity: 1 }], { duration: 260, easing: "ease-out" });
+      requestAnimationFrame(() => { if (!shopModal.hidden) onDialogLayout?.(dialogInsets(panel)); });   // like a dialog: docked, the city framed beside it
+    },
     updateShop(model) { if (!shopModal.hidden) renderShop(model); },
-    closeShop() { shopModal.hidden = true; root.classList.remove("shop-open"); },
+    closeShop() { shopModal.hidden = true; root.classList.remove("shop-open"); onDialogLayout?.(null); },
     get shopOpen() { return !shopModal.hidden; },
     get modalOpen() { return !modal.hidden; },
     /** The unlock reveal: the new swatch pops from silhouette to colour. */

@@ -43,7 +43,7 @@ with the `game-studio` skill (planner + specialist agents) and checked with the 
 | WP-30 | 3D core (generator, charge/strike, hop/fork chain, plates, result) | done |
 | WP-31 | Toy city + bolts + juice + ZzFX sounds in the real game | **done, verified 2026-10-02** (harness, screenshots, filmstrips) |
 | WP-32 | Shop, upgrades, 12 skins, 7 offers, daily gift, midgame, save | **done, verified 2026-10-02** (ad-ui, shop, revive-offer, ads-* scenarios) |
-| WP-QA | CrazyGames audit of the game | **done: `docs/CG_QA_AUDIT.md`** (game only; covers / video / metadata are listed as pending) |
+| WP-QA | CrazyGames audit of the game | **done: `docs/CG_QA_AUDIT.md`** - 28 browser checks 0 FAIL, soak 20 cities PASS, 43/53 mandatory PASS, 0 FAIL; open = real devices, portal, owner's ears, covers / video / text |
 | WP-13 | Launch package: covers x3, preview videos x2, store text, portal checklist | **todo - the owner said "not for now"** |
 
 What the 2026-10-01/02 session did (all committed on `claude/peaceful-allen-pphssd`):
@@ -62,7 +62,9 @@ What the 2026-10-01/02 session did (all committed on `claude/peaceful-allen-pphs
 3. **Audio:** a limiter + per-sound peak ceiling in `src/core/audio.js` (`thunder` peaked at +3 dBFS, i.e. it clipped);
    the coin count-up now ticks (`coinTick`, rising pitch, was defined but never played). The owner still has to audition.
 4. **Robustness:** WebGL context-restore handler (rebuilds the lighting environment), a clear message when WebGL is missing.
-5. **Playtest A/B switches (see below).**
+5. **Bug found by the new soak test and fixed:** P paused a run but could not resume it (a paused game does not step, so the key
+   handler in `update()` never ran; click / tap worked). Now handled in the window `keydown` listener; scenario `pause-keys`.
+6. **Playtest A/B switches (see below).**
 
 ### PLAYTEST-ONLY switches - remove after the owner has picked
 
@@ -137,12 +139,19 @@ UI with key mashing, double clicks, pauses and resizes, logging heap / DOM / GPU
 - Small fixes directly; at most one specialist agent at a time with a tight brief.
 - Run the slow browser harness once per package with `--only <scenarios>`, the full set once at the end.
 
-## 8. QA at handoff (2026-10-02, final build, container = software WebGL)
+## 8. QA at handoff (2026-10-02, final build `9e15b0b06a33`, container = software WebGL)
 
-Results of the final full run and the other checks are in `docs/CG_QA_AUDIT.md` ("Evidence" table) and
-`docs/PROJECT_STATUS.md` ("Latest measurements"). Commands: `npm run build`; `node tools/qa/sim-health.mjs --selftest`;
-`PW_CHROMIUM_PATH=/opt/pw-browsers/chromium node tools/qa/browser-qa.mjs --serve`; `node tools/qa/soak.mjs --serve
---cities 20`; `node tools/qa/report.mjs`.
+Full details: `docs/CG_QA_AUDIT.md` (audit report + evidence table), `COMPLIANCE_REPORT.md` (register view: 52 PASS, 0 FAIL,
+11 UNVERIFIED, 2 PORTAL), `docs/PROJECT_STATUS.md` (gates, measurements). Results on this build: browser harness 28 checks,
+**0 FAIL** (3 "need eyes" were looked at); soak 20 cities PASS; sim-health, policy-scan, licenses, poly, bundle PASS; dist 0.77 MB /
+6 files; 0.22 MB to the first `gameplayStart`.
+
+Commands: `npm run build`; `node tools/qa/sim-health.mjs --selftest`; `PW_CHROMIUM_PATH=/opt/pw-browsers/chromium node
+tools/qa/browser-qa.mjs --serve`; `node tools/qa/soak.mjs --serve --cities 20`; then `bash tools/qa/manual-evidence.sh && node
+tools/qa/report.mjs` (manual evidence is tied to the build, so re-run it after every build).
+
+Playtest page for the owner: `node tools/launch/playtest-page.mjs` -> `qa/playtest/index.html` (published as a private artifact in
+the session that built it; rebuild + republish after any change). Never upload it to CrazyGames.
 
 **First job for the next chat:** get the owner's answers (section 4 item 1), then do the cleanup (item 2); do not start the
 launch package before they ask for it.

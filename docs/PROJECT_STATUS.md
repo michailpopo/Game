@@ -13,12 +13,12 @@ Updated: 2026-10-02 · Project folder: /home/user/Game (repo michailpopo/Game, b
 |---|---|---|---|
 | 1 Concept | PASS | 2026-09-26 | owner picked T1 Volt City (3D), renamed Storm Grid; GAME_BRIEF, ORIGINALITY (casino name collision found -> rename), project.json done |
 | 2 Prototype fun | FAIL (Comet Chain) | 2026-09-26 | owner played playtest 1: "the game looks shit" - wants an original, dopamine-hitting game, not a copy; Comet Chain shelved |
-| 3 Vertical slice | NOT STARTED | | |
-| 4 Gameplay quality | NOT STARTED | | |
-| 5 Content & polish | NOT STARTED | | |
-| 6 Platform integration | NOT STARTED | | |
-| 7 Performance | NOT STARTED | | |
-| 8 QA & compliance | NOT STARTED | | |
+| 3 Vertical slice | READY FOR REVIEW | 2026-10-02 | whole loop plays in the real UI (soak: 20 cities with key mashing / pauses / resizes, no errors); waiting for the owner's play and ears |
+| 4 Gameplay quality | READY FOR REVIEW | 2026-10-02 | sim-health selftest PASS (deterministic, step-size drift 0%); dead-air longest silence 0.6 s; economy still model numbers until a human playtest |
+| 5 Content & polish | READY FOR REVIEW | 2026-10-02 | candy roofs, docked dialogs, limiter + coin ticks, two bolts and two lights to pick from (owner decides); sounds never auditioned |
+| 6 Platform integration | PASS (mock SDK; portal preview still the owner's) | 2026-10-02 | browser-qa sdk-events, no-sdk, sdk-disabled, sdk-init-hang, ads-*, adblock, mute-priority, tab-hidden, persistence all PASS |
+| 7 Performance | READY FOR REVIEW (proxies only) | 2026-10-02 | 8.7k tris / 35 calls (high tier), 3.9 ms/frame script+style+layout at 4x CPU throttle, 0.77 MB; no real low-end device measured |
+| 8 QA & compliance | READY FOR REVIEW | 2026-10-02 | `docs/CG_QA_AUDIT.md`: 0 FAIL in the automated run; open = real devices, portal, owner's ears, store assets |
 | 9 Launch package | NOT STARTED | | |
 | 10 Post-launch review | NOT STARTED | | |
 Statuses: NOT STARTED · IN PROGRESS · BLOCKED · READY FOR REVIEW · PASS · FAIL
@@ -35,22 +35,25 @@ npm run qa           # all automated checks + COMPLIANCE_REPORT.md
 ## Latest measurements
 | Metric | Value | Date | How |
 |---|---|---|---|
-| Bytes to first gameplayStart | 0.18 MB (template demo) | 2026-09-26 | browser-qa boot |
-| Total dist size / files | ~0.8 MB (Storm Grid build) | 2026-09-28 | du -sh dist |
-| p95 frame time @4x CPU throttle | | | browser-qa performance |
-| Draw calls / triangles in play | | | `__GS_QA__.renderInfo()` |
-| Compliance verdict | NOT VERIFIED (template demo: 16 PASS, 46 unverified) | 2026-09-26 | report.mjs |
-| Docs freshness | UNCHANGED vs register 2026.09.11 | 2026-09-26 | check-docs-freshness.mjs |
+| Bytes to first gameplayStart | 0.22 MB | 2026-10-02 | browser-qa boot |
+| Total dist size / files | 0.77 MB, 6 files | 2026-10-02 | check-bundle |
+| Main-thread cost per frame @4x CPU throttle | 3.9 ms (script 2.3 + style 1.4 + layout 0.25), 3D draw excluded; budget 16.7 ms | 2026-10-02 | browser-qa cpu-cost (a proxy: software WebGL cannot give real frame times) |
+| Draw calls / triangles in play | max 35 calls / 8.7k tris over 12 s at the high tier (budget 60 / 60k) | 2026-10-02 | browser-qa poly-budget |
+| Compliance verdict | see `COMPLIANCE_REPORT.md` / `docs/CG_QA_AUDIT.md` (0 FAIL; open items are device / portal / owner / store assets) | 2026-10-02 | report.mjs |
+| Docs freshness | register 2026.09.11 (review due 2026-11-11 - re-check the CrazyGames docs before submitting) | 2026-10-02 | requirements.json meta |
+| Soak (20 cities, abuse) | PASS: heap 11 -> 13 MB, DOM 327 -> 287, geometries 19 -> 19, textures 4 -> 4, no console errors | 2026-10-02 | tools/qa/soak.mjs |
 
 ## Top 3 problems (reorder after every playtest)
-1. WP-31/WP-32 unverified; last screenshots show a weak bolt / pale lit colours in the game and the shop over the old dark city (HANDOFF.md section 3).
-2. No owner playtest of Storm Grid yet; sounds not auditioned.
-3. Economy numbers are model numbers (Monte Carlo) until a human playtest.
+1. The owner has not played the final build or heard the sounds: bolt (classic vs outlined) and light (dusk vs bright) are undecided; sound levels were only limited, never auditioned.
+2. Nothing was measured on a real low-end device (4 GB Chromebook, phone) or in the Developer Portal preview (Progress Save, orientation, safe areas, iOS audio) - only proxies in a software-rendered container.
+3. Economy numbers are model numbers (Monte Carlo) until a human playtest; the launch package (covers, videos, store text) is not started on purpose.
 
 ## Known bugs
 | Id | Severity (P0-P3) | Description | Status |
 |---|---|---|---|
 | B1 | P2 | Template demo: save not flushed on tab hide | fixed in WP-10 (main.js marks the save dirty on hide) |
+| B2 | P2 | A paused run could not be resumed with P (a paused game does not step, so the key was never read); click / tap worked | fixed 2026-10-02 (key handler in main.js; browser-qa `pause-keys`; found by the soak test) |
+| B3 | P3 | Classic bolt: the ribbon pool (30 ribbons, 16 bolts) can run dry in 8-chain cascades, a few late hops show only their flash | open on purpose - the owner likes the classic look; fix prototyped (HANDOFF section 3), ask first |
 
 ## Decisions log
 | Date | Decision | Why | Alternatives rejected |
@@ -67,3 +70,7 @@ npm run qa           # all automated checks + COMPLIANCE_REPORT.md
 | 2026-09-26 | Look kit WP-20 done: Neutral tone mapping (ACES/AgX washed colours out), bloom only on high/ultra tiers | side-by-side captures in qa/wp20/ | ACES, AgX |
 | 2026-09-27 | Keep the UI; restyle the city from hit-game references, keep it simple | owner: "good in general, the ui looks great but the city is still looking too ai generated, grab some visual inspo from games with a lot of likes that are made in html5, do not overcomplicate" | neon-cyberpunk city |
 | 2026-09-28 | Stopped both specialists and wrote HANDOFF.md | owner wants to continue in a new chat to save context tokens; the account hit its usage limit twice | keep agents running here |
+| 2026-10-01 | Scope of the polish session: the game itself, no covers / videos / store text | owner: "just the game not the files for now" | launch package now |
+| 2026-10-01 | Keep the classic glow bolt as the default and untouched; build a second outlined ("toon") bolt next to it | owner: "i like how the bolt looks in the game actually so dont delete the version there is now, make a new and i will tell you which is better" | replacing the bolt |
+| 2026-10-02 | Playtest switches (bolt, light, sound check) work only on the hosted playtest page or with `?compare=1`; they are removed once the owner picks | a player must never flip the look by accident | always-on hotkeys |
+| 2026-10-02 | Limiter + per-sound peak ceiling in the mixer instead of re-tuning every sound by ear | `thunder` peaked at +3 dBFS (clipped); Claude cannot hear, the owner will audition | rewriting the sounds blind |

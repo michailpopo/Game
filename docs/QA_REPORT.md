@@ -192,3 +192,22 @@ plate is heavy (part of the established look - the optional `bright` light softe
 **Not verifiable here (needs the owner / the portal):** sounds (nobody has heard them), real-device frame time (4 GB
 Chromebook, phone), Edge / Safari / iOS audio resume, the CrazyGames app safe areas, Developer Portal preview and the
 Progress Save toggle, whether the game is fun.
+
+### 2026-10-02 final audit run (build `9e15b0b06a33`)
+
+- Full harness: **28 checks, 0 FAIL**, 3 "need eyes" (viewports, ad-ui-style, performance). Viewport and ad-ui screenshots were
+  looked at and recorded as manual evidence (`tools/qa/manual-evidence.sh`, 22 entries); `performance` stays open (no real
+  low-end device). `docs/CG_QA_AUDIT.md` has the full report in the crazygames-qa format; `COMPLIANCE_REPORT.md` the register view
+  (52 PASS, 0 FAIL, 11 UNVERIFIED, 2 PORTAL).
+- **Bug found by the soak test and fixed:** the first 20-city soak "softlocked" in the pause overlay. Real cause: P paused the run
+  but a paused game does not step, and the P handler lived in `update()`, so the second P was never read (click / tap resumed).
+  The handler now lives in the window `keydown` listener (`src/main.js`); new scenario `pause-keys` fails on the old code
+  ("the second P did not resume the run") and passes now. Soak after the fix: 20 cities in 253 s with 140 mashed keys, pauses,
+  resizes and double clicks; heap 11 -> 13 MB, DOM 327 -> 287, GPU geometries 19 -> 19, textures 4 -> 4, no console error.
+- **Harness metric fixed:** `context-loss` compared three.js' render-frame counter with the value from before the loss, but
+  three.js builds a fresh `WebGLInfo` when the context is restored, so the counter restarts at 0 (first full run: "110 -> 100",
+  a false FAIL; picture and phase were fine). It now samples after the restore. Requirement mapping: `adblock` also covers
+  CG-ADS-018, `ads-basic-launch` CG-ADS-019, `sdk-events` CG-SDK-006/007; `cpu-cost` no longer claims CG-TECH-008 (a proxy must not
+  turn a Chromebook requirement green).
+- Numbers: boot 3.6 s / 0.22 MB; poly 9.3k tris / 35 calls (high tier); 4.3 ms/frame main thread at 4x CPU throttle; longest
+  silence in play 0.8 s; dist 0.77 MB, 6 files.

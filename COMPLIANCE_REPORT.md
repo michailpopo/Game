@@ -1,6 +1,6 @@
-# Compliance report - Working Title
+# Compliance report - Storm Grid
 
-Generated 2026-09-26 19:18 UTC · build `d344882ed1fc` · target stage **full** · register 2026.09.11 (researched 2026-09-11)
+Generated 2026-10-02 16:09 UTC · build `8ef33913ddb4` · target stage **full** · register 2026.09.11 (researched 2026-09-11)
 
 ## Verdict: NOT VERIFIED - 39 mandatory requirements lack current evidence
 
@@ -17,7 +17,7 @@ Legend: PORTAL = can only be confirmed in the Developer Portal preview or by Cra
 | Id | Requirement | Type | Stage | Status | Evidence |
 |---|---|---|---|---|---|
 | CG-TECH-001 | Initial download <= 50 MB | mandatory | both | **UNVERIFIED** | check with: browser-qa boot |
-| CG-TECH-002 | Total size <= 250 MB (<= 50 MB without SDK) | mandatory | both | **PASS** | PASS: 0.64 MB (limit 250 MB, SDK integrated) _(check-bundle)_ |
+| CG-TECH-002 | Total size <= 250 MB (<= 50 MB without SDK) | mandatory | both | **PASS** | PASS: 0.76 MB (limit 250 MB, SDK integrated) _(check-bundle)_ |
 | CG-TECH-003 | File count <= 1500 | mandatory | both | **PASS** | PASS: 6 files (limit 1500) _(check-bundle)_ |
 | CG-TECH-004 | Mobile homepage eligibility: initial download <= 20 MB | mandatory | both | **UNVERIFIED** | check with: browser-qa boot |
 | CG-TECH-005 | Relative paths only | mandatory | both | **PASS** | PASS: no absolute asset paths _(check-bundle)_ |
@@ -37,7 +37,7 @@ Legend: PORTAL = can only be confirmed in the Developer Portal preview or by Cra
 |---|---|---|---|---|---|
 | CG-GAME-001 | New users land in gameplay (max 1 click) | mandatory | full | **UNVERIFIED** |  |
 | CG-GAME-002 | Legible at devicePixelRatio 1 at the named iframe sizes | mandatory | both | **UNVERIFIED** | check with: browser-qa viewports + look at screenshots |
-| CG-GAME-003 | Physics consistent across refresh rates | mandatory | both | **PASS** | PASS: simulation is free of Math.random/clock reads _(policy-scan)_<br>PASS: determinism exact, step-size drift 0.73% at 30/60/120/240 Hz _(sim-health)_ |
+| CG-GAME-003 | Physics consistent across refresh rates | mandatory | both | **PASS** | PASS: simulation is free of Math.random/clock reads _(policy-scan)_<br>PASS: determinism exact, step-size drift 0.00% at 30/60/120/240 Hz _(sim-health)_ |
 | CG-GAME-004 | Loads quickly, no errors or crashes | mandatory | both | **PASS** | PASS: no source maps, mock SDK, localhost URLs or secrets _(check-bundle)_ |
 | CG-GAME-005 | English localization; accurate translations from SDK locale | mandatory | both | **UNVERIFIED** |  |
 | CG-GAME-006 | Intuitive controls on each device type | mandatory | both | **UNVERIFIED** |  |

@@ -11,7 +11,7 @@
 export const GAME = {
   slug: "storm-grid",
   title: "Storm Grid",          // owner, 2026-09-26 (the only place the name lives besides i18n/index.html)
-  saveVersion: 4,               // 4 = fresh start after the 2026-09-29 balance change; 3 = + daily gift, tried skins, boost cadence
+  saveVersion: 5,               // 5 = owner's fresh start 2026-10-02; 4 = fresh start after the balance change; 3 = + daily gift
   // Midgame from this city on, on "Next city" and "Retry" (GAME_BRIEF "Midgame"; the SDK paces the rest).
   firstMidgameLevel: 4,
 };

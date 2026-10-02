@@ -1,4 +1,4 @@
-# Storm Grid - handoff for the next chat (updated 2026-10-01)
+# Storm Grid - handoff for the next chat (updated 2026-10-02)
 
 Read this file first (CLAUDE.md sends you here). It replaces the long chat history. Open other docs only at the
 sections named here. Older session notes are in git history (`git log -- HANDOFF.md`).
@@ -25,7 +25,7 @@ built with the `game-studio` skill and checked with the `crazygames-qa` skill. S
 
 | What | Where |
 |---|---|
-| **Playtest (private, current build)** | https://claude.ai/artifact/NiMqU6S1QUtHXMyUzwPKd1 (version 12 = commit f94b8e9) |
+| **Playtest (private, current build)** | https://claude.ai/artifact/NiMqU6S1QUtHXMyUzwPKd1 (version 13 = save v5 fresh start, 2026-10-02) |
 | Sound audition page (private) | https://claude.ai/artifact/SLPJpVUS49CdYSpu6wsWLY |
 | Repo / branch | `michailpopo/Game`, branch `claude/admiring-bell-26ljck` (everything pushed; no PR) |
 | Rebuild the playtest page | `npm run build && node tools/playtest/make-page.mjs <scratch>/playtest`, then publish `<scratch>/playtest/index.html` with the Artifact tool, `url` = the playtest link, `files` = the printed list, old hashed asset names -> `null` (read the artifact first in a new chat) |
@@ -62,7 +62,9 @@ Done and verified (details in git log and docs/PROJECT_STATUS.md):
   (`cloudGeometry`, 4,500 tris = the one hero geometry); islets = mini islands (`ringLayerGeometry`, 4 draw calls).
   Poly budget in play at city 1: 18.7k tris / 41 draw calls (budget 60k / 60).
 - Result dialog scrollbar flash fixed (`.dialog` overflow-x hidden; `tools/qa/dialog-overflow.mjs`).
-- Save v4 = fresh start for everyone (old saves held coins from the old prices).
+- Save v4 = fresh start for everyone (old saves held coins from the old prices). Save v5 (2026-10-02) = another
+  fresh start the owner asked for ("lade das Spiel neu von Anfang"); to reset again: bump `GAME.saveVersion` and add a
+  migration that keeps only `userMuted` (src/game/meta.js MIGRATIONS).
 - Sounds: all procedural ZzFX. The owner's Kenney picks (thunder=C, charge=A, fizzle=A, fork=B, powerSweep=C,
   coinTick=C, click=B) were shipped in 104dfaf and **reverted in f94b8e9 "for now"**; restore = `git revert f94b8e9`
   (needs the raw packs: re-download the 7 Kenney zips from kenney.nl/assets/<pack> into assets-src/kenney/ only if

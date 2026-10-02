@@ -47,6 +47,7 @@ export const DEFAULT_SAVE = {
  *  v2 -> v3  WP-32 fields (daily gift, tried skins, boost cadence); skin ids unchanged
  *  v3 -> v4  fresh start (owner, 2026-09-29): the SUPERCHARGE leap and doubled upgrade prices changed the economy, so
  *            old saves (coins earned at the old prices) restart at city 1; only the mute choice is kept
+ *  v4 -> v5  fresh start again (owner, 2026-10-02: "von Anfang"); only the mute choice is kept
  */
 export const MIGRATIONS = {
   2: (d) => ({ coins: Math.max(0, d.coins | 0), userMuted: !!d.userMuted }),
@@ -59,6 +60,7 @@ export const MIGRATIONS = {
     owned: Array.isArray(d.owned) && d.owned.length ? d.owned : ["cyan"],
   }),
   4: (d) => ({ userMuted: !!d.userMuted }),
+  5: (d) => ({ userMuted: !!d.userMuted }),
 };
 
 /**

@@ -6,7 +6,7 @@ Updated: 2026-10-01 · Project folder: /home/user/Game (repo michailpopo/Game, b
 - **Phase:** 3 Build -> 7 QA. Gameplay, meta, offers and look are in; the owner is iterating on the look by playtest.
   New chats: read HANDOFF.md first.
 - **Current objective:** upload-ready build for CrazyGames (full QA + crazygames-qa audit, then the launch package).
-- **Next action (one concrete step):** owner feedback on playtest v12 (https://claude.ai/artifact/NiMqU6S1QUtHXMyUzwPKd1),
+- **Next action (one concrete step):** owner feedback on playtest v13 (https://claude.ai/artifact/NiMqU6S1QUtHXMyUzwPKd1),
   then `npm run qa` + docs/CG_QA_AUDIT.md (HANDOFF section 5).
 - **Waiting on the user:** playtest feedback (FULL POWER rate, look); whether the Kenney sound picks come back; a
   Vercel project `storm-grid` (or a role that can create one) for a public link.
@@ -83,3 +83,4 @@ npm run qa           # all automated checks + COMPLIANCE_REPORT.md
 | 2026-09-29 | Result dialog: overflow-x hidden (no scrollbar flash during the entry animation); save v4 = fresh start for everyone | owner saw a scrollbar flash; owner asked to reset the game to the beginning (old saves hold coins from the old prices) | hiding scrollbars with CSS only; a hidden reset button |
 | 2026-09-29 | Picked Kenney sounds reverted for now; all sounds procedural (ZzFX) again | owner: "mach zurück für jetzt die sounds wie die waren" | keeping the 7 files |
 | 2026-10-01 | HANDOFF.md rewritten for fresh chats; CLAUDE.md gains the owner rules; tools/playtest/make-page.mjs rebuilds the playtest page | owner: "update claude.md and all the things i need to start a fresh session" | keeping the long session log in HANDOFF (it is in git history) |
+| 2026-10-02 | Save v5: everyone restarts at city 1 (mute kept); playtest v13 | owner: "lade das Spiel neu für mich von Anfang" | a reset button in the game |

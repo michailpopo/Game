@@ -15,6 +15,7 @@ const node = process.execPath;
 const vite = resolve(root, "node_modules/vite/bin/vite.js");
 const steps = [
   ["simulation health", [node, "tools/qa/sim-health.mjs", "--selftest"]],
+  ["city layout (buildings apart)", [node, "tools/qa/check-city.mjs", "--selftest"]],
   ["policy scan", [node, "tools/qa/policy-scan.mjs"]],
   ["licenses", [node, "tools/qa/check-licenses.mjs"]],
   ["poly budget (model files)", [node, "tools/qa/check-poly.mjs"]],

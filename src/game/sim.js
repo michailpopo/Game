@@ -27,7 +27,7 @@
  * VIEW API - everything a view needs, read-only (units: metres, sim seconds). Restyle freely; the
  * simulation never depends on how it is drawn:
  *   s.city            { level, theme (0..7), width, depth, buildings: Building[], districts: District[] }
- *   Building          { id, district, x, z (footprint centre, ground y = 0), w, d (footprint), h (roof height),
+ *   Building          { id, district, x, z (footprint centre, ground y = 0), w, d (footprint, trimmed where neighbours would touch), h (roof height),
  *                       tipY (antenna tip = the hop point, roof + 3 m), floors, roof ("flat" | "stepped" | "spire",
  *                       cosmetic), gold (gold rod: x10), seed (0..1, per-building variation) }
  *   District          { id, members (building ids), x, z, w, d (the district's lot area) }
@@ -100,6 +100,46 @@ export function cityPlan(level) {
 }
 
 /**
+ * Footprints (w, d) are look only: hops use x, z and the antenna tip, so the layout and the balance stay as
+ * they are. Lots jitter, so two neighbours can lean into each other. For such a pair, shrink the footprint
+ * sides on the axis that needs the least until the DRAWN roof caps (see STORM.city: visualGrow, maxVisual,
+ * capOverhang) keep `clearance` m of air; a side never goes below footprintMin. No random draws, no moves.
+ */
+function clearFootprints(bs, c) {
+  const body = (s) => Math.min(c.maxVisual, s * c.visualGrow);
+  const cap = (s) => body(s) + c.capOverhang;
+  const floor = c.footprintMin * c.visualGrow;
+  const reach = cap(c.lotPitch * c.footprint[1]) + c.clearance;   // beyond this centre distance nothing can touch
+  // Cut `need` m in total off the drawn widths of two sides (p, q), as evenly as the floor allows.
+  const trim = (p, q, key, need) => {
+    const room = (s) => Math.max(0, body(s) - floor);
+    let cutP = Math.min(need / 2, room(p[key]));
+    const cutQ = Math.min(need - cutP, room(q[key]));
+    cutP = Math.min(room(p[key]), need - cutQ);
+    p[key] = (body(p[key]) - cutP) / c.visualGrow;
+    q[key] = (body(q[key]) - cutQ) / c.visualGrow;
+  };
+  for (let pass = 0; pass < 8; pass++) {
+    let moved = false;
+    for (let i = 0; i < bs.length; i++) {
+      for (let j = i + 1; j < bs.length; j++) {
+        const a = bs[i], b = bs[j];
+        const dx = Math.abs(a.x - b.x), dz = Math.abs(a.z - b.z);
+        if (dx >= reach || dz >= reach) continue;
+        const needX = (cap(a.w) + cap(b.w)) / 2 + c.clearance - dx;
+        const needZ = (cap(a.d) + cap(b.d)) / 2 + c.clearance - dz;
+        if (needX <= 1e-6 || needZ <= 1e-6) continue;   // already clear along one axis
+        // The air between two caps is the centre distance minus HALF the sum of their widths: closing a
+        // gap of `need` takes `2 * need` off the two sides together.
+        if (needX <= needZ) trim(a, b, "w", 2 * needX); else trim(a, b, "d", 2 * needZ);
+        moved = true;
+      }
+    }
+    if (!moved) break;
+  }
+}
+
+/**
  * A seeded city: per x per districts of lots x lots lots, with avenues between districts. Exactly
  * N lots get a building: park rolls first, then the lots nearest the centre win (a compact skyline
  * with parks as holes; the outer lots stay empty). Every building has a rooftop antenna tip.
@@ -148,6 +188,7 @@ export function generateCity(level, seed, gold = 0) {
     if (!byDistrict.has(l.district)) byDistrict.set(l.district, []);
     byDistrict.get(l.district).push(b.id);
   }
+  clearFootprints(buildings, c);
   // Districts with at least one building, renumbered densely (bounds = the district's lot area).
   const districts = [];
   for (const [raw, members] of [...byDistrict.entries()].sort((a, b) => a[0] - b[0])) {

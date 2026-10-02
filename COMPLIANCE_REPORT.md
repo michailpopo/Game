@@ -1,14 +1,14 @@
 # Compliance report - Storm Grid
 
-Generated 2026-10-02 16:09 UTC · build `8ef33913ddb4` · target stage **full** · register 2026.09.11 (researched 2026-09-11)
+Generated 2026-10-02 21:55 UTC · build `175e3306e28d` · target stage **full** · register 2026.09.11 (researched 2026-09-11)
 
-## Verdict: NOT VERIFIED - 39 mandatory requirements lack current evidence
+## Verdict: NOT VERIFIED - 37 mandatory requirements lack current evidence
 
 This is a record of what was checked, how and when. It is not an approval: only CrazyGames approves a submission.
 
 | PASS | FAIL | WARN | UNVERIFIED | PORTAL | STALE | N/A |
 |---|---|---|---|---|---|---|
-| 16 | 0 | 0 | 46 | 3 | 0 | 0 |
+| 18 | 0 | 0 | 44 | 3 | 0 | 0 |
 
 Legend: PORTAL = can only be confirmed in the Developer Portal preview or by CrazyGames QA · STALE = manual evidence recorded for a different build · UNVERIFIED = no evidence yet.
 
@@ -22,7 +22,7 @@ Legend: PORTAL = can only be confirmed in the Developer Portal preview or by Cra
 | CG-TECH-004 | Mobile homepage eligibility: initial download <= 20 MB | mandatory | both | **UNVERIFIED** | check with: browser-qa boot |
 | CG-TECH-005 | Relative paths only | mandatory | both | **PASS** | PASS: no absolute asset paths _(check-bundle)_ |
 | CG-TECH-007 | Works on Chrome and Edge | mandatory | both | **UNVERIFIED** |  |
-| CG-TECH-008 | Smooth on a 4 GB RAM Chromebook | mandatory | both | **UNVERIFIED** | check with: browser-qa performance (evidence only) |
+| CG-TECH-008 | Smooth on a 4 GB RAM Chromebook | mandatory | both | **UNVERIFIED** | UNVERIFIED: 4x CPU throttle: p50 766.6 ms, p95 1133.3 ms, 18 draw calls, 7853 tris, DPR 1 - dev GPU, not a 4 GB Chromebook _(browser-qa)_ |
 | CG-TECH-009 | Mouse, keyboard, and touch if mobile is supported | mandatory | both | **UNVERIFIED** | check with: browser-qa touch |
 | CG-TECH-010 | Playable in landscape on desktop | mandatory | both | **UNVERIFIED** | check with: browser-qa viewports |
 | CG-TECH-011 | No orientation lock logic | mandatory | both | **PASS** | PASS: no orientation lock _(policy-scan)_ |
@@ -38,7 +38,7 @@ Legend: PORTAL = can only be confirmed in the Developer Portal preview or by Cra
 | CG-GAME-001 | New users land in gameplay (max 1 click) | mandatory | full | **UNVERIFIED** |  |
 | CG-GAME-002 | Legible at devicePixelRatio 1 at the named iframe sizes | mandatory | both | **UNVERIFIED** | check with: browser-qa viewports + look at screenshots |
 | CG-GAME-003 | Physics consistent across refresh rates | mandatory | both | **PASS** | PASS: simulation is free of Math.random/clock reads _(policy-scan)_<br>PASS: determinism exact, step-size drift 0.00% at 30/60/120/240 Hz _(sim-health)_ |
-| CG-GAME-004 | Loads quickly, no errors or crashes | mandatory | both | **PASS** | PASS: no source maps, mock SDK, localhost URLs or secrets _(check-bundle)_ |
+| CG-GAME-004 | Loads quickly, no errors or crashes | mandatory | both | **PASS** | UNVERIFIED: 4x CPU throttle: p50 766.6 ms, p95 1133.3 ms, 18 draw calls, 7853 tris, DPR 1 - dev GPU, not a 4 GB Chromebook _(browser-qa)_<br>PASS: no console errors or page errors across all scenarios _(browser-qa)_<br>PASS: no source maps, mock SDK, localhost URLs or secrets _(check-bundle)_ |
 | CG-GAME-005 | English localization; accurate translations from SDK locale | mandatory | both | **UNVERIFIED** |  |
 | CG-GAME-006 | Intuitive controls on each device type | mandatory | both | **UNVERIFIED** |  |
 | CG-GAME-007 | Original name, assets and content | mandatory | both | **PASS** | PASS: 0 shipped asset files, all in the manifest _(check-licenses)_<br>PASS: 3 manifest rows, none with a forbidden license _(check-licenses)_<br>PASS: no custom-license (tier C) assets _(check-licenses)_<br>PASS: all rows have source, license and tier _(check-licenses)_<br>PASS: every runtime dependency has a license notice _(check-licenses)_ |
@@ -53,7 +53,7 @@ Legend: PORTAL = can only be confirmed in the Developer Portal preview or by Cra
 | CG-QUAL-001 | Avoid browser-reserved keys | guideline | both | **PASS** | PASS: Escape not bound _(policy-scan)_ |
 | CG-QUAL-002 | Key bindings adapt to keyboard layout | guideline | both | **PASS** | PASS: movement keys read via KeyboardEvent.code _(policy-scan)_ |
 | CG-QUAL-003 | In-gameplay, skippable, visual onboarding | guideline | both | **UNVERIFIED** |  |
-| CG-QUAL-004 | Honest buttons | guideline | both | **UNVERIFIED** |  |
+| CG-QUAL-004 | Honest buttons | guideline | both | **UNVERIFIED** | UNVERIFIED: 4 offers on ready/win/fail screens: video icon, shared .btn, decline in the same frame with equal size/font/colours - LOOK at qa/shots/ad-ui _(browser-qa)_ |
 | CG-QUAL-005 | Fun-experience principles | guideline | both | **UNVERIFIED** |  |
 | CG-QUAL-006 | Unique, honest identity | guideline | both | **UNVERIFIED** |  |
 | CG-QUAL-007 | Consistent high-quality visuals and audio | guideline | both | **UNVERIFIED** |  |
@@ -82,14 +82,14 @@ Legend: PORTAL = can only be confirmed in the Developer Portal preview or by Cra
 | CG-ADS-004 | Mute on adStarted, unmute on finish/error | mandatory | full | **UNVERIFIED** | check with: browser-qa ads-fill |
 | CG-ADS-005 | Handle adError and continue | mandatory | full | **UNVERIFIED** | check with: browser-qa ads-basic-launch |
 | CG-ADS-006 | No custom midgame cooldown needed | mandatory | full | **UNVERIFIED** |  |
-| CG-ADS-007 | Rewarded offers are clearly optional and marked as video | mandatory | full | **UNVERIFIED** |  |
-| CG-ADS-008 | Decline option looks the same as accept | mandatory | full | **UNVERIFIED** |  |
-| CG-ADS-009 | No rewarded button on active gameplay screens | mandatory | full | **UNVERIFIED** |  |
+| CG-ADS-007 | Rewarded offers are clearly optional and marked as video | mandatory | full | **UNVERIFIED** | UNVERIFIED: 4 offers on ready/win/fail screens: video icon, shared .btn, decline in the same frame with equal size/font/colours - LOOK at qa/shots/ad-ui _(browser-qa)_ |
+| CG-ADS-008 | Decline option looks the same as accept | mandatory | full | **UNVERIFIED** | UNVERIFIED: 4 offers on ready/win/fail screens: video icon, shared .btn, decline in the same frame with equal size/font/colours - LOOK at qa/shots/ad-ui _(browser-qa)_ |
+| CG-ADS-009 | No rewarded button on active gameplay screens | mandatory | full | **PASS** | PASS: no rewarded offer visible during active gameplay (checked at +0.3 s and +1.5 s of a run) _(browser-qa)_ |
 | CG-ADS-010 | No ad chaining | mandatory | full | **UNVERIFIED** |  |
 | CG-ADS-011 | Not too often, not too aggressive | mandatory | full | **UNVERIFIED** |  |
 | CG-ADS-012 | A non-ad alternative exists | mandatory | full | **UNVERIFIED** |  |
 | CG-ADS-013 | Reward only on adFinished; make it visible | mandatory | full | **UNVERIFIED** | check with: browser-qa ads-basic-launch, ads-fill |
-| CG-ADS-014 | No out-of-lives offer on every death | mandatory | full | **UNVERIFIED** |  |
+| CG-ADS-014 | No out-of-lives offer on every death | mandatory | full | **PASS** | PASS: no revive at 5% powered (result + retry); ring 5 -> 4 then the offer expired without an ad request; one revive watched, none offered after;  _(browser-qa)_ |
 | CG-ADS-015 | Midgame OR continue-rewarded between two levels, not both | mandatory | full | **UNVERIFIED** |  |
 | CG-ADS-018 | Adblock users can play normally | mandatory | full | **UNVERIFIED** | check with: browser-qa adblock |
 | CG-ADS-019 | Game runs smoothly with ads disabled (Basic Launch) | mandatory | basic | **UNVERIFIED** | check with: browser-qa ads-basic-launch |

@@ -37,7 +37,9 @@ const BASE = 0.35;              // pad top: buildings stand on their district pa
 const FILL_SEC = 0.45;          // dark -> lit, flooding from the ground up
 const HOT_SEC = 0.22;           // the white flash of a hit
 const CAP = 0.55;               // roof rim cap height (m)
-const MAX_W = 7.6;              // widest visual footprint (lots are 9 m apart, +-1.2 m jitter)
+const MAX_W = STORM.city.maxVisual;       // widest visual footprint (lots are 9 m apart, +-1.2 m jitter)
+const GROW = STORM.city.visualGrow;       // drawn body vs sim footprint
+const CAP_OVER = STORM.city.capOverhang;  // flat roof caps are this much wider than the body (sim.js keeps air between them)
 
 export class CityMesh {
   group = new Group();
@@ -97,7 +99,7 @@ export class CityMesh {
       if (kind === "flat") kind = rel < 0.2 && r2 < 0.65 ? "house" : rel > 0.5 && r2 > 0.55 ? "dome" : r2 < 0.3 ? "box" : "flat";
       this.kind[b.id] = kind;
       this.litColor[b.id] = new Color(theme.lit[Math.floor(r3 * theme.lit.length) % theme.lit.length]);
-      const vw = Math.min(MAX_W, b.w * 1.1), vd = Math.min(MAX_W, b.d * 1.1);
+      const vw = Math.min(MAX_W, b.w * GROW), vd = Math.min(MAX_W, b.d * GROW);
       const H = b.h - BASE;                      // body height above the pad (roof at the sim's h)
       const style = r2 > 0.5 ? 1 : 0;
       const P = this.parts[b.id];
@@ -117,7 +119,7 @@ export class CityMesh {
           pyramids.push([b.x, b.h, b.z, rr, rh, b.id]);
           roofTop = b.h + rh;
         } else {
-          P.trims.push(trims.length); trims.push([b.x, b.h, b.z, vw + 0.7, CAP, vd + 0.7, b.id]);
+          P.trims.push(trims.length); trims.push([b.x, b.h, b.z, vw + CAP_OVER, CAP, vd + CAP_OVER, b.id]);
           roofTop = b.h + CAP;
           if (kind === "dome") {
             const r = Math.min(1.9, Math.min(vw, vd) * 0.36);

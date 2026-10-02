@@ -73,6 +73,15 @@ export const STORM = {
     heightMin: 12,              // uniform heights from heightMin to heightMax (m)
     heightMax: [24, 60],
     footprint: [0.58, 0.8],     // building width/depth as a share of the lot pitch (look only; hops use the tips)
+    // What is drawn is wider than the footprint (city-mesh.js): body = min(maxVisual, footprint x visualGrow), the
+    // roof cap overhangs it by capOverhang. Lots jitter, so neighbours can lean into each other: sim.js shrinks
+    // the footprints of such a pair (never the positions or heights, so hops are untouched) until their drawn roof
+    // caps keep `clearance` m of air, but never below footprintMin.
+    visualGrow: 1.1,
+    maxVisual: 7.6,             // widest drawn body (m)
+    capOverhang: 0.7,           // roof cap minus body width (m)
+    clearance: 1.0,             // min air between the roof caps of two buildings (m)
+    footprintMin: 3.6,          // narrowest footprint side (m)
     antenna: 3,                 // antenna tip = roof + this (m): the hop points
     goldFrom: 3,                // gold rods (the Gold rods upgrade) appear from this city
   },

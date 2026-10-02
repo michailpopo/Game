@@ -232,11 +232,7 @@
 .btn.free { font-size: max(12px, 0.9em); min-height: 2.3em; padding: 0.25em 0.5em; }
 
 /* ---------- result dialog (round podium, death offer) ---------- */
-.modal { position: absolute; inset: 0; display: grid; place-items: center; background: radial-gradient(ellipse at 50% 45%, rgba(20, 10, 60, 0.06), rgba(6, 3, 24, 0.4)); pointer-events: auto; z-index: 30; box-sizing: border-box; }
-/* The lit city is the payoff: the dialog docks to the right edge (landscape) or the bottom edge (portrait) and the camera frames the
-   city in the rest of the screen (ui.js dialogInsets -> view.setSafeArea), instead of a dark veil over the middle of it. */
-@media (min-aspect-ratio: 1001/1000) { .modal { place-items: center end; padding-right: 3.5%; } }
-@media (max-aspect-ratio: 1/1) { .modal { place-items: end center; padding-bottom: 2.5%; } }
+.modal { position: absolute; inset: 0; display: grid; place-items: center; background: radial-gradient(ellipse at 50% 45%, rgba(20, 10, 60, 0.35), rgba(6, 3, 24, 0.72)); pointer-events: auto; z-index: 30; }
 .modal[hidden] { display: none; }
 .dialog {
   width: min(23em, 90vw); max-height: 96%; overflow: auto; text-align: center; box-sizing: border-box; padding: 0.8em 1em 1em;
@@ -283,9 +279,7 @@
 .btn.cant b { color: #ffd0d6; }
 
 /* ---------- skins shop ---------- */
-.shop-modal { position: absolute; inset: 0; z-index: 40; display: grid; place-items: center; background: rgba(14, 8, 44, 0.2); pointer-events: auto; box-sizing: border-box; }
-@media (min-aspect-ratio: 1001/1000) { .shop-modal { place-items: center end; padding-right: 3.5%; } }
-@media (max-aspect-ratio: 1/1) { .shop-modal { place-items: end center; padding-bottom: 2.5%; } }
+.shop-modal { position: absolute; inset: 0; z-index: 40; display: grid; place-items: center; background: rgba(6, 3, 24, 0.6); pointer-events: auto; }
 .shop-modal[hidden] { display: none; }
 /* Bot names only appear next to an "Offline Arena" label; the shop has none, so the tags hide behind it. */
 #ui.shop-open .bubbles { display: none; }

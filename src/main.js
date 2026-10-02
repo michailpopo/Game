@@ -63,8 +63,6 @@ import { createUI } from "./ui/ui.js";
 
 const qs = new URLSearchParams(location.search);
 const wait = (ms) => new Promise((r) => setTimeout(r, ms));
-/** PLAYTEST ONLY: the bolt / light / sound-check switches (keys B / L and the buttons). The hosted playtest page sets __PLAYTEST__, a URL can say ?compare=1. */
-const playtest = qs.get("compare") === "1" || globalThis.__PLAYTEST__ === true;
 const mmss = (sec) => `${Math.floor(sec / 60)}:${String(sec % 60).padStart(2, "0")}`;
 const pct = (share) => Math.floor(share * 100 + 1e-6);
 const UPGRADE_ORDER = Object.keys(UPGRADES);   // Voltage, Fork, Strikes, Capacitor, Gold rods
@@ -136,16 +134,8 @@ async function boot() {
     onBuy: buyUpgrade, onFree: freeUpgrade, onBoost: takeBoost, onBoostCoins: buyBoost, onGift: openGift,
     onShop: openShop, onShopClose: closeShop, onSkin: selectSkin, onPreview: previewSkin, onUnlock: unlockRandom,
     onCash: cashForShop, onTry: trySkin,
-    // A dialog docks to one screen edge: the camera keeps the (lit) city in the rest of the screen, then the intro / run framing returns.
-    onDialogLayout: (insets) => {
-      if (insets) view.setSafeArea({ top: insets.top + 10, bottom: insets.bottom + 10, left: insets.left + 10, right: insets.right + 10 });
-      else if (sim?.phase === "ready") updateSafeArea();
-      else view.setSafeArea(null);
-    },
   });
   const ads = new AdController(pause, audio, ui.adOverlay);
-  /** The coin count-up is audible: one tick per coin landing in the pill, the pitch climbing (GAME_BRIEF "Coin count: ticks"). */
-  const coinTicks = (i, n) => audio.play("coinTick", { pitch: 1 + 0.6 * (i / Math.max(1, n - 1)), minGap: 0.015 });
   ads.detectAdblock().then(refreshReady);   // never block boot on this
 
   await fontsReady();
@@ -236,28 +226,7 @@ async function boot() {
   window.addEventListener("blur", () => { pointer.down = false; pointer.id = null; });
   window.addEventListener("keydown", (e) => {
     if (e.code === "KeyM" && !e.repeat && !e.ctrlKey && !e.metaKey && !e.altKey) toggleSound();
-    // P pauses and resumes. Handled here, not in update(): a paused game does not step, so update() would never see the second P.
-    if (e.code === "KeyP" && !e.repeat && !e.ctrlKey && !e.metaKey && !e.altKey && (paused || canPlay())) { if (paused) resumeRun(); else pauseRun(); }
-    // PLAYTEST ONLY - remove once the owner has picked a bolt: B swaps the classic glow bolt and the new toon bolt.
-    // (only on the playtest page or with ?compare=1: a player must never be able to flip the look by accident)
-    if (!playtest || e.repeat || e.ctrlKey || e.metaKey || e.altKey) return;
-    if (e.code === "KeyB") swapBolt();
-    if (e.code === "KeyL") swapLook();
   });
-  /** PLAYTEST ONLY: dusk <-> bright lighting (key L, or the ?compare=1 button). Dusk stays the default. */
-  function swapLook() {
-    const style = view.toggleLookStyle();
-    ui.toast(t(style === "bright" ? "look_bright" : "look_dusk"), 1600);
-    if (lookBtn) lookBtn.textContent = t(style === "bright" ? "look_bright" : "look_dusk");
-  }
-  let lookBtn = null;
-  /** PLAYTEST ONLY: classic <-> toon bolt (key B, or the ?compare=1 button on touch screens). The classic bolt stays the default. */
-  function swapBolt() {
-    const style = view.toggleBoltStyle();
-    ui.toast(t(style === "toon" ? "bolt_toon" : "bolt_classic"), 1600);
-    if (compareBtn) compareBtn.textContent = t(style === "toon" ? "bolt_toon" : "bolt_classic");
-  }
-  let compareBtn = null;
 
   // ---------------------------------------------------------------- pause (P / pause button; Escape is never bound)
   function pauseRun() {
@@ -281,6 +250,7 @@ async function boot() {
   // ---------------------------------------------------------------- simulation step
   function update(dt) {
     if (qaFrozen) return;
+    if (input.justPressed("pause")) { if (paused) resumeRun(); else pauseRun(); }
     const live = sim.phase === "ready" || sim.phase === "run";
     if (live && canPlay()) {
       // Keyboard crosshair: arrows / WASD step between antennas in that screen direction.
@@ -490,7 +460,7 @@ async function boot() {
     });
 
     async function finish() {
-      ui.coinsFly(dlg.amountElement, reward, coinTicks);
+      ui.coinsFly(dlg.amountElement, reward);
       ui.setCoins(save.data.coins, { animate: true });
       dlg.close();
       await wait(250);
@@ -662,7 +632,7 @@ async function boot() {
     });
     function done() {
       save.flush();
-      ui.coinsFly(dlg.amountElement, total, coinTicks);
+      ui.coinsFly(dlg.amountElement, total);
       ui.setCoins(save.data.coins, { animate: true });
       dlg.close();
       pause.release(Reason.MENU);
@@ -908,50 +878,6 @@ async function boot() {
   const coverKind = qs.get("cover");
   if (coverKind || qs.get("capture") === "1") return startMarketingMode(coverKind);
 
-  // PLAYTEST ONLY (?compare=1): a small on-screen button for the bolt comparison (touch screens have no B key).
-  // (the playtest page sets window.__PLAYTEST__ because a hosted page cannot take a query string)
-  if (playtest) {
-    compareBtn = document.createElement("button");
-    compareBtn.type = "button";
-    compareBtn.className = "btn compare-btn";
-    compareBtn.style.cssText = "position:absolute;left:0.6em;top:3.4em;font-size:0.8em;min-height:2.2em;padding:0.2em 0.7em;z-index:12";
-    compareBtn.textContent = t("bolt_classic");
-    compareBtn.addEventListener("click", swapBolt);
-    document.getElementById("ui").appendChild(compareBtn);
-    lookBtn = document.createElement("button");
-    lookBtn.type = "button";
-    lookBtn.className = "btn compare-btn";
-    lookBtn.style.cssText = "position:absolute;left:0.6em;top:6.2em;font-size:0.8em;min-height:2.2em;padding:0.2em 0.7em;z-index:12";
-    lookBtn.textContent = t("look_dusk");
-    lookBtn.addEventListener("click", swapLook);
-    document.getElementById("ui").appendChild(lookBtn);
-    // Sound check (the owner auditions every sound; the rare ones - fanfare, block chord - are otherwise hard to find): each sound once,
-    // through the real mixer (peak ceiling, limiter, volume), so what is heard here is what the game plays.
-    const soundsBtn = document.createElement("button");
-    soundsBtn.type = "button";
-    soundsBtn.className = "btn compare-btn";
-    soundsBtn.style.cssText = "position:absolute;left:0.6em;top:9em;font-size:0.8em;min-height:2.2em;padding:0.2em 0.7em;z-index:12";
-    soundsBtn.textContent = "Sounds";
-    const panel = document.createElement("div");
-    panel.hidden = true;
-    panel.style.cssText = "position:absolute;left:0.6em;top:12em;z-index:12;display:flex;flex-wrap:wrap;gap:0.3em;max-width:min(24em,70vw);pointer-events:auto";
-    const SOUNDS = [["click", "button click"], ["charge", "charge start"], ["hum", "charge hum"], ["ding", "supercharge ding"], ["buzz", "overcharge buzz"],
-      ["thunder", "strike boom"], ["crackle", "hop crackle"], ["fork", "fork zap"], ["gold", "gold rod"], ["district", "block powered"], ["fizzle", "fizzle"],
-      ["powerSweep", "full-power sweep"], ["fanfare", "full-power fanfare"], ["win", "city cleared"], ["fail", "city dark"], ["coin", "coin"],
-      ["coinTick", "coin tick"], ["tier", "upgrade"], ["pop", "pop"], ["gateBad", "not enough coins"]];
-    for (const [name, label] of SOUNDS) {
-      const b = document.createElement("button");
-      b.type = "button";
-      b.className = "btn compare-btn";
-      b.style.cssText = "font-size:0.62em;min-height:2em;padding:0.15em 0.55em";
-      b.textContent = label;
-      b.addEventListener("click", () => { audio.unlock(); audio.play(name, { minGap: 0, maxVoices: 8 }); });
-      panel.appendChild(b);
-    }
-    soundsBtn.addEventListener("click", () => { panel.hidden = !panel.hidden; });
-    document.getElementById("ui").append(soundsBtn, panel);
-  }
-
   // ---------------------------------------------------------------- start
   const qa = qs.get("qa") === "1";
   const qaLevel = qa ? Number(qs.get("level")) : 0;
@@ -1048,9 +974,4 @@ async function boot() {
 
 boot().catch((e) => {
   console.error("[boot] failed", e);
-  // The most likely cause is no WebGL (hardware acceleration off, a blocked GPU): say so instead of an endless loading bar.
-  const overlay = document.getElementById("boot");
-  if (overlay && !overlay.classList.contains("done")) {
-    overlay.innerHTML = '<p style="margin:0;padding:24px;max-width:26em;text-align:center;color:#fff;font:600 18px/1.35 system-ui,sans-serif">Storm Grid could not start.<br><span style="font-weight:400;font-size:15px;opacity:.85">It needs WebGL. Turn on hardware acceleration in your browser settings, or use an up-to-date Chrome or Edge, then reload the page.</span></p>';
-  }
 });

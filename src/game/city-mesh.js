@@ -404,7 +404,7 @@ export class CityMesh {
       // roof, caps and the rod ball light when the flood reaches the top
       const top = Math.max(0, Math.min(1, (fill - 0.8) / 0.2));
       const lc = this.litColor[i];
-      _c.set(W.trim).lerp(_c2.copy(lc).lerp(WHITE, 0.14), top).lerp(WHITE, flash * 0.6);   // caps keep the candy hue (40% white washed them to dusty pastel)
+      _c.set(W.trim).lerp(_c2.copy(lc).lerp(WHITE, 0.4), top).lerp(WHITE, flash * 0.6);
       for (const t of P.trims) this.trims.setColorAt(t, _c);
       if (P.roof >= 0) {
         const mesh = P.roofKind === "dome" ? this.domes : P.roofKind === "spire" ? this.spires : this.pyramids;

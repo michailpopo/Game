@@ -571,7 +571,7 @@ export function toyBlockMaterial({ unlit = TOY.unlit, unlitWindow = TOY.unlitWin
           }
         }
         vec3 bkBody = mix( bkUnlit, vBkLit, bkLitK );
-        vec3 bkRoof = mix( bkUnlitTop, mix( vBkLit, vec3( 1.0 ), 0.12 ), bkLitK );   // a lit roof stays the candy colour (35% white washed it to dusty pastel)
+        vec3 bkRoof = mix( bkUnlitTop, mix( vBkLit, vec3( 1.0 ), 0.35 ), bkLitK );
         vec3 bkWinC = mix( bkUnlitWin, bkWin, bkLitK );
         diffuseColor.rgb = mix( mix( bkBody, bkRoof, bkTopF ), bkWinC, bkWinK );`)
       .replace("#include <roughnessmap_fragment>", "#include <roughnessmap_fragment>\nroughnessFactor = mix( roughnessFactor, 0.3, bkWinK );")

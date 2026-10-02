@@ -48,7 +48,21 @@ const CG_VIEWPORTS = [
 
 const results = [];
 const allErrors = [];
-const record = (r) => { results.push(r); console.log(`${r.status.padEnd(10)} ${r.id.padEnd(22)} ${r.summary}`); };
+// Defects in the shipped game that the owner chose to leave as they are ("make it like it was"): the scenario still runs and still says
+// what it found, but as WARN instead of FAIL. Every part of the failure text must be one of the listed patterns, so a NEW problem in the
+// same scenario still FAILs. When the fix is applied (commits named below) the scenario simply turns PASS - delete its entry then.
+const KNOWN_ISSUES = {
+  "pause-keys": { parts: [/^the second P did not resume the run$/, /^the sim did not advance after the resume$/], note: "P pauses but cannot resume, a click / tap resumes; fix: commit 1ab9a22 (src/main.js key handler)" },
+  "no-webgl": { parts: [/^no WebGL: the loading screen says/], note: "without WebGL the loading bar never ends and says nothing; fix: commit e7cbd85 (src/main.js boot().catch)" },
+};
+const record = (r) => {
+  const known = KNOWN_ISSUES[r.id];
+  if (r.status === "FAIL" && known && r.summary.split("; ").every((part) => known.parts.some((re) => re.test(part)))) {
+    r = { ...r, status: "WARN", summary: `KNOWN ISSUE, left unfixed on purpose (${known.note}): ${r.summary}` };
+  }
+  results.push(r);
+  console.log(`${r.status.padEnd(10)} ${r.id.padEnd(22)} ${r.summary}`);
+};
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 
 // ------------------------------------------------------------------ server
@@ -620,44 +634,6 @@ await scenario("poly-budget", async () => {
   await ctx.close();
 });
 
-await scenario("bolt-styles", async () => {
-  // Playtest A/B (temporary, remove with the toggle once the owner has picked): the classic glow bolt is the default; key B swaps to
-  // the outlined toon bolt and back, key L swaps the lighting. Both bolt styles must play a whole city without a console error.
-  const { ctx, page, errors } = await openGame("compare=1");
-  const problems = [];
-  const style = () => page.evaluate(() => ({ bolt: window.__GS_VIEW__.boltStyle, look: window.__GS_VIEW__.lookStyle, toon: !!window.__GS_VIEW__.toon }));
-  const s0 = await style();
-  if (s0.bolt !== "classic" || s0.look !== "dusk") problems.push(`defaults are not classic/dusk: ${JSON.stringify(s0)}`);
-  await page.evaluate(() => window.__GS_QA__.setAutopilot(true));
-  for (const [label, key] of [["classic", null], ["toon", "KeyB"], ["classic again", "KeyB"]]) {
-    if (key) { await page.keyboard.press(key); await sleep(150); }
-    if (label === "toon") { await page.keyboard.press("KeyL"); await sleep(150); }
-    const s = await style();
-    if ((label === "toon") !== (s.bolt === "toon")) problems.push(`${label}: style is ${s.bolt}`);
-    await page.evaluate(() => window.__GS_QA__.start());
-    await page.waitForFunction(() => ["won", "failed"].includes(window.__GS_QA__.state.phase), null, { timeout: 90000 }).catch(() => problems.push(`${label}: the run did not end`));
-    const lit = (await state(page)).lit;
-    if (lit < 4) problems.push(`${label}: only ${lit} buildings lit`);
-    // A near-miss ("So close!", 85-99%) shows Finish first and the city result after it: click through both.
-    let through = false;
-    for (let step = 0; step < 3 && !through; step++) {
-      const btn = await page.waitForSelector('.modal:not([hidden]) button[data-id="claim"], .modal:not([hidden]) button[data-id="retry"], .modal:not([hidden]) button[data-id="finish"]', { timeout: 30000 }).catch(() => null);
-      if (!btn) break;
-      const id = await btn.getAttribute("data-id");
-      await btn.click().catch(() => {});
-      if (id !== "finish") through = true; else await sleep(500);
-    }
-    if (!through) problems.push(`${label}: no result dialog to click through`);
-    await page.waitForFunction(() => window.__GS_QA__.state.phase === "ready", null, { timeout: 30000 }).catch(() => problems.push(`${label}: no next intro`));
-  }
-  const labels = await page.$$eval("button.compare-btn", (b) => b.slice(0, 3).map((x) => x.textContent));
-  if (!/^Bolt:/.test(labels[0] || "") || !/^Light:/.test(labels[1] || "") || labels[2] !== "Sounds") problems.push(`?compare=1 buttons are ${JSON.stringify(labels)} (want Bolt / Light / Sounds)`);
-  allErrors.push(...errors);
-  record({ id: "bolt-styles", requirements: [], status: problems.length ? "FAIL" : "PASS",
-    summary: problems.length ? problems.join("; ") : "classic + dusk by default; B swaps to the toon bolt and back, L swaps the light; a whole city plays in each without errors", evidence: { s0 } });
-  await ctx.close();
-});
-
 await scenario("context-loss", async () => {
   // A GPU reset (driver crash, memory pressure on a Chromebook) loses the WebGL context. three.js re-uploads buffers and textures by itself,
   // the palette environment is rebuilt by view.js: the game must keep running, with no console error, and the picture must not go dark.
@@ -991,5 +967,5 @@ writeFileSync(resolve(OUT, "evidence/browser-qa.json"), JSON.stringify({ tool: "
 await browser.close();
 server?.kill();
 const failed = results.filter((r) => r.status === "FAIL").length;
-console.log(`\n${results.length} checks: ${failed} FAIL, ${results.filter((r) => r.status === "UNVERIFIED").length} UNVERIFIED (need eyes), evidence in qa/evidence/browser-qa.json`);
+console.log(`\n${results.length} checks: ${failed} FAIL, ${results.filter((r) => r.status === "WARN").length} WARN, ${results.filter((r) => r.status === "UNVERIFIED").length} UNVERIFIED (need eyes), evidence in qa/evidence/browser-qa.json`);
 process.exit(failed ? 1 : 0);

@@ -167,6 +167,11 @@ do not overcomplicate". UI untouched; the city look was rebuilt as a toy city.
 
 ## 2026-10-01/02 session notes - verification of WP-31/32 and polish (planner, direct work)
 
+> **Update 2026-10-02 (later):** the owner asked for the old game back ("the old version of the game was good, make it like it was"). Every look /
+> sound / UI change described below (toon bolt, bright light, docked dialogs, candy roofs, audio limiter, coin ticks, playtest switches) was
+> reverted - `src/` is the 2026-09-28 game (`d575418`) plus two QA-only hooks; the changes live in git history (`d93d18d`, `e7cbd85`,
+> `aa11079`, `1ab9a22`, `926cb82`). The harness / tool changes below stay. The final audit is in the last section.
+
 **Why the last handoff showed 9 FAIL:** not game bugs. (1) The container draws WebGL in software (0.3 s per frame at the `low`
 tier, 1.2 s at `high`), so the sim, the countdown rings and the harness's own waits drifted apart. (2) A scenario that crashed
 never closed its browser page; the page kept drawing and starved the next scenario, which crashed too (the "cascade").
@@ -178,9 +183,8 @@ never closed its browser page; the page kept drawing and starved the next scenar
 game in *lite mode* (`?quality=low&renderEvery=1500`: the 3D scene is drawn once per 1.5 s, the simulation runs in real time);
 `gl: "low"` for the viewport shots, `gl: "full"` + `quality=high` for `poly-budget` (worst case: post passes count as draw
 calls), `quality=low` for `performance`; `ads-fill` is event-driven (the page records audio mute / overlay / pause right after
-each SDK ad event); long timeouts. New scenarios: `input-strike`, `context-loss`, `no-webgl`, `cpu-cost`, `bolt-styles`.
-New tools: `tools/qa/shoot.mjs` (stills, bolt lab, 30 fps filmstrip, live look-dev tweaks), `tools/qa/soak.mjs`,
-`tools/launch/playtest-page.mjs`.
+each SDK ad event); long timeouts. New scenarios: `input-strike`, `context-loss`, `no-webgl`, `cpu-cost`, `pause-keys` (and a short-lived `bolt-styles`, removed with the toon bolt).
+New tools: `tools/qa/shoot.mjs` (stills, 30 fps filmstrip, live look-dev tweaks), `tools/qa/soak.mjs`.
 
 **Looked at (screenshots, not scripts):** ready / charge / supercharge / fork / block powered / result / so-close / shop /
 returning-player screens at 1280x720, 800x450, 450x800 and the 12 CrazyGames viewport sizes; filmstrips of the first strike
@@ -193,21 +197,23 @@ plate is heavy (part of the established look - the optional `bright` light softe
 Chromebook, phone), Edge / Safari / iOS audio resume, the CrazyGames app safe areas, Developer Portal preview and the
 Progress Save toggle, whether the game is fun.
 
-### 2026-10-02 final audit run (build `9e15b0b06a33`)
+### 2026-10-02 final audit run on the restored old game (build `1e4c4dd4a1d7`)
 
-- Full harness: **28 checks, 0 FAIL**, 3 "need eyes" (viewports, ad-ui-style, performance). Viewport and ad-ui screenshots were
-  looked at and recorded as manual evidence (`tools/qa/manual-evidence.sh`, 22 entries); `performance` stays open (no real
-  low-end device). `docs/CG_QA_AUDIT.md` has the full report in the crazygames-qa format; `COMPLIANCE_REPORT.md` the register view
-  (52 PASS, 0 FAIL, 11 UNVERIFIED, 2 PORTAL).
-- **Bug found by the soak test and fixed:** the first 20-city soak "softlocked" in the pause overlay. Real cause: P paused the run
-  but a paused game does not step, and the P handler lived in `update()`, so the second P was never read (click / tap resumed).
-  The handler now lives in the window `keydown` listener (`src/main.js`); new scenario `pause-keys` fails on the old code
-  ("the second P did not resume the run") and passes now. Soak after the fix: 20 cities in 253 s with 140 mashed keys, pauses,
-  resizes and double clicks; heap 11 -> 13 MB, DOM 327 -> 287, GPU geometries 19 -> 19, textures 4 -> 4, no console error.
-- **Harness metric fixed:** `context-loss` compared three.js' render-frame counter with the value from before the loss, but
-  three.js builds a fresh `WebGLInfo` when the context is restored, so the counter restarts at 0 (first full run: "110 -> 100",
-  a false FAIL; picture and phase were fine). It now samples after the restore. Requirement mapping: `adblock` also covers
-  CG-ADS-018, `ads-basic-launch` CG-ADS-019, `sdk-events` CG-SDK-006/007; `cpu-cost` no longer claims CG-TECH-008 (a proxy must not
-  turn a Chromebook requirement green).
-- Numbers: boot 3.6 s / 0.22 MB; poly 9.3k tris / 35 calls (high tier); 4.3 ms/frame main thread at 4x CPU throttle; longest
-  silence in play 0.8 s; dist 0.77 MB, 6 files.
+- Full harness: **27 checks, 0 FAIL, 2 WARN**, 3 "need eyes" (viewports, ad-ui-style, performance). Viewport and ad-ui screenshots were
+  looked at and recorded as manual evidence (`tools/qa/manual-evidence.sh`, 22 entries); `performance` stays open (no real low-end
+  device). `docs/CG_QA_AUDIT.md` has the full report in the crazygames-qa format; `COMPLIANCE_REPORT.md` the register view
+  (52 PASS, 0 FAIL, 11 UNVERIFIED, 2 PORTAL). Soak: 20 cities, 221 s, heap 11 -> 12 MB, DOM 327 -> 287, GPU geometries 19 -> 19,
+  textures 4 -> 4, no console error.
+- **Real defects in the old game, reported as WARN (`KNOWN_ISSUES` in `tools/qa/browser-qa.mjs`), not fixed:** (1) P pauses a run but cannot
+  resume it - a paused game does not step, and the P handler lives in `update()`; click / tap resumes. Scenario `pause-keys` reproduces
+  it (it also failed on the old code before the fix commit `1ab9a22`, and passed after). The first soak run "softlocked" in that pause;
+  the soak now resumes by click. (2) No WebGL: endless loading bar with no message (`no-webgl`, fix `e7cbd85`). (3) `thunder` and `fail`
+  clip (+2.3 / +3.3 dBFS), computed from the ZzFX sample peaks times the 0.9 SFX gain (fix `926cb82`). (4) After a WebGL context loss +
+  restore the picture is ~10% darker (115 -> 104 mean luminance; `context-loss` passes at >= 70%; fix in `e7cbd85`).
+- **Harness metric fixed:** `context-loss` compared three.js' render-frame counter with the value from before the loss, but three.js
+  builds a fresh `WebGLInfo` when the context is restored, so the counter restarts at 0 (a false FAIL once); it now samples after the
+  restore. Requirement mapping: `adblock` also covers CG-ADS-018, `ads-basic-launch` CG-ADS-019, `sdk-events` CG-SDK-006/007;
+  `cpu-cost` no longer claims CG-TECH-008 (a proxy must not turn a Chromebook requirement green). The `bolt-styles` scenario and the
+  `boltlab` screenshot shots were removed with the toon bolt.
+- Numbers: boot 2.8 s / 0.22 MB; poly 9.5k tris / 35 calls (high tier); 2.7 ms/frame main thread at 4x CPU throttle; longest silence in
+  play 0.4 s; dist 0.76 MB, 6 files.

@@ -178,7 +178,7 @@ await scenario("sdk-events", async () => {
   if (s.gameplayReported) problems.push("gameplay still reported while the result dialog is open");
   allErrors.push(...errors);
   record({
-    id: "sdk-events", requirements: ["CG-SDK-002", "CG-SDK-003"], status: problems.length ? "FAIL" : "PASS",
+    id: "sdk-events", requirements: ["CG-SDK-002", "CG-SDK-003", "CG-SDK-006", "CG-SDK-007"], status: problems.length ? "FAIL" : "PASS",
     summary: problems.length ? problems.join("; ") : `order ok: ${log.filter((e) => !e.startsWith("data.")).join(" > ")}`,
     evidence: { log },
   });
@@ -282,7 +282,7 @@ await scenario("ads-basic-launch", async () => {
   const ok = !grantedOnError && (offerHidden || !offer) && s.phase === "run";
   await page.screenshot({ path: resolve(SHOTS, "ads-basic-launch-next-level.png") });
   allErrors.push(...errors);
-  record({ id: "ads-basic-launch", requirements: ["CG-ADS-021", "CG-ADS-013", "CG-ADS-005"], status: ok ? "PASS" : "FAIL",
+  record({ id: "ads-basic-launch", requirements: ["CG-ADS-021", "CG-ADS-013", "CG-ADS-005", "CG-ADS-019"], status: ok ? "PASS" : "FAIL",
     summary: `ads disabled: reward granted on error=${grantedOnError}, dead offer removed=${offerHidden || !offer}, note="${note}", next level playable=${s.phase === "run"}`,
     evidence: { adsLog: s.adsLog } });
   await ctx.close();
@@ -358,7 +358,7 @@ await scenario("adblock", async () => {
   await startRun(page);
   const s = await state(page);
   allErrors.push(...errors);
-  record({ id: "adblock", requirements: ["CG-ADS-020"], status: !offer && note && s.phase === "run" ? "PASS" : "FAIL",
+  record({ id: "adblock", requirements: ["CG-ADS-020", "CG-ADS-018"], status: !offer && note && s.phase === "run" ? "PASS" : "FAIL",
     summary: `adblock: rewarded offer shown=${!!offer}, notice="${note}", keeps playing=${s.phase === "run"}`, evidence: {} });
   await ctx.close();
 });
@@ -506,6 +506,40 @@ await scenario("input-strike", async () => {
     summary: problems.length ? problems.join("; ") : "hold + release strikes through the mouse, the keyboard (Space + arrows, event.code) and a touch hold", evidence: {} });
 });
 
+/** P pauses and resumes from the keyboard (a paused game does not step, so the resume key must not depend on the game loop). */
+await scenario("pause-keys", async () => {
+  const problems = [];
+  const { ctx, page, errors } = await openGame("");
+  await page.keyboard.press("KeyP");                       // intro screen: nothing to pause
+  await sleep(300);
+  let q = await state(page);
+  if (q.paused || q.pause.includes("dialog")) problems.push("P on the city intro paused the game");
+  await startRun(page);
+  await page.mouse.up();
+  await sleep(500);
+  await page.keyboard.press("KeyP");
+  await page.waitForFunction(() => window.__GS_QA__.state.paused, null, { timeout: 5000 }).catch(() => problems.push("P did not pause the run"));
+  q = await state(page);
+  const t0 = q.simT;
+  await sleep(800);
+  q = await state(page);
+  if (q.simT !== t0) problems.push(`the sim kept stepping while paused (${t0} -> ${q.simT})`);
+  await page.keyboard.press("KeyP");
+  await page.waitForFunction(() => !window.__GS_QA__.state.paused && !window.__GS_QA__.state.pause.includes("dialog"), null, { timeout: 5000 }).catch(() => problems.push("the second P did not resume the run"));
+  await sleep(500);
+  q = await state(page);
+  if (!(q.simT > t0)) problems.push("the sim did not advance after the resume");
+  // pause + resume again, then the overlay click resumes too
+  await page.keyboard.press("KeyP");
+  await page.waitForFunction(() => window.__GS_QA__.state.paused, null, { timeout: 5000 }).catch(() => problems.push("P did not pause a second time"));
+  await page.mouse.click(640, 360);
+  await page.waitForFunction(() => !window.__GS_QA__.state.paused, null, { timeout: 5000 }).catch(() => problems.push("a click on the pause overlay did not resume"));
+  allErrors.push(...errors);
+  record({ id: "pause-keys", requirements: [], status: problems.length ? "FAIL" : "PASS",
+    summary: problems.length ? problems.join("; ") : "P pauses the run, the sim stands still, P resumes it (twice), a click on the overlay resumes too, P on the city intro does nothing", evidence: {} });
+  await ctx.close();
+});
+
 // ------------------------------------------------------------------ hypercasual profile: poly, dead air, offers
 /** Every visible rewarded offer (`data-video`) and the alternatives shown next to it. */
 async function auditOffers(page) {
@@ -642,18 +676,21 @@ await scenario("context-loss", async () => {
   await page.evaluate(() => { const gl = window.__GS_VIEW__.stage.renderer.getContext(); window.__loseExt = gl.getExtension("WEBGL_lose_context"); window.__loseExt.loseContext(); });
   await sleep(700);
   await page.evaluate(() => window.__loseExt.restoreContext());
-  await page.waitForFunction((f) => window.__GS_QA__.renderInfo().frame > f + 3, frame0, { timeout: 30000 }).catch(() => {});
+  // three.js builds a fresh WebGLInfo on restore, so renderInfo().frame starts again from ~0: compare with a sample taken after the restore
+  await sleep(300);
+  const frameR = await page.evaluate(() => window.__GS_QA__.renderInfo().frame);
+  await page.waitForFunction((f) => window.__GS_QA__.renderInfo().frame > f + 3, frameR, { timeout: 30000 }).catch(() => {});
   await sleep(2500);
   const after = await lum();
   const s = await state(page);
   const problems = [];
   const frame1 = await page.evaluate(() => window.__GS_QA__.renderInfo().frame);
-  if (!(frame1 > frame0 + 3)) problems.push(`rendering did not resume after the context was restored (frame ${frame0} -> ${frame1})`);
+  if (!(frame1 > frameR + 3)) problems.push(`rendering did not resume after the context was restored (frame ${frameR} -> ${frame1})`);
   if (!(after > before * 0.7)) problems.push(`the picture went dark after the restore (mean luminance ${before.toFixed(0)} -> ${after.toFixed(0)})`);
   if (s.phase !== "run") problems.push(`phase after restore: ${s.phase}`);
   allErrors.push(...errors);
   record({ id: "context-loss", requirements: ["CG-GAME-004"], status: problems.length ? "FAIL" : "PASS",
-    summary: problems.length ? problems.join("; ") : `WebGL context lost and restored mid-run: frames resumed (${frame0} -> ${frame1}), luminance ${before.toFixed(0)} -> ${after.toFixed(0)}, run still going`, evidence: { before, after, frame0, frame1 } });
+    summary: problems.length ? problems.join("; ") : `WebGL context lost and restored mid-run: frames resumed after the restore (${frameR} -> ${frame1}), luminance ${before.toFixed(0)} -> ${after.toFixed(0)}, run still going`, evidence: { before, after, frame0, frameR, frame1 } });
   await ctx.close();
 });
 
@@ -912,7 +949,7 @@ await scenario("cpu-cost", async () => {
   const cpu = script + layout + style;
   const status = cpu <= 8 ? "PASS" : cpu <= 12 ? "WARN" : "FAIL";
   allErrors.push(...errors);
-  record({ id: "cpu-cost", requirements: ["CG-TECH-008"], status,
+  record({ id: "cpu-cost", requirements: [], status,
     summary: `4x CPU throttle, ${frames} frames in ${secs.toFixed(1)} s of a busy autopiloted city: script ${script.toFixed(2)} + style ${style.toFixed(2)} + layout ${layout.toFixed(2)} = ${cpu.toFixed(2)} ms per frame (all main-thread tasks ${task.toFixed(2)} ms; budget 16.7 ms at 60 fps; 3D draw excluded) - a proxy, not a Chromebook measurement`,
     evidence: { script, layout, style, task, frames, secs } });
   await ctx.close();

@@ -1,12 +1,12 @@
 # Project status - Storm Grid
 
-Updated: 2026-09-28 · Project folder: /home/user/Game (repo michailpopo/Game, branch claude/festive-darwin-7ukgnb)
+Updated: 2026-10-02 · Project folder: /home/user/Game (repo michailpopo/Game, branch claude/peaceful-allen-pphssd)
 
 ## Where we are
-- **Phase:** 3 Build - Storm Grid (3D). Handoff to a new chat on 2026-09-28: read HANDOFF.md first.
-- **Current objective:** an original, dopamine-hitting game that looks premium, upload-ready this session.
-- **Next action (one concrete step):** finish + verify WP-31 (toy city, bolts, juice, sounds in the real game) and WP-32 (shop, offers) - both stopped near the end and unverified; then owner playtest, full QA + crazygames-qa audit, launch package (HANDOFF.md section 4).
-- **Waiting on the user:** nothing until the next playtest build; then: play it and audition the sounds.
+- **Phase:** 3 Build done for the game itself - Storm Grid (3D) is functionally complete and passed the automated CrazyGames QA on 2026-10-02 (`docs/CG_QA_AUDIT.md`). Read HANDOFF.md first.
+- **Current objective:** an original, dopamine-hitting game that looks premium, upload-ready. Scope of the last session: "just the game, not the files" (no covers / videos / store text yet).
+- **Next action (one concrete step):** the owner plays the hosted playtest page (PC + phone), picks the bolt (classic vs outlined) and the light (dusk vs bright), auditions the sounds (Sounds panel) -> then remove the losing variants + playtest switches (HANDOFF.md section 3 list) and re-run the full harness.
+- **Waiting on the user:** the playtest answers above. Launch package (WP-13) only when they ask for it.
 
 ## Gates
 | Gate | Status | Date | Evidence |

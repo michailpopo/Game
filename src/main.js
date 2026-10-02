@@ -236,6 +236,8 @@ async function boot() {
   window.addEventListener("blur", () => { pointer.down = false; pointer.id = null; });
   window.addEventListener("keydown", (e) => {
     if (e.code === "KeyM" && !e.repeat && !e.ctrlKey && !e.metaKey && !e.altKey) toggleSound();
+    // P pauses and resumes. Handled here, not in update(): a paused game does not step, so update() would never see the second P.
+    if (e.code === "KeyP" && !e.repeat && !e.ctrlKey && !e.metaKey && !e.altKey && (paused || canPlay())) { if (paused) resumeRun(); else pauseRun(); }
     // PLAYTEST ONLY - remove once the owner has picked a bolt: B swaps the classic glow bolt and the new toon bolt.
     // (only on the playtest page or with ?compare=1: a player must never be able to flip the look by accident)
     if (!playtest || e.repeat || e.ctrlKey || e.metaKey || e.altKey) return;
@@ -279,7 +281,6 @@ async function boot() {
   // ---------------------------------------------------------------- simulation step
   function update(dt) {
     if (qaFrozen) return;
-    if (input.justPressed("pause")) { if (paused) resumeRun(); else pauseRun(); }
     const live = sim.phase === "ready" || sim.phase === "run";
     if (live && canPlay()) {
       // Keyboard crosshair: arrows / WASD step between antennas in that screen direction.

@@ -150,8 +150,10 @@ Commands: `npm run build`; `node tools/qa/sim-health.mjs --selftest`; `PW_CHROMI
 tools/qa/browser-qa.mjs --serve`; `node tools/qa/soak.mjs --serve --cities 20`; then `bash tools/qa/manual-evidence.sh && node
 tools/qa/report.mjs` (manual evidence is tied to the build, so re-run it after every build).
 
-Playtest page for the owner: `node tools/launch/playtest-page.mjs` -> `qa/playtest/index.html` (published as a private artifact in
-the session that built it; rebuild + republish after any change). Never upload it to CrazyGames.
+Playtest page for the owner: `node tools/launch/playtest-page.mjs` -> `qa/playtest/index.html`, published 2026-10-02 as the private
+artifact https://claude.ai/artifact/6qMB926NNgDDVKyFijJXQ8 (build `9e15b0b06a33`; smoke-tested as a standalone page, not inside the
+artifact viewer). After any change: rebuild, regenerate the page and publish the same file path again (keeps the URL). Never upload it
+to CrazyGames.
 
 **First job for the next chat:** get the owner's answers (section 4 item 1), then do the cleanup (item 2); do not start the
 launch package before they ask for it.

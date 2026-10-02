@@ -1,11 +1,12 @@
 # Project status - Storm Grid
 
-Updated: 2026-09-28 · Project folder: /home/user/Game (repo michailpopo/Game, branch claude/festive-darwin-7ukgnb)
+Updated: 2026-10-02 · Project folder: /home/user/Game (repo michailpopo/Game, branch claude/amazing-carson-87o6sf)
 
 ## Where we are
 - **Phase:** 3 Build - Storm Grid (3D). Handoff to a new chat on 2026-09-28: read HANDOFF.md first.
 - **Current objective:** an original, dopamine-hitting game that looks premium, upload-ready this session.
-- **Next action (one concrete step):** finish + verify WP-31 (toy city, bolts, juice, sounds in the real game) and WP-32 (shop, offers) - both stopped near the end and unverified; then owner playtest, full QA + crazygames-qa audit, launch package (HANDOFF.md section 4).
+- **Latest:** CrazyGames QA audit done 2026-10-02 (`docs/CG_QA_AUDIT.md`): 38/45 mandatory PASS, 4 FAIL (covers + preview videos not made yet), 3 cannot verify (Edge, 4 GB Chromebook, CG-app safe areas), 6 warnings. No code requirement fails.
+- **Next action (one concrete step):** fix the save fallback in `src/core/save.js` (audit W1) and the two harness scenarios `persistence` / `ads-fill` (test-tool problems, not game bugs), so `npm run qa` exits 0; then the owner judges the 3 visual items, plays, auditions the sounds; then the launch package (HANDOFF.md section 4).
 - **Waiting on the user:** nothing until the next playtest build; then: play it and audition the sounds.
 
 ## Gates
@@ -18,7 +19,7 @@ Updated: 2026-09-28 · Project folder: /home/user/Game (repo michailpopo/Game, b
 | 5 Content & polish | NOT STARTED | | |
 | 6 Platform integration | NOT STARTED | | |
 | 7 Performance | NOT STARTED | | |
-| 8 QA & compliance | NOT STARTED | | |
+| 8 QA & compliance | IN PROGRESS | 2026-10-02 | `docs/CG_QA_AUDIT.md` (audit mode, Full Launch); `npm run qa:fast` green; browser harness traced, 2 scenarios still fail on a correct game |
 | 9 Launch package | NOT STARTED | | |
 | 10 Post-launch review | NOT STARTED | | |
 Statuses: NOT STARTED · IN PROGRESS · BLOCKED · READY FOR REVIEW · PASS · FAIL
@@ -35,15 +36,15 @@ npm run qa           # all automated checks + COMPLIANCE_REPORT.md
 ## Latest measurements
 | Metric | Value | Date | How |
 |---|---|---|---|
-| Bytes to first gameplayStart | 0.18 MB (template demo) | 2026-09-26 | browser-qa boot |
-| Total dist size / files | ~0.8 MB (Storm Grid build) | 2026-09-28 | du -sh dist |
+| Bytes to first gameplayStart | 0.22 MB (Storm Grid) | 2026-10-02 | browser-qa boot |
+| Total dist size / files | 0.76 MB / 6 files | 2026-10-02 | check-bundle |
 | p95 frame time @4x CPU throttle | | | browser-qa performance |
-| Draw calls / triangles in play | | | `__GS_QA__.renderInfo()` |
-| Compliance verdict | NOT VERIFIED (template demo: 16 PASS, 46 unverified) | 2026-09-26 | report.mjs |
-| Docs freshness | UNCHANGED vs register 2026.09.11 | 2026-09-26 | check-docs-freshness.mjs |
+| Draw calls / triangles in play | max 32 calls / 10,541 tris (budget 60 / 60,000) | 2026-10-02 | browser-qa poly-budget (software GL) |
+| Compliance verdict | audit: 38/45 mandatory PASS, 4 FAIL (covers/videos), 3 cannot verify; `COMPLIANCE_REPORT.md` still lists browser items UNVERIFIED (regenerate with a clean full `npm run qa`) | 2026-10-02 | CG_QA_AUDIT.md |
+| Docs freshness | CHANGED: cg-technical, cg-sitelock; rules re-read, no effect on this game (audit W5); register not bumped | 2026-10-02 | check-docs-freshness.mjs |
 
 ## Top 3 problems (reorder after every playtest)
-1. WP-31/WP-32 unverified; last screenshots show a weak bolt / pale lit colours in the game and the shop over the old dark city (HANDOFF.md section 3).
+1. Visual items from HANDOFF.md section 3 (bolt brightness, candy colours, shop over the toy city) not re-judged; 2026-10-02 frames show candy-coloured lit buildings and the toy city behind the shop, the owner decides.
 2. No owner playtest of Storm Grid yet; sounds not auditioned.
 3. Economy numbers are model numbers (Monte Carlo) until a human playtest.
 
@@ -51,6 +52,8 @@ npm run qa           # all automated checks + COMPLIANCE_REPORT.md
 | Id | Severity (P0-P3) | Description | Status |
 |---|---|---|---|
 | B1 | P2 | Template demo: save not flushed on tab hide | fixed in WP-10 (main.js marks the save dirty on hide) |
+| B2 | P2 | Data module off (Progress Save not ticked in the portal): progress is written to localStorage but never read back, the game boots from defaults (`src/core/save.js`; audit W1; reproduced) | open, 3-line fix in HANDOFF.md section 4 |
+| B3 | P3 (test tool) | `browser-qa` `persistence` leaks two WebGL pages and starves later scenarios; `ads-fill` uses fixed sleeps. The game is correct in both (audit "Test-tool findings") | open, fix in the harness |
 
 ## Decisions log
 | Date | Decision | Why | Alternatives rejected |
@@ -66,4 +69,5 @@ npm run qa           # all automated checks + COMPLIANCE_REPORT.md
 | 2026-09-26 | Concept T1 Volt City, fully 3D; renamed Storm Grid | owner's picks ("It must be 3d game"; Volt City collides with a Volt Casino game) | T2 Shatterfall, T3 Magnet Heap; keeping the casino-colliding name |
 | 2026-09-26 | Look kit WP-20 done: Neutral tone mapping (ACES/AgX washed colours out), bloom only on high/ultra tiers | side-by-side captures in qa/wp20/ | ACES, AgX |
 | 2026-09-27 | Keep the UI; restyle the city from hit-game references, keep it simple | owner: "good in general, the ui looks great but the city is still looking too ai generated, grab some visual inspo from games with a lot of likes that are made in html5, do not overcomplicate" | neon-cyberpunk city |
+| 2026-10-02 | Audit before fixing: wrote the report, applied no code changes | owner asked to check the game against the CrazyGames requirements; fixes (B2, B3) wait for the owner's go | fixing while auditing |
 | 2026-09-28 | Stopped both specialists and wrote HANDOFF.md | owner wants to continue in a new chat to save context tokens; the account hit its usage limit twice | keep agents running here |

@@ -1,4 +1,4 @@
-# Storm Grid - handoff for the next chat (2026-09-28)
+# Storm Grid - handoff for the next chat (2026-10-02)
 
 Read this file first. It replaces reading the long history. Only open other docs at the sections named below.
 
@@ -18,115 +18,131 @@ with the `game-studio` skill (planner + specialist agents) and checked with the 
   session, only at 85-99%), Supercharged start (+2 strikes), Free upgrade, Shop cash (+22%), Try a bolt, Daily gift x2.
   Midgame on Next city / Retry from city 4. Everything works with ads off and with an ad blocker.
 - Single player, desktop + mobile (landscape + portrait), mouse / touch / Space + arrows/WASD (event.code). Click-to-
-  target, so no pointer lock is needed (CG-QUAL-008 "click-on-UI"). Bundle ~0.8 MB.
-- Full numbers: `docs/GAME_BRIEF.md` (source of truth). Concept text: `docs/CONCEPTS.md` section
-  "T1 - Volt City" (~line 850) and "Round 3 decision" (end of file) - the game was renamed Storm Grid because
-  "Volt City" is a Volt Casino game.
+  target, so no pointer lock is needed (CG-QUAL-008 "click-on-UI"). Bundle 0.8 MB, 6 files, 0.22 MB to first gameplayStart.
+- Full numbers: `docs/GAME_BRIEF.md` (source of truth). The game was renamed Storm Grid because "Volt City" is a Volt
+  Casino game (a web search on 2026-10-01 again found no game called "Storm Grid" on Steam / itch / CrazyGames / Poki).
 
 ## 2. The owner's wishes (keep these - they decided every turn)
 
 - Goal: "a game for CrazyGames that is simple yet it will make me money" - **upload-ready**.
 - Benchmark = very popular HTML5 games (Cubes 2048.io 128k likes), not games with ~1.6k likes. "Not that hard to make."
-- Must be **original** (not a copy - Comet Chain was rejected as a Cubes 2048.io copy that "looks shit").
-- Must be **dopamine hitting** and **3D** ("It must be 3d game").
-- Look: "the UI looks great" (keep it). The city must **not look AI-generated** - take inspiration from popular HTML5
-  games (Holey.io, Slice Master, Cubes 2048.io, Paper.io 2, Harvest.io...). "Do not overcomplicate things."
-- Always use the **CrazyGames QA** skill (build mode in every package, audit report at the gates).
-- The owner prefers short updates; writes German or English.
+- Must be **original**, **dopamine hitting** and **3D**. Look: "the UI looks great" (keep it); the city must **not look
+  AI-generated** (toy city, WP-21). "Do not overcomplicate things."
+- Always use the **CrazyGames QA** skill. The owner prefers short updates; writes German or English.
+- **2026-10-01, about the bolt: "i like how the bolt looks in the game actually so dont delete the version there is now,
+  make a new and i will tell you which is better."** -> The classic bolt is untouched and still the default; a NEW outlined
+  ("toon") bolt exists next to it; the owner will pick. **Do not touch the classic bolt code** (`src/fx/ribbons.js`,
+  `src/fx/fx-kit.js`, the `classic` branch in `src/game/view.js`) until they have answered.
+- 2026-10-01 scope: "just the game, not the files for now" -> no covers / preview videos / store text yet (WP-13 stays todo).
 
-## 3. Status per package (see docs/BUILD_PLAN.md for the table)
+## 3. Status per package
 
 | Package | What | Status |
 |---|---|---|
-| WP-20 | Premium look kit: tone mapping, light rig + soft shadows, bloom on high tier, materials, particle kit, number pops, UI styles | done, verified |
-| WP-21 | Toy-city restyle from hit-game references (`src/render/city-kit.js`, refs in `qa/refs/`) | done, verified, owner saw frames |
-| WP-30 | 3D core: city generator, charge/strike, hop/fork chain, lighting, % powered, plates, result, QA hooks | done, verified (build, sim-health, 13 browser scenarios 0 FAIL) |
-| WP-31 | Wire toy city + bolts + juice + ZzFX sounds into the real game (`src/game/view.js`, `city-mesh.js`, `look.js`, `sfx.js`, `src/fx/*`) | **stopped near the end, NOT verified by the planner** |
-| WP-32 | Shop, upgrades, 12 skins, all 7 offers, daily gift, midgame from city 4, completion %, save | **stopped near the end, NOT verified by the planner** (all offer functions exist in `src/game/offers.js`) |
-| WP-13 | Launch package: covers x3, preview videos x2, store text, portal checklist | todo |
-| WP-QA | CrazyGames QA audit report `docs/CG_QA_AUDIT.md` (crazygames-qa skill format) | todo |
+| WP-20 / WP-21 | Premium look kit; toy-city restyle | done |
+| WP-30 | 3D core (generator, charge/strike, hop/fork chain, plates, result) | done |
+| WP-31 | Toy city + bolts + juice + ZzFX sounds in the real game | **done, verified 2026-10-02** (harness, screenshots, filmstrips) |
+| WP-32 | Shop, upgrades, 12 skins, 7 offers, daily gift, midgame, save | **done, verified 2026-10-02** (ad-ui, shop, revive-offer, ads-* scenarios) |
+| WP-QA | CrazyGames audit of the game | **done: `docs/CG_QA_AUDIT.md`** (game only; covers / video / metadata are listed as pending) |
+| WP-13 | Launch package: covers x3, preview videos x2, store text, portal checklist | **todo - the owner said "not for now"** |
 
-State at handoff: `npm run build` OK, `node tools/qa/sim-health.mjs --selftest` PASS. Full browser harness result at
-handoff: see section 8. Screenshots of the latest work: `qa/wp31/*.png` (game with toy city) and `qa/wp32/*.png`
-(shop, offers) - `qa/` is gitignored, copies are in the handoff ZIP under `screenshots/`.
+What the 2026-10-01/02 session did (all committed on `claude/peaceful-allen-pphssd`):
 
-What I saw in the last screenshots (fix first):
-1. `qa/wp31/fork-1280x720.png`: the toy city is in the game, but the lightning barely shows in that frame and the lit
-   buildings flood pale white/orange instead of clear candy colours; no sky visible at that camera angle. The bolt
-   must be the brightest, most saturated thing on screen (WP-21 rule).
-2. `qa/wp32/shop-1280x720.png`: the shop panel works (Random 250 coins / video +55), but it sits over the OLD dark
-   plain city background - the shop/menus must render over the new toy city.
-3. Check that bolt skins actually recolour the bolt in play, and that every offer screen has at most 2 video buttons.
+1. **The 3 failing scenarios were harness / environment problems, not game bugs.** The container renders WebGL in software
+   (0.3-1.2 s per frame), a crashed scenario left its browser page running (CPU starved the next scenarios), and `ads-fill`
+   used sleeps. Fixes in `tools/qa/browser-qa.mjs`: every scenario closes its contexts; logic / UI scenarios run in **lite
+   mode** (`?quality=low&renderEvery=1500`, the 3D scene is drawn once per 1.5 s, the sim runs in real time); `ads-fill`
+   reads the audio / overlay state at each SDK ad event; poly-budget runs at the `high` tier. `src/main.js` got the QA-only
+   `renderEvery` flag. New scenarios: `input-strike` (mouse / Space+arrows / touch hold), `context-loss`, `no-webgl`,
+   `cpu-cost`, `bolt-styles`.
+2. **Look polish (the three items from the last handoff):** lit roofs / caps keep their candy colour (35-40% white mix cut to
+   12-14%); the result, "So close" and shop panels **dock beside the lit city** (right edge in landscape, bottom in portrait)
+   and the camera frames the city in the rest of the screen (`ui.js` `dialogInsets` -> `view.setSafeArea`), veils lighter;
+   bolt skins recolour both bolt styles (checked); at most 2 video buttons per screen (ad-ui, shop).
+3. **Audio:** a limiter + per-sound peak ceiling in `src/core/audio.js` (`thunder` peaked at +3 dBFS, i.e. it clipped);
+   the coin count-up now ticks (`coinTick`, rising pitch, was defined but never played). The owner still has to audition.
+4. **Robustness:** WebGL context-restore handler (rebuilds the lighting environment), a clear message when WebGL is missing.
+5. **Playtest A/B switches (see below).**
+
+### PLAYTEST-ONLY switches - remove after the owner has picked
+
+| Switch | Default | Alternative | How |
+|---|---|---|---|
+| Bolt | `classic` (glow bolt, the liked one) | `toon` (crisp outlined zig-zag + white flash, `src/fx/toon-bolts.js`) | key **B**, `?bolt=toon`, button with `?compare=1` |
+| Light | `dusk` (current look) | `bright` (white key, strong fill; `brightBackdropFor` in `src/game/look.js`) | key **L**, `?look=bright` |
+| Sound check | - | a panel with every sound once, through the real mixer | button "Sounds" with `?compare=1` |
+
+The hosted playtest page (`node tools/launch/playtest-page.mjs` after `npm run build` -> `qa/playtest/index.html`, one
+self-contained file, mock SDK inside so every ad surface is visible; never upload it) shows the buttons by default.
+**Cleanup list once the owner answered:** `src/main.js` (B / L handlers, `swapBolt`, `swapLook`, compare + sound buttons,
+`__PLAYTEST__`), `src/core/i18n.js` (`bolt_*`, `look_*`), `src/game/view.js` (`boltStyle`, `toon`, `#strikeToon`,
+`#hopToon`, `#flash`, `lookStyle`, the `?bolt=` / `?look=` params; keep the winner only), `src/game/look.js`
+(`brightBackdropFor`, `EXPOSURE` if dusk wins), delete `src/fx/toon-bolts.js` if classic wins, `tools/qa/browser-qa.mjs`
+scenario `bolt-styles`. Comparison images: `docs/review/bolt-compare-2026-10-01.png`.
+
+Known and left alone: with the classic bolt the ribbon pool (30 ribbons, 16 bolts) can run dry in 8-chain cascades, so a
+few late hops show only their flash. Raising it (60 ribbons x 17 points = 1,920 tris, `MAX_BOLTS` 40, hop life 0.3 s) was
+prototyped and works, but it changes the look the owner likes - ask first, then do it for the winner.
 
 ## 4. What is left to be upload-ready (in this order)
 
-1. **Finish + verify WP-31 and WP-32** (fix the 3 items above). Checks:
-   `npm run build`, `node tools/qa/sim-health.mjs --selftest`,
-   `PW_CHROMIUM_PATH=/opt/pw-browsers/chromium node tools/qa/browser-qa.mjs --serve` (all scenarios, 0 FAIL),
-   look at `qa/shots/*.png`.
-2. **Owner playtest (Gate 2):** publish `dist/` as a private page (Artifact tool; strip the SDK script tag, keep
-   `assets/*` as supporting files - the page runs without the SDK) or `npm run dev -- --host`. Ask: what did you try
-   first, when did it get fun, when did you want to stop. The owner must also **audition the sounds** (Claude cannot
-   hear): charge hum, supercharge ding, strike boom, hop crackle ladder, fork zap, block-powered chord, full-power
-   fanfare, coin ticks, click.
-3. **Full QA:** `npm run qa` (writes `COMPLIANCE_REPORT.md`, exit 0) + the **crazygames-qa audit** in its report format
-   into `docs/CG_QA_AUDIT.md` (technical, gameplay, ads, covers; FAIL blocks). Run
-   `NODE_USE_ENV_PROXY=1 node <game-studio>/scripts/docs/check-docs-freshness.mjs` first.
-4. **Launch package:** `npm run launch:covers` (1920x1080, 800x1200, 800x800), `npm run launch:video` (landscape +
-   portrait, 15-20 s, no sound), `npm run launch:check`; fill `docs/STORE_METADATA.md`; portal checklist in
-   `<game-studio>/checklists/launch-checklist.md`. Build the upload ZIP from `dist/`.
-5. **The owner uploads** in the CrazyGames Developer Portal (Claude never logs in or submits). Basic Launch first is the
+1. **The owner decides and plays:** bolt classic vs outlined, light dusk vs bright (button / key switches), plays the
+   hosted playtest page on PC **and phone**, **auditions the sounds** with the Sounds panel (levels were only normalised by
+   a limiter; nobody has heard them), says what felt good / when they wanted to stop (Gate 2).
+2. **Cleanup** of the losing variants and switches (list in section 3), rebuild, re-run `node tools/qa/browser-qa.mjs
+   --serve` (all scenarios, 0 FAIL) and `node tools/qa/soak.mjs --serve --cities 20`.
+3. **Launch package when the owner says so:** `npm run launch:covers` (1920x1080, 800x1200, 800x800), `npm run
+   launch:video` (landscape + portrait, 15-20 s, no sound), `npm run launch:check`, fill `docs/STORE_METADATA.md`, portal
+   checklist `<game-studio>/checklists/launch-checklist.md`, build the upload ZIP from `dist/`. Portal items that only
+   the owner can do: enable **Progress Save**, set orientation **both**, test in the Developer Portal preview.
+4. **The owner uploads** in the CrazyGames Developer Portal (Claude never logs in or submits). Basic Launch first is the
    usual path; ads only run at Full Launch.
+5. Optional later: German / French / Spanish / Portuguese strings (only if the owner checks them), a music loop.
 
 ## 5. Environment gotchas (cloud container)
 
-- Browser harness: always `PW_CHROMIUM_PATH=/opt/pw-browsers/chromium` (template pins Playwright 1.63; the container has
-  Chromium 1194; the launch calls in `tools/qa/browser-qa.mjs`, `tools/launch/*.mjs` read that env var).
-- Node scripts that fetch the web: `NODE_USE_ENV_PROXY=1` (Node fetch ignores HTTPS_PROXY otherwise).
-- Allowed hosts (owner set them): crazygames.com, docs/sdk/api/builds/imgs/videos.crazygames.com,
-  `<slug>.game-files.crazygames.com`, poki.com, youtube.com. Everything else may be blocked.
-- WebGL renders in software here (1-9 fps): judge looks by still frames and budgets by draw calls/triangles, not fps.
-  Browser QA runs take 10-25 minutes.
-- On a local Windows PC: `npm install`, then `npm run dev` (http://127.0.0.1:5173/?qa=1) - no env vars needed.
-- The account hit its **usage limit twice** in this session (agents are expensive). See section 7.
+- Browser harness: always `PW_CHROMIUM_PATH=/opt/pw-browsers/chromium`. **Run exactly one browser job at a time** (4 cores,
+  the software GPU process alone takes ~2). Never `npm run build` while a harness or screenshot job is running (it replaces
+  `dist/` under the preview server). Start long jobs with `run_in_background` directly (not `cmd &` inside the command).
+- Node scripts that fetch the web: `NODE_USE_ENV_PROXY=1`.
+- WebGL renders in software: 0.3 s (low) / 0.5 s (medium) / 1.2 s (high) per frame at 1280x720. Judge looks by stills,
+  budgets by draw calls / triangles (35 calls, 9.5k tris at the high tier), never by fps. Use the tools below.
+- `qa/` is gitignored (screenshots, evidence). Python PIL is installed in the container for cropping / contact sheets.
+
+Look and juice tools (`tools/qa/shoot.mjs`, `--serve --shots a,b --sizes 1280x720,450x800 --out qa/x [--query bolt=toon]`):
+`ready ready-returning charge supercharge fork district mid result result-fail revive shop paused lit boltlab boltlab-lit
+film`. `film` steps the deterministic capture mode at exactly 1/30 s per drawn frame (FILM_FROM / FILM_TO / FILM_EVERY env)
+- the way to judge juice and bolts as a 30 fps player sees them. `--tweakFile x.js` runs JS in the page after boot
+(`window.__GS_LOOK__`, `__GS_VIEW__`) for live look-dev without rebuilding. `tools/qa/soak.mjs` = N cities through the real
+UI with key mashing, double clicks, pauses and resizes, logging heap / DOM / GPU memory.
 
 ## 6. Skills, agents, files
 
-- Skills: `game-studio` (workflows/, checklists/quality-gates.md, references/) and `crazygames-qa` (SKILL.md +
-  references/). In a new cloud session install the studio agents once:
-  `node <game-studio>/scripts/install-agents.mjs` (they load in the NEXT session; otherwise run a general-purpose agent
-  that reads `~/.claude/agents/<name>.md`).
+- Skills: `game-studio` and `crazygames-qa`. The studio agents are not installed in a fresh container
+  (`node <game-studio>/scripts/install-agents.mjs`); this session did everything directly (cheaper, ~no agents).
 - Docs to read (only these sections): `docs/GAME_BRIEF.md` (all), `docs/BUILD_PLAN.md` (package table + CrazyGames QA
-  section), `docs/PROJECT_STATUS.md` (gates, decisions), `docs/QA_REPORT.md` (WP-20/21/30 notes; the view API is in
-  the header of `src/game/sim.js`, the look-kit API in the headers of `src/render/look.js`, `city-kit.js`,
-  `src/fx/fx-kit.js`).
-- Docs to SKIP (history, long): `docs/CONCEPTS.md` rounds 1-2 and `docs/RESEARCH.md` except "Hit list: popular and
-  simple"; `docs/shelved/*` (Skip Legend, Comet Chain briefs).
+  section), `docs/PROJECT_STATUS.md` (gates, decisions), `docs/CG_QA_AUDIT.md` (the audit), `docs/QA_REPORT.md` (the
+  2026-10-01 section at the end; WP-20/21/30 notes; view API in the header of `src/game/sim.js`).
+- Docs to SKIP: `docs/CONCEPTS.md` rounds 1-2, `docs/RESEARCH.md`, `docs/shelved/*`.
 - Code map: `src/game/sim.js` (pure deterministic rules), `view.js` + `city-mesh.js` + `look.js` + `sfx.js`
   (presentation), `meta.js` + `offers.js` + `src/config.js` (`STORM`, `OFFERS`, economy), `src/main.js` (flow),
   `src/ui/ui.js` + `styles.css` (DOM UI), `src/platform/platform.js` (only file touching `window.CrazyGames`),
-  `src/core/*` (ads, save, pause, gameplay events, audio, input, quality).
-- Git: repo `michailpopo/Game`, branch `claude/festive-darwin-7ukgnb` (everything is pushed). No PR opened.
+  `src/core/*` (ads, save, pause, gameplay events, audio, input, quality), `src/fx/*` (ribbons / fx-kit = classic bolts,
+  toon-bolts = the alternative).
+- Git: repo `michailpopo/Game`, working branch `claude/peaceful-allen-pphssd` (pushed). No PR opened.
 
 ## 7. How to save tokens in the next chat
 
-- Read this file + GAME_BRIEF; do not re-read the conversation history or the long docs.
-- Prefer doing small fixes directly; use at most one specialist agent at a time, with a tight brief and "be
-  economical: no extra iterations". Agents burned ~500k tokens each per package here.
-- Run the slow browser harness once per package with `--only <scenarios>`, not the full set every time.
+- Read this file + GAME_BRIEF; do not re-read the long docs or the conversation history.
+- Small fixes directly; at most one specialist agent at a time with a tight brief.
+- Run the slow browser harness once per package with `--only <scenarios>`, the full set once at the end.
 
-## 8. Browser QA at handoff (2026-09-28, full harness)
+## 8. QA at handoff (2026-10-02, final build, container = software WebGL)
 
-Full run: **11 PASS, 9 FAIL, 1 UNVERIFIED** - details and the planner's reading in `docs/handoff-qa.txt`.
-- **Real bug:** `ads-fill` - audio mutes when the ad is REQUESTED, must mute on `adStarted` and unmute on
-  `adFinished`/`adError` (CrazyGames rule).
-- **Regressions from WP-31/32:** `persistence` and `poly-budget` also fail when run alone (timeouts waiting for a
-  dialog / a phase) - fix first.
-- `touch` passes alone; the other crashes (dead-air, ad-ui, revive-offer, shop, performance) may be a cascade from the
-  slow software renderer - re-run each with `--only` after the fixes.
-- Passing: boot (0.22 MB to first gameplayStart), sdk-events, no-sdk, sdk-disabled, sdk-init-hang, ads-basic-launch,
-  ads-slow-fill, adblock, mute-priority, tab-hidden, console-errors; `sim-health --selftest` PASS; build OK.
-- WP-30 alone had all of these at PASS on 2026-09-27, so compare against commit `WP-30 done` if stuck.
+Results of the final full run and the other checks are in `docs/CG_QA_AUDIT.md` ("Evidence" table) and
+`docs/PROJECT_STATUS.md` ("Latest measurements"). Commands: `npm run build`; `node tools/qa/sim-health.mjs --selftest`;
+`PW_CHROMIUM_PATH=/opt/pw-browsers/chromium node tools/qa/browser-qa.mjs --serve`; `node tools/qa/soak.mjs --serve
+--cities 20`; `node tools/qa/report.mjs`.
 
-**First job for the next chat:** fix ads-fill, persistence, poly-budget -> re-run the harness -> fix the visual items
-in section 3 -> publish a playtest for the owner.
+**First job for the next chat:** get the owner's answers (section 4 item 1), then do the cleanup (item 2); do not start the
+launch package before they ask for it.

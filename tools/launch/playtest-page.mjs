@@ -6,8 +6,10 @@
  *   npm run build && node tools/launch/playtest-page.mjs            -> qa/playtest/index.html
  *
  * Differences from the real build, on purpose:
- *   - the CrazyGames SDK <script> is removed (a hosted private page cannot load it; the game runs without it - no-sdk QA scenario)
- *   - window.__PLAYTEST__ = true shows the bolt / light compare buttons (a hosted page cannot take ?compare=1)
+ *   - the CrazyGames SDK <script> is removed (a hosted private page cannot load it) and replaced by the dev MOCK SDK
+ *     (dev/mock-crazygames-sdk.js), so the owner sees every rewarded surface and the ad flow (fake ads: they "play" for ~1 s and
+ *     always grant); pass --no-mock to run without any SDK (then every video button is hidden, as under an ad blocker)
+ *   - window.__PLAYTEST__ = true shows the bolt / light / sound-check buttons (a hosted page cannot take ?compare=1)
  * Nothing else changes; the upload build stays dist/. Never upload this file to CrazyGames.
  */
 
@@ -37,14 +39,18 @@ css = css.replace(/url\(([^)]+\.(woff2?))\)/g, (m, u, ext) => {
 const js = readFileSync(assets(jsSrc), "utf8");
 if (/<\/script/i.test(js)) throw new Error("the bundle contains </script - escape it before inlining");
 
+const useMock = !process.argv.includes("--no-mock");
+const mock = useMock ? readFileSync(resolve(root, "dev/mock-crazygames-sdk.js"), "utf8") : "";
+if (/<\/script/i.test(mock)) throw new Error("the mock SDK contains </script");
+
 const page = `<title>${title}</title>
 <style>${inlineStyle}</style>
 <style>${css}</style>
 ${bodyInner}
 <script>window.__PLAYTEST__ = true;</script>
-<script type="module">${js}</script>
+${useMock ? `<script>${mock}</script>\n` : ""}<script type="module">${js}</script>
 `;
 
 mkdirSync(resolve(root, "qa/playtest"), { recursive: true });
 writeFileSync(resolve(root, "qa/playtest/index.html"), page);
-console.log(`qa/playtest/index.html  ${(page.length / 1024).toFixed(0)} KB  (js ${(js.length / 1024).toFixed(0)} KB, css ${(css.length / 1024).toFixed(0)} KB, no SDK tag, compare buttons on)`);
+console.log(`qa/playtest/index.html  ${(page.length / 1024).toFixed(0)} KB  (js ${(js.length / 1024).toFixed(0)} KB, css ${(css.length / 1024).toFixed(0)} KB, ${useMock ? "mock SDK" : "no SDK"}, compare buttons on)`);

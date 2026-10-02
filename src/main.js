@@ -63,6 +63,8 @@ import { createUI } from "./ui/ui.js";
 
 const qs = new URLSearchParams(location.search);
 const wait = (ms) => new Promise((r) => setTimeout(r, ms));
+/** PLAYTEST ONLY: the bolt / light / sound-check switches (keys B / L and the buttons). The hosted playtest page sets __PLAYTEST__, a URL can say ?compare=1. */
+const playtest = qs.get("compare") === "1" || globalThis.__PLAYTEST__ === true;
 const mmss = (sec) => `${Math.floor(sec / 60)}:${String(sec % 60).padStart(2, "0")}`;
 const pct = (share) => Math.floor(share * 100 + 1e-6);
 const UPGRADE_ORDER = Object.keys(UPGRADES);   // Voltage, Fork, Strikes, Capacitor, Gold rods
@@ -142,6 +144,8 @@ async function boot() {
     },
   });
   const ads = new AdController(pause, audio, ui.adOverlay);
+  /** The coin count-up is audible: one tick per coin landing in the pill, the pitch climbing (GAME_BRIEF "Coin count: ticks"). */
+  const coinTicks = (i, n) => audio.play("coinTick", { pitch: 1 + 0.6 * (i / Math.max(1, n - 1)), minGap: 0.015 });
   ads.detectAdblock().then(refreshReady);   // never block boot on this
 
   await fontsReady();
@@ -233,8 +237,10 @@ async function boot() {
   window.addEventListener("keydown", (e) => {
     if (e.code === "KeyM" && !e.repeat && !e.ctrlKey && !e.metaKey && !e.altKey) toggleSound();
     // PLAYTEST ONLY - remove once the owner has picked a bolt: B swaps the classic glow bolt and the new toon bolt.
-    if (e.code === "KeyB" && !e.repeat && !e.ctrlKey && !e.metaKey && !e.altKey) swapBolt();
-    if (e.code === "KeyL" && !e.repeat && !e.ctrlKey && !e.metaKey && !e.altKey) swapLook();
+    // (only on the playtest page or with ?compare=1: a player must never be able to flip the look by accident)
+    if (!playtest || e.repeat || e.ctrlKey || e.metaKey || e.altKey) return;
+    if (e.code === "KeyB") swapBolt();
+    if (e.code === "KeyL") swapLook();
   });
   /** PLAYTEST ONLY: dusk <-> bright lighting (key L, or the ?compare=1 button). Dusk stays the default. */
   function swapLook() {
@@ -483,7 +489,7 @@ async function boot() {
     });
 
     async function finish() {
-      ui.coinsFly(dlg.amountElement, reward);
+      ui.coinsFly(dlg.amountElement, reward, coinTicks);
       ui.setCoins(save.data.coins, { animate: true });
       dlg.close();
       await wait(250);
@@ -655,7 +661,7 @@ async function boot() {
     });
     function done() {
       save.flush();
-      ui.coinsFly(dlg.amountElement, total);
+      ui.coinsFly(dlg.amountElement, total, coinTicks);
       ui.setCoins(save.data.coins, { animate: true });
       dlg.close();
       pause.release(Reason.MENU);
@@ -903,7 +909,7 @@ async function boot() {
 
   // PLAYTEST ONLY (?compare=1): a small on-screen button for the bolt comparison (touch screens have no B key).
   // (the playtest page sets window.__PLAYTEST__ because a hosted page cannot take a query string)
-  if (qs.get("compare") === "1" || globalThis.__PLAYTEST__ === true) {
+  if (playtest) {
     compareBtn = document.createElement("button");
     compareBtn.type = "button";
     compareBtn.className = "btn compare-btn";
@@ -928,12 +934,16 @@ async function boot() {
     const panel = document.createElement("div");
     panel.hidden = true;
     panel.style.cssText = "position:absolute;left:0.6em;top:12em;z-index:12;display:flex;flex-wrap:wrap;gap:0.3em;max-width:min(24em,70vw);pointer-events:auto";
-    for (const name of Object.keys({ ...SFX, ...STORM_SFX })) {
+    const SOUNDS = [["click", "button click"], ["charge", "charge start"], ["hum", "charge hum"], ["ding", "supercharge ding"], ["buzz", "overcharge buzz"],
+      ["thunder", "strike boom"], ["crackle", "hop crackle"], ["fork", "fork zap"], ["gold", "gold rod"], ["district", "block powered"], ["fizzle", "fizzle"],
+      ["powerSweep", "full-power sweep"], ["fanfare", "full-power fanfare"], ["win", "city cleared"], ["fail", "city dark"], ["coin", "coin"],
+      ["coinTick", "coin tick"], ["tier", "upgrade"], ["pop", "pop"], ["gateBad", "not enough coins"]];
+    for (const [name, label] of SOUNDS) {
       const b = document.createElement("button");
       b.type = "button";
       b.className = "btn compare-btn";
       b.style.cssText = "font-size:0.62em;min-height:2em;padding:0.15em 0.55em";
-      b.textContent = name;
+      b.textContent = label;
       b.addEventListener("click", () => { audio.unlock(); audio.play(name, { minGap: 0, maxVoices: 8 }); });
       panel.appendChild(b);
     }
@@ -983,7 +993,7 @@ async function boot() {
           strikesLeft: sim.strikesLeft, strikesMax: sim.strikesMax, holding: sim.holding, charge: sim.charge, bolts: sim.bolts.length,
           score: sim.score, bestChain: sim.bestChain, districtsDone: sim.districtsDone, aim, inputMode, paused,
           coins: save.data.coins, pause: pause.reasons, gameplayReported: gameplay.reported,
-          firstGameplayStartMs: gameplay.firstStartMs, audio: audio.state, save: save.status,
+          firstGameplayStartMs: gameplay.firstStartMs, audio: audio.state, save: save.status, loopFrames: loop.stats.frames,
           platform: { name: platform.name, environment: platform.environment }, fps: loop.stats.fps,
           pixelRatio: stage.renderer.getPixelRatio(), adsLog: ads.log, gameplayHistory: gameplay.history,
           runs: save.data.runs, skin: save.data.skin, owned: [...save.data.owned], boosted, shopOpen: ui.shopOpen,

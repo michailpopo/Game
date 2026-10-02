@@ -604,8 +604,16 @@ await scenario("bolt-styles", async () => {
     await page.waitForFunction(() => ["won", "failed"].includes(window.__GS_QA__.state.phase), null, { timeout: 90000 }).catch(() => problems.push(`${label}: the run did not end`));
     const lit = (await state(page)).lit;
     if (lit < 4) problems.push(`${label}: only ${lit} buildings lit`);
-    await page.waitForSelector(".modal:not([hidden]) .dialog button", { timeout: 30000 }).catch(() => problems.push(`${label}: no result dialog`));
-    await page.click('.modal:not([hidden]) button[data-id="claim"], .modal:not([hidden]) button[data-id="retry"], .modal:not([hidden]) button[data-id="finish"]').catch(() => {});
+    // A near-miss ("So close!", 85-99%) shows Finish first and the city result after it: click through both.
+    let through = false;
+    for (let step = 0; step < 3 && !through; step++) {
+      const btn = await page.waitForSelector('.modal:not([hidden]) button[data-id="claim"], .modal:not([hidden]) button[data-id="retry"], .modal:not([hidden]) button[data-id="finish"]', { timeout: 30000 }).catch(() => null);
+      if (!btn) break;
+      const id = await btn.getAttribute("data-id");
+      await btn.click().catch(() => {});
+      if (id !== "finish") through = true; else await sleep(500);
+    }
+    if (!through) problems.push(`${label}: no result dialog to click through`);
     await page.waitForFunction(() => window.__GS_QA__.state.phase === "ready", null, { timeout: 30000 }).catch(() => problems.push(`${label}: no next intro`));
   }
   const labels = await page.$$eval("button.compare-btn", (b) => b.slice(0, 3).map((x) => x.textContent));
@@ -882,6 +890,32 @@ await scenario("shop", async () => {
   record({ id: "shop", requirements: [], status: problems.length ? "FAIL" : "PASS",
     summary: problems.length ? problems.join("; ") : `+coins offer only while unaffordable, granted after the video, then hidden with a timer; unlock adds a new skin for coins; Try it lends a locked bolt once (same-size coin alternative); adblock shows "${note3}"`,
     evidence: { offers } });
+});
+
+await scenario("cpu-cost", async () => {
+  // The CPU side of a frame (game logic, effects, DOM / style / layout) at 4x CPU throttle - a proxy for a slow Chromebook's main thread.
+  // The 3D draw is excluded on purpose (this container renders in software, which says nothing about a real GPU): renderEvery=60000.
+  // A mid-campaign city (58 buildings, forks 20%+, 4 strikes) so cascades are busy.
+  const { ctx, page, errors } = await openGame("level=10&up=6,5,1,2,2&renderEvery=60000");
+  const cdp = await ctx.newCDPSession(page);
+  await cdp.send("Performance.enable");
+  await cdp.send("Emulation.setCPUThrottlingRate", { rate: 4 });
+  const metrics = async () => Object.fromEntries((await cdp.send("Performance.getMetrics")).metrics.map((m) => [m.name, m.value]));
+  await page.evaluate(() => { window.__GS_QA__.setAutopilot(true); window.__GS_QA__.start(); });
+  await sleep(1200);
+  const m0 = await metrics(), f0 = (await state(page)).loopFrames, t0 = Date.now();
+  await page.waitForFunction(() => window.__GS_QA__.state.phase !== "run", null, { timeout: 60000 }).catch(() => {});
+  const m1 = await metrics(), f1 = (await state(page)).loopFrames, secs = (Date.now() - t0) / 1000;
+  const frames = Math.max(1, f1 - f0);
+  const per = (k) => ((m1[k] - m0[k]) * 1000) / frames;
+  const script = per("ScriptDuration"), layout = per("LayoutDuration"), style = per("RecalcStyleDuration"), task = per("TaskDuration");
+  const cpu = script + layout + style;
+  const status = cpu <= 8 ? "PASS" : cpu <= 12 ? "WARN" : "FAIL";
+  allErrors.push(...errors);
+  record({ id: "cpu-cost", requirements: ["CG-TECH-008"], status,
+    summary: `4x CPU throttle, ${frames} frames in ${secs.toFixed(1)} s of a busy autopiloted city: script ${script.toFixed(2)} + style ${style.toFixed(2)} + layout ${layout.toFixed(2)} = ${cpu.toFixed(2)} ms per frame (all main-thread tasks ${task.toFixed(2)} ms; budget 16.7 ms at 60 fps; 3D draw excluded) - a proxy, not a Chromebook measurement`,
+    evidence: { script, layout, style, task, frames, secs } });
+  await ctx.close();
 });
 
 await scenario("performance", async () => {

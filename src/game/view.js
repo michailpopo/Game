@@ -325,6 +325,8 @@ export class GameView {
     const g = Math.min(4, gen);
     _a.set(a.x, a.tipY, a.z); _b.set(b.x, b.tipY, b.z);
     this.#toon().strike(_a, _b, { color: this.boltHex, width: (1.6 + g * 0.1) * U, forks: 1, forkLength: 0.3, jag: 0.15, arc: 0.9 * U, segs: 5, life, flicker: 0.09 });
+    // a faint electric halo along the path (the surface itself stays crisp)
+    for (const k of [0.33, 0.66]) this.fx.glow(_o3.set(_a.x + (_b.x - _a.x) * k, _a.y + (_b.y - _a.y) * k + 1.2, _a.z + (_b.z - _a.z) * k), { color: this.boltHex, size: 2.4, grow: 1.1, life: 0.28, intensity: 0.7 });
     this.fx.glow(_b, { color: "#ffffff", size: 2.0, grow: 1.4, life: 0.22, intensity: 2.2 });
     this.fx.ring(_o3.set(b.x, b.h + 0.8, b.z), { color: this.boltHex, from: 0.5, to: Math.max(b.w, b.d) / U, life: 0.26, thickness: 0.14, intensity: 1.0, normal: [0, 1, 0] });
     this.fx.sparks(_b, { count: 6, color: LOOK.spark, speed: 5, up: 3, size: 0.18, life: 0.45 });

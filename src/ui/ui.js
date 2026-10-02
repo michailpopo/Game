@@ -182,7 +182,8 @@ export function createUI(root, { onSound, onPause, onResume, onBuy, onFree, onBo
   }
 
   // ---- coin fly-in from an element to the coin pill
-  function coinsFly(fromEl, total) {
+  /** `onLand(i, n)` fires as coin i of n lands in the pill (main.js plays a rising tick per coin). */
+  function coinsFly(fromEl, total, onLand) {
     const from = fromEl.getBoundingClientRect();
     const to = coinsPill.getBoundingClientRect();
     const rootRect = root.getBoundingClientRect();
@@ -204,6 +205,7 @@ export function createUI(root, { onSound, onPause, onResume, onBuy, onFree, onBo
       anim.onfinish = () => {
         el.remove();
         coinsPill.animate([{ scale: 1 }, { scale: 1.12 }, { scale: 1 }], { duration: 160 });
+        onLand?.(i, n);
         if (i === n - 1) coinsShown = coinsTarget - 1;   // finish the count-up
       };
     }
@@ -310,6 +312,11 @@ export function createUI(root, { onSound, onPause, onResume, onBuy, onFree, onBo
     else out.right = Math.min(W * 0.55, W - el.offsetLeft + 8);
     return out;
   }
+  // A phone turned while a dialog or the shop is open: the panel docks to the other edge, so tell the camera again.
+  window.addEventListener("resize", () => requestAnimationFrame(() => {
+    if (!modal.hidden) onDialogLayout?.(dialogInsets());
+    else if (!shopModal.hidden) onDialogLayout?.(dialogInsets(shopModal.querySelector(".shop")));
+  }));
   function drawRing() {
     if (!countdown) return;
     ring.querySelector("b").textContent = String(Math.max(0, Math.ceil(countdown.left)));

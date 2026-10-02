@@ -164,3 +164,31 @@ do not overcomplicate". UI untouched; the city look was rebuilt as a toy city.
   The outer tree ring does not cast shadows (with it casting, the refresh frame was 66.8k).
 - **Checks:** `npm run build` exit 0; browser-qa boot, poly-budget, console-errors PASS (the game build does not import
   the kit yet); live demo runs without console errors.
+
+## 2026-10-01/02 session notes - verification of WP-31/32 and polish (planner, direct work)
+
+**Why the last handoff showed 9 FAIL:** not game bugs. (1) The container draws WebGL in software (0.3 s per frame at the `low`
+tier, 1.2 s at `high`), so the sim, the countdown rings and the harness's own waits drifted apart. (2) A scenario that crashed
+never closed its browser page; the page kept drawing and starved the next scenario, which crashed too (the "cascade").
+(3) `ads-fill` read the audio state after fixed sleeps, so a slow frame moved a reading across `adStarted` / `adFinished`.
+(4) A second harness started by accident ran at the same time and halved everyone's CPU. Evidence: isolated `ads-fill`,
+`persistence`, `poly-budget` all PASS on the unchanged game code once the harness was fixed.
+
+**Harness changes (tools/qa/browser-qa.mjs):** every context is closed when its scenario ends; logic / UI scenarios open the
+game in *lite mode* (`?quality=low&renderEvery=1500`: the 3D scene is drawn once per 1.5 s, the simulation runs in real time);
+`gl: "low"` for the viewport shots, `gl: "full"` + `quality=high` for `poly-budget` (worst case: post passes count as draw
+calls), `quality=low` for `performance`; `ads-fill` is event-driven (the page records audio mute / overlay / pause right after
+each SDK ad event); long timeouts. New scenarios: `input-strike`, `context-loss`, `no-webgl`, `cpu-cost`, `bolt-styles`.
+New tools: `tools/qa/shoot.mjs` (stills, bolt lab, 30 fps filmstrip, live look-dev tweaks), `tools/qa/soak.mjs`,
+`tools/launch/playtest-page.mjs`.
+
+**Looked at (screenshots, not scripts):** ready / charge / supercharge / fork / block powered / result / so-close / shop /
+returning-player screens at 1280x720, 800x450, 450x800 and the 12 CrazyGames viewport sizes; filmstrips of the first strike
+for both bolt styles. Findings fixed: lit roofs and caps washed to dusty pastel (35-40% white mix) -> candy colour; centred
+dark-veil dialogs and shop hid the lit city -> docked beside it with the camera framing the city; veils too heavy.
+Findings left: the storm cloud is cut by the top edge in the run framing (reads as dark puffs, fine); the dark violet ground
+plate is heavy (part of the established look - the optional `bright` light softens it).
+
+**Not verifiable here (needs the owner / the portal):** sounds (nobody has heard them), real-device frame time (4 GB
+Chromebook, phone), Edge / Safari / iOS audio resume, the CrazyGames app safe areas, Developer Portal preview and the
+Progress Save toggle, whether the game is fun.

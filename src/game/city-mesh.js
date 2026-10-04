@@ -11,8 +11,8 @@
  * BLOCK POWERED: the district pad turns warm in a wave from its centre and its buildings pulse in order.
  * FULL POWER: sweep() ripples a flash across the whole city.
  * Water themes (look.js world.water): the field is sea, the city stands on islands (islands.js), trees only on land.
- * Ground: a calm field to the horizon, the asphalt plate, rounded district pads, lane dashes, park trees in
- * empty lots, a tree ring (no shadows), a few toy cars; the storm front is a row of slate puffs behind the city.
+ * Ground: a calm field to the horizon, the asphalt plate, rounded district pads, lane dashes; parks in the empty lots,
+ * lamps, walking people and driving cars (city-life.js); the world around it per theme (scenery.js, no shadows); the storm front is a toy thunderhead behind the city (storm-cloud.js).
  * Built once per city (disposed on rebuild); per frame only the instance attributes that changed are uploaded.
  */
 
@@ -23,10 +23,12 @@ import {
 import { STORM } from "../config.js";
 import { createRng } from "../core/rng.js";
 import { chamferPrismGeometry, propGeometries, toyBlockMaterial, toyTrimMaterial } from "../render/city-kit.js";
-import { enhance } from "../render/materials.js";
 import { LOOK } from "./look.js";
 import { WATER_Y, islandMeshes, planIslands, shoreField } from "./islands.js";
 import { createWaterMaterial } from "./water.js";
+import { createStormCloud } from "./storm-cloud.js";
+import { createCityLife } from "./city-life.js";
+import { createScenery } from "./scenery.js";
 
 const _m = new Matrix4();
 const _p = new Vector3();
@@ -70,6 +72,8 @@ export class CityMesh {
     this.group.clear();
     this.city = null;
     this.water = null;
+    this.life = null;
+    this.scenery = null;
   }
 
   /**
@@ -256,19 +260,17 @@ export class CityMesh {
     const geos = propGeometries();
     for (const g of Object.values(geos)) this.#own(g);
     const pitch = STORM.city.lotPitch;
-    const trees = [], ring = [], cars = [];
-    for (const d of city.districts) {
-      const lots = Math.max(1, Math.round(d.w / pitch));
-      for (let lzI = 0; lzI < lots; lzI++) for (let lxI = 0; lxI < lots; lxI++) {
-        const x = d.x - d.w / 2 + (lxI + 0.5) * (d.w / lots), z = d.z - d.d / 2 + (lzI + 0.5) * (d.d / lots);
-        if (bs.some((b) => Math.abs(b.x - x) < pitch * 0.55 && Math.abs(b.z - z) < pitch * 0.55)) continue;
-        const k = 1 + Math.floor(rng.next() * 2);
-        for (let t = 0; t < k && trees.length < 70; t++) trees.push({ kind: rng.next() < 0.6 ? "roundTree" : "coneTree", x: x + rng.range(-2, 2), z: z + rng.range(-2, 2), s: rng.range(1.7, 2.3), r: rng.range(0, 6.28) });
-      }
-    }
+    const trees = [], ring = [];
+    // parks on the empty lots, lamps, walking people and driving cars (city-life.js)
+    const yaw0 = 35 * Math.PI / 180, vx = Math.sin(yaw0), vz = Math.cos(yaw0);   // the camera's ground direction
+    this.life = this.#own(createCityLife({ city, bs, rng, W, base: BASE, pitch, lanes: { lx, lz, span, avenue }, camDir: { x: vx, z: vz } }));
+    this.group.add(this.life.group);
+    trees.push(...this.life.trees);
+    // the world around the city: fields, hills, roads, forests, mesas, windmills, cloud tops or boats (scenery.js)
+    this.scenery = this.#own(createScenery({ W, rng, plate: city.width + avenue * 2 + 6, camDir: { x: vx, z: vz }, lanes: { lx, lz } }));
+    this.group.add(this.scenery.group);
     // the tree ring: behind and beside the city only (the camera side stays open), sparse near the plate.
     // Water themes: no ring on the sea - the trees stand on islands (islands.js, 3 draws) instead.
-    const outer = size / 2 + avenue + 8, yaw0 = 35 * Math.PI / 180, vx = Math.sin(yaw0), vz = Math.cos(yaw0);
     if (W.water) {
       const { isles, trees: onIsles } = planIslands({ rng, plate: city.width + avenue * 2 + 6, vx, vz });
       for (const m of islandMeshes(isles, W.water)) { this.#own(m.geometry); this.#own(m.material); this.group.add(m); }
@@ -277,21 +279,7 @@ export class CityMesh {
       this.water = field.material.userData.water;
       ring.push(...onIsles);
     }
-    else {
-      for (let k = 0; k < 70 && ring.length < 38; k++) {
-        const a = rng.range(0, Math.PI * 2), rr = outer + rng.range(6, 60);
-        const x = Math.cos(a) * rr, z = Math.sin(a) * rr;
-        if (Math.abs(x) < outer - 2 && Math.abs(z) < outer - 2) continue;
-        if ((x * vx + z * vz) / rr > 0.35) continue;             // not between the camera and the city
-        ring.push({ kind: rng.next() < 0.55 ? "roundTree" : "coneTree", x, z, s: rng.range(1.8, 2.8), r: rng.range(0, 6.28) });
-      }
-    }
-    for (let k = 0; k < Math.min(14, (lx.length + lz.length) * 2); k++) {
-      const along = rng.next() < 0.5, list = along ? lx : lz;
-      const c = list[Math.floor(rng.next() * list.length)] ?? 0, v = rng.range(-span * 0.9, span * 0.9), side = rng.next() < 0.5 ? -1 : 1;
-      if (!onRoad(v, along ? zs : xs)) continue;
-      cars.push(along ? { kind: "car", x: c + side * 1.6, z: v, s: 1.35, r: side > 0 ? 0 : Math.PI } : { kind: "car", x: v, z: c + side * 1.6, s: 1.35, r: side > 0 ? Math.PI / 2 : -Math.PI / 2 });
-    }
+    else ring.push(...this.scenery.trees);
     const propMesh = (list, kind, cast, name, y0 = 0) => {
       const items = list.filter((p) => p.kind === kind);
       if (!items.length) return;
@@ -309,7 +297,6 @@ export class CityMesh {
     propMesh(trees, "coneTree", small, "park-pines", BASE);
     propMesh(ring, "roundTree", false, "ring-trees");
     propMesh(ring, "coneTree", false, "ring-pines");
-    propMesh(cars, "car", false, "cars");
 
     // ---------------------------------------------------------------- storm front (behind the city, top of frame)
     let top = 0;
@@ -319,21 +306,10 @@ export class CityMesh {
     const yaw = 35 * Math.PI / 180, far = size * 0.5 + 14;
     const cx = -Math.sin(yaw) * far, cz = -Math.cos(yaw) * far;
     this.cloudCenter = new Vector3(cx, this.cloudY, cz);
-    const cloudMat = this.#own(enhance(new MeshStandardMaterial({ color: LOOK.cloud, roughness: 1, emissive: LOOK.cloudGlow, emissiveIntensity: 0, envMapIntensity: 0.3 }),
-      { rim: 0.4, rimPower: 2.4, rimColor: "#ffe0ec", rimTint: 0 }));
-    const puffs = 14;
-    const cloud = new InstancedMesh(this.#own(new SphereGeometry(1, 12, 8)), cloudMat, puffs);
-    cloud.name = "storm-cloud";
-    const across = Math.max(40, size * 1.1);
-    for (let i = 0; i < puffs; i++) {
-      const t = i / (puffs - 1) - 0.5;
-      const s = rng.range(5.5, 9.5) * (1 - Math.abs(t) * 0.6) * Math.max(1, size / 60);
-      const x = cx + Math.cos(yaw) * t * across + rng.range(-3, 3), z = cz - Math.sin(yaw) * t * across + rng.range(-3, 3);
-      cloud.setMatrixAt(i, _m.compose(_p.set(x, this.cloudY + rng.range(-2, 5) + (1 - Math.abs(t) * 2) * 4, z), ID, _s.set(s * 1.25, s * 0.8, s)));
-    }
-    this.cloudMat = cloudMat;
-    this.cloudGroup = new Group();
-    this.cloudGroup.add(cloud);
+    this.cloud = this.#own(createStormCloud(rng, {
+      center: this.cloudCenter, yaw, across: Math.max(40, size * 1.1), scale: Math.max(1, size / 60), rim: "#ffe0ec", glow: LOOK.cloudGlow,
+    }));
+    this.cloudGroup = this.cloud.group;
     this.group.add(this.cloudGroup);
     this.cloudBase = this.cloudCenter.clone();
   }
@@ -344,6 +320,9 @@ export class CityMesh {
     this.cloudGroup.rotation.y = delta;
     this.cloudCenter.copy(this.cloudBase).applyAxisAngle(_up, delta);
   }
+
+  /** A strike just left the storm front: it flashes from inside. */
+  flashCloud(time) { this.cloud?.flash(time); }
 
   /** Where a strike comes from: the storm front's underside, leaning toward the target. */
   strikeOrigin(b, out) {
@@ -440,9 +419,10 @@ export class CityMesh {
       this.pads.instanceColor.needsUpdate = true;
     }
     if (!anyWave) for (let d = 0; d < this.#wave.length; d++) if (sim.districtDone[d] && this.#wave[d] === -1) { this.pads.setColorAt(d, _c.set(W.padLit)); this.pads.instanceColor.needsUpdate = true; this.#wave[d] = -2; }
-    // the storm front flickers while the strike charges
-    const flick = holding ? Math.min(1, charge) * (0.55 + 0.45 * Math.sin(time * 37) * Math.sin(time * 23)) : 0;
-    this.cloudMat.emissiveIntensity = Math.max(0, flick) * 0.3;
+    // the storm front breathes, and flickers from inside while the strike charges
+    this.cloud.update(time, holding ? Math.min(1, charge) : 0);
+    this.life?.update(time);
+    this.scenery?.update(time);
   }
 
   dispose() { this.clear(); }

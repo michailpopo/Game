@@ -243,6 +243,7 @@ export class GameView {
           const fizzle = ev.band === "fizzle";
           const sup = ev.band === "super";
           this.cityMesh.strikeOrigin(b, _o3);
+          this.cityMesh.flashCloud(this.time);
           _a.set(b.x, b.tipY, b.z);
           fx.strike(_o3, _a, {
             color: sup ? LOOK.super : glow, width: fizzle ? 0.9 : sup ? 3.2 : 2.6, forks: fizzle ? 0 : sup ? 3 : 2, forkLength: 0.25,

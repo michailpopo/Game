@@ -957,7 +957,7 @@ async function boot() {
           rows.set(g.uuid, row);
         });
         const list = [...rows.values()].sort((a, b) => b.triangles - a.triangles);
-        return { geometries: list.length, maxGeometryTriangles: list[0]?.triangles ?? 0, heaviest: list.slice(0, 6) };
+        return { geometries: list.length, maxGeometryTriangles: list[0]?.triangles ?? 0, heaviest: list.slice(0, 6), all: list };
       },
     };
   }

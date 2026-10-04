@@ -86,6 +86,22 @@ Verified: build, check-city, qa:fast, browser smoke (boot, sdk-events, touch, po
 the water clip changes over 1.5 s (animated), stills of cities 9, 10 (portrait), 21. Tuning knobs are the numbers in the
 WATER GLSL block (band spacing 3.4 m, speed 0.3, crest threshold 0.53 / opacity 0.22).
 
+**2026-10-04 (evening), owner: "small cars driving, small people, benches and parks; all maps should look finished, not
+plain; work on the cloud" - done.** No earlier version with people/benches/driving cars exists in git (searched all 45
+commits on both branches; cars were static props only) - likely the WP-21 hit-game reference images. Built new:
+- `src/game/storm-cloud.js`: the storm front is a toy thunderhead - one chopped (flat-bottomed) puff geometry instanced in
+  4 tiers, 2 rows deep, slate underneath / pale lilac on top, breathing, inner flicker while charging, flash on the strike.
+- `src/game/city-life.js`: empty lots become parks (lawn, paths, fountain / grove / pond layouts, benches, lamps, flower
+  bushes, trees; front lots dressed first), lamps on the block rims, pawn people walking (parks + rims, never through a
+  building), cars driving on the avenues (two lanes on wide avenues and the ring road, one-way on narrow ones).
+- `src/game/scenery.js`: one recipe per theme (`world.scenery` in look.js): meadow (fields, hills, groves, roads out),
+  farm (crop rows, windmills turning), hills (big hills, forests), snow (low-poly mountains with snow caps, pines, ponds),
+  desert (dunes, mesas, cacti), sky (cloud banks on a sky-blue field), sea (boats sailing round the island).
+Budgets measured on cities 1/13/28/33/38/50: <= 44 draw calls (of 60), <= 51.4k triangles per frame (of 60k), heaviest
+geometry still fx-ribbons 1,920 tris. Research (WebSearch; pages blocked by the proxy): low-poly clouds from merged/chopped
+spheres, InstancedMesh traffic with per-frame matrices, flat-shaded low-poly terrain. Watch: browser `dead-air` longest
+silence rose to 2.5 s (budget 3 s) in the software renderer.
+
 **Correction to the 2026-09-28 handoff:** `ads-fill` is NOT a game bug and `persistence`/`poly-budget`/the other
 crashes are NOT WP-31/32 regressions - they are test-tool problems (details in `docs/CG_QA_AUDIT.md`, "Test-tool findings").
 

@@ -25,7 +25,8 @@ import { createRng } from "../core/rng.js";
 import { chamferPrismGeometry, propGeometries, toyBlockMaterial, toyTrimMaterial } from "../render/city-kit.js";
 import { enhance } from "../render/materials.js";
 import { LOOK } from "./look.js";
-import { WATER_Y, islandMeshes, planIslands } from "./islands.js";
+import { WATER_Y, islandMeshes, planIslands, shoreField } from "./islands.js";
+import { createWaterMaterial } from "./water.js";
 
 const _m = new Matrix4();
 const _p = new Vector3();
@@ -68,6 +69,7 @@ export class CityMesh {
     this.#owned = [];
     this.group.clear();
     this.city = null;
+    this.water = null;
   }
 
   /**
@@ -270,6 +272,9 @@ export class CityMesh {
     if (W.water) {
       const { isles, trees: onIsles } = planIslands({ rng, plate: city.width + avenue * 2 + 6, vx, vz });
       for (const m of islandMeshes(isles, W.water)) { this.#own(m.geometry); this.#own(m.material); this.group.add(m); }
+      // the sea becomes toy water: shallow at the beaches, foam lines, waves rolling in (water.js)
+      field.material = this.#own(createWaterMaterial(shoreField(isles), { deep: W.field, shallow: W.water.shallow, foam: W.water.foam }));
+      this.water = field.material.userData.water;
       ring.push(...onIsles);
     }
     else {
@@ -361,6 +366,7 @@ export class CityMesh {
    */
   update(sim, time, camQ, charge = 0, holding = false) {
     if (!this.city) return;
+    if (this.water) this.water.wtTime.value = time;
     const bs = this.city.buildings, W = this.theme.world, parts = this.parts;
     const A = this.aState.array;
     let bodiesDirty = false, colorsDirty = false;

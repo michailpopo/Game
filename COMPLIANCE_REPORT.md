@@ -1,6 +1,6 @@
 # Compliance report - Storm Grid
 
-Generated 2026-10-04 18:32 UTC · build `890f0b06f525` · target stage **full** · register 2026.09.11 (researched 2026-09-11)
+Generated 2026-10-04 18:44 UTC · build `66d9ca36cab8` · target stage **full** · register 2026.09.11 (researched 2026-09-11)
 
 ## Verdict: NOT VERIFIED - 35 mandatory requirements lack current evidence
 
@@ -17,7 +17,7 @@ Legend: PORTAL = can only be confirmed in the Developer Portal preview or by Cra
 | Id | Requirement | Type | Stage | Status | Evidence |
 |---|---|---|---|---|---|
 | CG-TECH-001 | Initial download <= 50 MB | mandatory | both | **PASS** | PASS: ready in 3438 ms; 0.22 MB transferred up to first gameplayStart (limit 50 MB, mobile homepage 20 MB) _(browser-qa)_ |
-| CG-TECH-002 | Total size <= 250 MB (<= 50 MB without SDK) | mandatory | both | **PASS** | PASS: 0.76 MB (limit 250 MB, SDK integrated) _(check-bundle)_ |
+| CG-TECH-002 | Total size <= 250 MB (<= 50 MB without SDK) | mandatory | both | **PASS** | PASS: 0.77 MB (limit 250 MB, SDK integrated) _(check-bundle)_ |
 | CG-TECH-003 | File count <= 1500 | mandatory | both | **PASS** | PASS: 6 files (limit 1500) _(check-bundle)_ |
 | CG-TECH-004 | Mobile homepage eligibility: initial download <= 20 MB | mandatory | both | **PASS** | PASS: ready in 3438 ms; 0.22 MB transferred up to first gameplayStart (limit 50 MB, mobile homepage 20 MB) _(browser-qa)_ |
 | CG-TECH-005 | Relative paths only | mandatory | both | **PASS** | PASS: no absolute asset paths _(check-bundle)_ |

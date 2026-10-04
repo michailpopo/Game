@@ -2,25 +2,24 @@
  * Islands for the water themes (look.js world.water), so nothing grows on the sea.
  *
  *   - The city's island follows the city: a square with softly rounded corners, parallel to the asphalt plate.
- *     Grass (y = 0, the city's ground), a sand beach one step down, a foam line at the water and a lighter
- *     shallow ring - all concentric rounded squares, so every band has the same width all the way round.
+ *     Grass (y = 0, the city's ground) and a sand beach one step down - concentric rounded squares, so the beach
+ *     has the same width all the way round.
  *   - Up to 9 islets behind and beside the city: round, slightly irregular outlines (an ellipse wobbled by three
- *     low harmonics), with the same grass / sand / foam / shallow bands. They carry the scenery trees.
+ *     low harmonics), with the same grass / sand bands. They carry the scenery trees.
  *
  * planIslands() is pure (outlines + trees; tools/qa/check-city.mjs tests it in Node). islandMeshes() turns the
- * outlines into 3 merged meshes (grass, sand, water) = 3 draw calls, each well under 2,000 triangles.
+ * outlines into 2 merged meshes (grass, sand) = 2 draw calls, each well under 2,000 triangles. The water around them
+ * (shallow colour, foam line, waves rolling in) is drawn by the sea's shader (water.js) from shoreField().
  */
 
-import { BufferGeometry, Color, Float32BufferAttribute, Mesh, MeshStandardMaterial } from "three";
+import { BufferGeometry, Float32BufferAttribute, Mesh, MeshStandardMaterial } from "three";
 
 export const WATER_Y = -1.0;               // sea level (land themes keep their field at -0.05)
 export const SAND_TOP = -0.45;             // the beach: one 0.45 m step below the grass
-export const SHALLOW_TOP = WATER_Y + 0.04;
-const FOAM_Y = SHALLOW_TOP + 0.012;
 const WALL_FOOT = WATER_Y - 0.1;           // walls end just under the water line
 
-const MAIN = { rim: 8, beach: 3, foam: 0.9, shallow: 5.5, corner: 4, cornerSegments: 6 };   // metres
-const ISLET = { beach: 1.4, foam: 0.6, shallow: 2.8, segments: 20, max: 9 };
+const MAIN = { rim: 8, beach: 3, shallow: 5.5, corner: 4, cornerSegments: 6 };   // metres (shallow: water kept free around it)
+const ISLET = { beach: 1.4, shallow: 2.8, segments: 20, max: 9 };
 const TAU = Math.PI * 2;
 
 // ------------------------------------------------------------------ outlines: [x, z] points, counter-clockwise
@@ -68,15 +67,15 @@ function inRoundedSquare(x, z, h, r, pad) {
  * @param {{ rng: { range(a:number,b:number):number, next():number }, plate:number, vx:number, vz:number }} o
  *   rng: the city's look stream · plate: side of the square asphalt plate (m) · vx, vz: the camera's ground direction
  * @returns {{ isles: object[], trees: {kind:string,x:number,z:number,s:number,r:number}[] }}
- *   isles[0] is the city's island; each isle has outlines grass, sand, foam, shallow ([x, z][]) and `reach` (m from
- *   its centre that its shallow ring can extend). Every tree stands on an island's grass (y = 0).
+ *   isles[0] is the city's island; each isle has outlines grass, sand and shallow ([x, z][]; shallow = the water kept
+ *   free around it) and islets a `reach` (m from their centre that the shallow outline can extend). Every tree stands on an island's grass (y = 0).
  */
 export function planIslands({ rng, plate, vx, vz }) {
   const g = plate / 2 + MAIN.rim;                                    // grass half-size of the city's island
   const sq = (off) => roundedRect(0, 0, g + off, g + off, MAIN.corner + off, MAIN.cornerSegments);
   const main = {
     kind: "main", x: 0, z: 0, half: g, corner: MAIN.corner,
-    grass: sq(0), sand: sq(MAIN.beach), foam: sq(MAIN.beach + MAIN.foam), shallow: sq(MAIN.beach + MAIN.shallow),
+    grass: sq(0), sand: sq(MAIN.beach), shallow: sq(MAIN.beach + MAIN.shallow),
   };
   const mainOuter = g + MAIN.beach + MAIN.shallow;                   // half-size of its shallow ring
   const isles = [main], trees = [];
@@ -96,7 +95,7 @@ export function planIslands({ rng, plate, vx, vz }) {
     isles.push({
       kind: "islet", x, z, reach, radius,
       grass: blobRing(x, z, radius, 0, n), sand: blobRing(x, z, radius, ISLET.beach, n),
-      foam: blobRing(x, z, radius, ISLET.beach + ISLET.foam, n), shallow: blobRing(x, z, radius, ISLET.beach + ISLET.shallow, n),
+      shallow: blobRing(x, z, radius, ISLET.beach + ISLET.shallow, n),
     });
     // 1-3 trees, spread round the middle, always 1.4 m inside the grass edge.
     const count = rx > 6.2 ? 3 : rx > 4.6 ? 2 : 1, a0 = rng.range(0, TAU);
@@ -163,16 +162,6 @@ class Builder {
       this.tri(pt, qb, qt, vn[i], vn[j], vn[j], color);
     }
   }
-  /** A flat band between two matching outlines (the foam line). */
-  band(inner, outer, y, color) {
-    const up = [0, 1, 0];
-    for (let i = 0; i < inner.length; i++) {
-      const j = (i + 1) % inner.length;
-      const a = [inner[i][0], y, inner[i][1]], b = [inner[j][0], y, inner[j][1]], c = [outer[j][0], y, outer[j][1]], d = [outer[i][0], y, outer[i][1]];
-      this.tri(a, b, c, up, up, up, color);
-      this.tri(a, c, d, up, up, up, color);
-    }
-  }
   geometry() {
     const g = new BufferGeometry();
     g.setAttribute("position", new Float32BufferAttribute(this.pos, 3));
@@ -186,19 +175,16 @@ class Builder {
 
 /**
  * @param {object[]} isles  planIslands().isles
- * @param {{ land:string, sand:string, shallow:string, foam?:string }} colors  look.js world.water
- * @returns {Mesh[]}  grass, sand, water (shallow + foam, vertex colours); the caller owns and disposes them
+ * @param {{ land:string, sand:string }} colors  look.js world.water
+ * @returns {Mesh[]}  grass, sand; the caller owns and disposes them
  */
 export function islandMeshes(isles, colors) {
-  const grass = new Builder(), sand = new Builder(), water = new Builder();
-  const shallow = new Color(colors.shallow), foam = new Color(colors.foam ?? "#eef8ff");
+  const grass = new Builder(), sand = new Builder();
   for (const o of isles) {
     grass.cap(o.grass, 0);
     grass.wall(o.grass, 0, SAND_TOP - 0.02);
     sand.cap(o.sand, SAND_TOP);
     sand.wall(o.sand, SAND_TOP, WALL_FOOT);
-    water.cap(o.shallow, SHALLOW_TOP, shallow);
-    water.band(o.sand, o.foam, FOAM_Y, foam);
   }
   const mesh = (b, name, mat) => {
     const m = new Mesh(b.geometry(), mat);
@@ -209,6 +195,74 @@ export function islandMeshes(isles, colors) {
   return [
     mesh(grass, "isle-land", new MeshStandardMaterial({ color: colors.land, roughness: 0.95 })),
     mesh(sand, "isle-sand", new MeshStandardMaterial({ color: colors.sand, roughness: 0.95 })),
-    mesh(water, "isle-water", new MeshStandardMaterial({ vertexColors: true, roughness: 0.55 })),
   ];
+}
+
+// ------------------------------------------------------------------ shore distance (for the water shader)
+
+/** Signed-free distance helpers on a flat outline [x0, z0, x1, z1, ...] (hot loops: no destructuring). */
+function inFlat(p, x, z) {
+  let c = false;
+  for (let i = 0, j = p.length - 2; i < p.length; j = i, i += 2) {
+    const xi = p[i], zi = p[i + 1], xj = p[j], zj = p[j + 1];
+    if ((zi > z) !== (zj > z) && x < ((xj - xi) * (z - zi)) / (zj - zi) + xi) c = !c;
+  }
+  return c;
+}
+function edgeFlat(p, x, z) {
+  let d = Infinity;
+  for (let i = 0, j = p.length - 2; i < p.length; j = i, i += 2) {
+    const ax = p[j], az = p[j + 1], dx = p[i] - ax, dz = p[i + 1] - az;
+    let t = ((x - ax) * dx + (z - az) * dz) / (dx * dx + dz * dz || 1);
+    t = t < 0 ? 0 : t > 1 ? 1 : t;
+    const ex = x - ax - t * dx, ez = z - az - t * dz, e = ex * ex + ez * ez;
+    if (e < d) d = e;
+  }
+  return Math.sqrt(d);
+}
+
+/**
+ * Metres from the nearest beach (the sand outline) on a res x res grid centred on the city (res: 128-512, ~0.9 m a cell), 0 on land, clamped at
+ * maxD; stored as bytes (0..255 = 0..maxD m) for a linear-filtered texture. The city's island uses the exact
+ * rounded-square distance; islets use their outline polygons, only within maxD of them.
+ * @returns {{ data: Uint8Array, res: number, half: number, maxD: number }}  the grid covers [-half, half] in x and z
+ */
+export function shoreField(isles, { maxD = 16, texel = 0.9 } = {}) {
+  let r = 0;
+  for (const o of isles) for (const [x, z] of o.shallow) r = Math.max(r, Math.abs(x), Math.abs(z));
+  const half = r + maxD;
+  const res = Math.min(512, Math.max(128, 2 ** Math.round(Math.log2((half * 2) / texel))));   // about `texel` m per cell
+  const cell = (half * 2) / res;
+  const data = new Uint8Array(res * res).fill(255);
+  const enc = (d) => Math.round((Math.min(maxD, Math.max(0, d)) / maxD) * 255);
+  const at = (i) => -half + (i + 0.5) * cell;
+  const main = isles[0];
+  const b = main.half + MAIN.beach, rr = main.corner + MAIN.beach;      // the city island's beach: a rounded square
+  for (let j = 0; j < res; j++) {
+    const qz = Math.abs(at(j)) - (b - rr);
+    if (qz - rr >= maxD) continue;                                    // the whole row is open sea
+    for (let i = 0; i < res; i++) {
+      const qx = Math.abs(at(i)) - (b - rr);
+      if (qx - rr >= maxD) continue;
+      const ox = qx > 0 ? qx : 0, oz = qz > 0 ? qz : 0;
+      const d = Math.sqrt(ox * ox + oz * oz) + Math.min(Math.max(qx, qz), 0) - rr;
+      if (d < maxD) data[j * res + i] = enc(d);
+    }
+  }
+  for (const o of isles.slice(1)) {
+    const flat = Float64Array.from(o.sand.flat());
+    let x0 = Infinity, x1 = -Infinity, z0 = Infinity, z1 = -Infinity;
+    for (const [x, z] of o.sand) { x0 = Math.min(x0, x); x1 = Math.max(x1, x); z0 = Math.min(z0, z); z1 = Math.max(z1, z); }
+    const i0 = Math.max(0, Math.floor((x0 - maxD + half) / cell)), i1 = Math.min(res - 1, Math.ceil((x1 + maxD + half) / cell));
+    const j0 = Math.max(0, Math.floor((z0 - maxD + half) / cell)), j1 = Math.min(res - 1, Math.ceil((z1 + maxD + half) / cell));
+    for (let j = j0; j <= j1; j++) {
+      for (let i = i0; i <= i1; i++) {
+        const x = at(i), z = at(j);
+        const v = enc(inFlat(flat, x, z) ? 0 : edgeFlat(flat, x, z));
+        const k = j * res + i;
+        if (v < data[k]) data[k] = v;
+      }
+    }
+  }
+  return { data, res, half, maxD };
 }

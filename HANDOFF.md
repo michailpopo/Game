@@ -74,6 +74,18 @@ round, slightly irregular outlines (ellipse + 3 low harmonics, 20 points) with t
 geometry (3 merged meshes, 624 tris each, still 3 draw calls), not stretched instances. `check-city.mjs` now tests the drawn
 outlines with point-in-polygon (trees on grass with 0.6 m to spare, shallow rings never overlap, city island square, islets round).
 
+**2026-10-04, owner: "search for three.js water and implement it in the game style" - done.** Researched (WebSearch: toon
+water with shoreline foam, codrops stylised water, three.js forum "unlit water shader with foam"; the pages themselves are
+blocked by this container's proxy) and the game-studio world template's tested sea. New `src/game/water.js`: the sea plane of
+the water themes uses MeshStandardMaterial + onBeforeCompile (keeps light, shadows, fog, tone mapping) and draws from ONE
+number, the distance to the nearest beach (`shoreField()` in islands.js, a 256-512 R8 texture computed once per city in
+3-10 ms): shallow-to-deep colour, a white contact foam line, foam bands every 3.4 m rolling in towards the beach and breaking
+into arcs, and small sparse crests on the open sea that fade out where they would be a few pixels (no shimmer). No depth
+pass, no reflections: 1 draw call, 2 triangles; the islands' old shallow/foam geometry is gone (draw calls now 31-34).
+Verified: build, check-city, qa:fast, browser smoke (boot, sdk-events, touch, poly-budget, dead-air, console-errors) PASS,
+the water clip changes over 1.5 s (animated), stills of cities 9, 10 (portrait), 21. Tuning knobs are the numbers in the
+WATER GLSL block (band spacing 3.4 m, speed 0.3, crest threshold 0.53 / opacity 0.22).
+
 **Correction to the 2026-09-28 handoff:** `ads-fill` is NOT a game bug and `persistence`/`poly-budget`/the other
 crashes are NOT WP-31/32 regressions - they are test-tool problems (details in `docs/CG_QA_AUDIT.md`, "Test-tool findings").
 

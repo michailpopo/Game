@@ -19,6 +19,9 @@
 import { BoxGeometry, Color, CylinderGeometry, Float32BufferAttribute, Group, IcosahedronGeometry, InstancedMesh, Matrix4, MeshStandardMaterial, Quaternion, SphereGeometry, Vector3 } from "three";
 import { mergeGeometries } from "three/addons/utils/BufferGeometryUtils.js";
 
+// Park ground heights above the pad (m): paths and ponds sit 0.05 m above the lawn and never overlap each other with a
+// different height (z-fighting); crossing paths share one height and colour.
+const LAWN = 0.08, PATH = 0.13;
 const CAP = { dressedParks: 40, benches: 40, lamps: 36, bushes: 64, fountains: 6, walkers: 32, cars: 18, trees: 70 };
 const FLOWERS = ["#ff7eb6", "#ffd23f", "#ffffff", "#ff8c5a", "#b98cff", "#6fd07a"];
 const SHIRTS = ["#ff5a5f", "#4f8dff", "#ffd23f", "#3fd07a", "#ff9f40", "#9d6bff", "#ffffff", "#2a2f45"];
@@ -59,7 +62,7 @@ function geometries() {
     ]),
     fountain: mergeGeometries([
       paint(new CylinderGeometry(1.75, 1.85, 0.45, 14), stone, { y: 0.22 }),
-      paint(new CylinderGeometry(1.48, 1.48, 0.06, 14), water, { y: 0.43 }),
+      paint(new CylinderGeometry(1.48, 1.48, 0.06, 14), water, { y: 0.46 }),   // 4.5 cm above the rim: no z-fighting
       paint(new CylinderGeometry(0.2, 0.28, 1.0, 6), stone, { y: 0.9 }),
       paint(new CylinderGeometry(0.62, 0.32, 0.22, 10), stone, { y: 1.4 }),
       paint(new CylinderGeometry(0.02, 0.2, 0.55, 6), "#d4f0ff", { y: 1.78 }),
@@ -115,7 +118,7 @@ export function createCityLife({ city, bs, rng, W, base, pitch, lanes, camDir })
   for (const { x, z, cell } of empty) {
     {
       const L = cell;                                            // lawn side: neighbouring park lots join into one lawn
-      ground.push({ x, z, w: L, d: L, y: base, h: 0.08, color: lawnColor });
+      ground.push({ x, z, w: L, d: L, y: base, h: LAWN, color: lawnColor });
       if (dressed >= CAP.dressedParks) {
         tree(x + rng.range(-1.5, 1.5), z + rng.range(-1.5, 1.5), rng.range(1.6, 2.1));
         bush(x + rng.range(-3, 3), z + rng.range(-3, 3));
@@ -124,8 +127,8 @@ export function createCityLife({ city, bs, rng, W, base, pitch, lanes, camDir })
       dressed++;
       const kind = fountains.length < CAP.fountains && rng.next() < 0.3 ? "fountain" : rng.next() < 0.6 ? "grove" : "pond";
       const along = rng.next() < 0.5;                            // the main path runs along x (true) or z
-      const pathTop = base + 0.1;
-      const path = (ax) => ground.push(ax ? { x, z, w: L, d: 1.5, y: base, h: 0.1, color: pathColor } : { x, z, w: 1.5, d: L, y: base, h: 0.1, color: pathColor });
+      const pathTop = base + PATH;
+      const path = (ax) => ground.push(ax ? { x, z, w: L, d: 1.5, y: base, h: PATH, color: pathColor } : { x, z, w: 1.5, d: L, y: base, h: PATH, color: pathColor });
       const q = L * 0.3;                                         // quadrant offset
       if (kind === "fountain") {
         path(true); path(false);
@@ -147,8 +150,8 @@ export function createCityLife({ city, bs, rng, W, base, pitch, lanes, camDir })
         walkers.push(along ? { ax: x - L * 0.45, az: z, bx: x + L * 0.45, bz: z, y: pathTop } : { ax: x, az: z - L * 0.45, bx: x, bz: z + L * 0.45, y: pathTop });
       } else {
         path(along);
-        const px = x + (along ? 0 : 1.6), pz = z + (along ? 1.6 : 0);
-        ground.push({ x: px, z: pz, w: along ? 4.2 : 2.8, d: along ? 2.8 : 4.2, y: base, h: 0.11, color: W.water?.shallow ?? "#6fc3f0" });
+        const px = x + (along ? 0 : 2.35), pz = z + (along ? 2.35 : 0);       // beside the path, never on it
+        ground.push({ x: px, z: pz, w: along ? 4.2 : 2.8, d: along ? 2.8 : 4.2, y: base, h: PATH, color: W.water?.shallow ?? "#6fc3f0" });
         bush(px + (along ? 2.4 : 0.9), pz + (along ? 0.9 : 2.4)); bush(px - (along ? 2.4 : 0.9), pz - (along ? 0.9 : 2.4));
         tree(x + (along ? -q : -q), z + (along ? -q : q), rng.range(1.6, 2.1));
         bench(x + (along ? q : -1.3), z + (along ? -1.3 : q), along ? 0 : Math.PI / 2);
@@ -272,6 +275,7 @@ export function createCityLife({ city, bs, rng, W, base, pitch, lanes, camDir })
 
   return {
     group, trees, update,
+    layers: ground.map((g) => ({ x: g.x, z: g.z, w: g.w, d: g.d, top: g.y + g.h, color: g.color })),
     counts: { parks: dressed, lawns: ground.length, benches: benches.length, lamps: lamps.length, bushes: bushes.length, fountains: fountains.length, walkers: walkers.length, cars: cars.length },
     dispose() { for (const r of own) r.dispose?.(); },
   };

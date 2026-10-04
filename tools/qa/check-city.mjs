@@ -14,6 +14,10 @@
  * drawn outlines with a plain point-in-polygon test: every scenery tree stands on an island's grass with 0.6 m to
  * spare; no two islands' shallow rings overlap; the city's island is a square around the asphalt plate; islets are
  * round outlines (>= 16 points, never a square).
+ *
+ * Z-fighting: one city per theme builds its real park ground (city-life.js) and scenery (scenery.js). Any two flat
+ * pieces that overlap must have the same top and colour, or tops >= 0.04 m apart; snow caps must sit outside their
+ * mountain's surface (a wider, taller cone), never on it.
  */
 
 import { mkdirSync, writeFileSync } from "node:fs";
@@ -24,6 +28,8 @@ import { createRng } from "../../src/core/rng.js";
 import { planIslands } from "../../src/game/islands.js";
 import { themeOf } from "../../src/game/look.js";
 import { generateCity } from "../../src/game/sim.js";
+import { createCityLife } from "../../src/game/city-life.js";
+import { createScenery } from "../../src/game/scenery.js";
 
 const root = resolve(dirname(fileURLToPath(import.meta.url)), "../..");
 const C = STORM.city;
@@ -143,6 +149,55 @@ record({
   summary: `city's island square around the plate: ${isl.plans - isl.badMain}/${isl.plans}; islets with a round outline: ${isl.badIslet} bad`,
 });
 
+// ---------------------------------------------------------------- z-fighting
+/** Lanes like city-mesh.js builds them: avenue centre lines between district columns, plus the ring road outside. */
+function lanesOf(city) {
+  const bw = city.districts[0]?.w ?? 27, avenue = city.plan.avenue;
+  const lines = (cs) => { const out = []; for (let i = 0; i < cs.length - 1; i++) out.push((cs[i] + cs[i + 1]) / 2); if (cs.length) { out.unshift(cs[0] - bw / 2 - avenue / 2 - 1.5); out.push(cs[cs.length - 1] + bw / 2 + avenue / 2 + 1.5); } return out; };
+  const xs = [...new Set(city.districts.map((d) => Math.round(d.x * 10) / 10))].sort((a, b) => a - b);
+  const zs = [...new Set(city.districts.map((d) => Math.round(d.z * 10) / 10))].sort((a, b) => a - b);
+  return { lx: lines(xs), lz: lines(zs), span: Math.max(city.width, city.depth) / 2 + avenue, avenue };
+}
+function zFight(layers) {
+  let bad = 0, worst = null;
+  for (let i = 0; i < layers.length; i++) for (let j = i + 1; j < layers.length; j++) {
+    const a = layers[i], b = layers[j];
+    const ox = (a.w + b.w) / 2 - Math.abs(a.x - b.x), oz = (a.d + b.d) / 2 - Math.abs(a.z - b.z);
+    if (ox <= 1e-6 || oz <= 1e-6) continue;                    // not overlapping (touching edges are fine)
+    const dy = Math.abs(a.top - b.top);
+    if ((dy < 1e-6 && a.color === b.color) || dy >= 0.04 - 1e-6) continue;
+    bad++;
+    if (!worst || dy < worst.dy) worst = { dy, a: a.color, b: b.color };
+  }
+  return { bad, worst };
+}
+const yaw = 35 * Math.PI / 180, camDir = { x: Math.sin(yaw), z: Math.cos(yaw) };
+const zf = { cities: 0, layers: 0, bad: 0, worst: null, caps: 0, badCaps: 0 };
+for (const n of [1, 9, 13, 18, 21, 28, 33, 38]) {
+  const city = cities[n - 1], W = themeOf(city).world, lanes = lanesOf(city);
+  const rng = createRng(`city-${n}:look:${n}`);
+  const life = createCityLife({ city, bs: city.buildings, rng, W, base: 0.35, pitch: C.lotPitch, lanes, camDir });
+  const scen = createScenery({ W, rng, plate: city.width + city.plan.avenue * 2 + 6, camDir, lanes });
+  for (const set of [life.layers, scen.layers]) {
+    const r = zFight(set);
+    zf.layers += set.length; zf.bad += r.bad;
+    if (r.worst && (!zf.worst || r.worst.dy < zf.worst.dy)) zf.worst = { ...r.worst, city: n };
+  }
+  // caps come right after their mountain: cap slope (radius per height) must be wider, cap tip higher
+  for (let i = 0; i + 1 < scen.peaks.length; i += 2) {
+    const m = scen.peaks[i], c = scen.peaks[i + 1];
+    zf.caps++;
+    if (!(c.r / c.h > m.r / m.h + 1e-6 && c.y + c.h > m.y + m.h)) zf.badCaps++;
+  }
+  life.dispose(); scen.dispose();
+  zf.cities++;
+}
+record({
+  id: "no-z-fighting",
+  status: zf.bad === 0 && zf.badCaps === 0 ? "PASS" : "FAIL",
+  summary: `${zf.cities} cities (one per theme), ${zf.layers} flat pieces: ${zf.bad} overlapping pairs closer than 0.04 m${zf.worst ? ` (worst ${zf.worst.dy.toFixed(3)} m, city ${zf.worst.city})` : ""}; snow caps outside their mountain ${zf.caps - zf.badCaps}/${zf.caps}`,
+});
+
 // Same city twice must be identical: the layout is seeded, trimming draws no randoms.
 const again = generateCity(30, "city-30", 0), first = cities[29];
 const same = again.buildings.length === first.buildings.length && again.buildings.every((b, i) => {
@@ -157,6 +212,9 @@ if (process.argv.includes("--selftest")) {
   const p = measure(planted);
   const caught = p.touching > 0 || p.tight > 0;
   record({ id: "selftest", status: caught ? "PASS" : "FAIL", summary: `untrimmed footprints (must FAIL): ${p.touching} bodies touching, ${p.tight} roof caps too close -> ${caught ? "check reported failure" : "BAD: the check cannot detect this"}` });
+  const flatA = [{ x: 0, z: 0, w: 10, d: 10, top: 0.02, color: "#00ff00" }, { x: 2, z: 0, w: 4, d: 4, top: 0.04, color: "#ffffff" }];
+  const zr = zFight(flatA);   // a path 2 cm above a lawn (must FAIL)
+  record({ id: "selftest-z-fight", status: zr.bad > 0 ? "PASS" : "FAIL", summary: `a path 2 cm above a lawn (must FAIL): ${zr.bad > 0 ? "check reported failure" : "BAD: the check cannot detect this"}` });
   const wet = checkIslands(cities, 40);   // every tree moved 40 m: onto the water
   record({ id: "selftest-islands", status: wet.onWater > 0 ? "PASS" : "FAIL", summary: `trees moved onto the sea (must FAIL): ${wet.onWater} of ${wet.trees} on water -> ${wet.onWater > 0 ? "check reported failure" : "BAD: the check cannot detect this"}` });
 }

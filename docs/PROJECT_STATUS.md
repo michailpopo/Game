@@ -6,6 +6,7 @@ Updated: 2026-10-02 · Project folder: /home/user/Game (repo michailpopo/Game, b
 - **Phase:** 3 Build - Storm Grid (3D). Handoff to a new chat on 2026-09-28: read HANDOFF.md first.
 - **Current objective:** an original, dopamine-hitting game that looks premium, upload-ready this session.
 - **Latest:** CrazyGames QA audit done 2026-10-02 (`docs/CG_QA_AUDIT.md`): 38/45 mandatory PASS, 4 FAIL (covers + preview videos not made yet), 3 cannot verify (Edge, 4 GB Chromebook, CG-app safe areas), 6 warnings. No code requirement fails.
+- **Also 2026-10-04 (late):** z-fighting fixed on all maps (layer heights, snow caps, roads, parks, lane dashes, fountain); `check-city.mjs` guards it per theme.
 - **Also 2026-10-04 (evening):** toy thunderhead cloud, city life (parks, benches, lamps, walking people, driving cars) and a finished world around every theme (fields, hills, roads, windmills, mountains, desert, cloud banks, boats): `storm-cloud.js`, `city-life.js`, `scenery.js`. <= 44 draw calls, <= 51.4k tris/frame. Waiting for the owner to look.
 - **Also 2026-10-04 (water):** toy water shader for the island themes (`src/game/water.js`: shallow gradient, beach foam, waves rolling in, soft crests; 1 draw call, distance field once per city). Waiting for the owner to look.
 - **Also 2026-10-04 (later):** the city's island is now a square that follows the city, islets are round and irregular (`src/game/islands.js`), owner's request.

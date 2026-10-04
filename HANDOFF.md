@@ -102,6 +102,14 @@ geometry still fx-ribbons 1,920 tris. Research (WebSearch; pages blocked by the 
 spheres, InstancedMesh traffic with per-frame matrices, flat-shaded low-poly terrain. Watch: browser `dead-air` longest
 silence rose to 2.5 s (budget 3 s) in the software renderer.
 
+**2026-10-04 (late), owner: "some maps have z-fighting" - fixed.** Causes: snow caps were cones of exactly the
+mountain's slope (coplanar faces); crop rows 2 cm over fields, road dashes 3 cm over roads, roads overlapping the city plate
+by 1 cm; park paths 2 cm over lawns and ponds overlapping paths 1 cm; city lane dashes 2 cm over the asphalt; fountain water
+1.5 cm over the rim. Now: scenery layers >= 5 cm apart (`LAYER` in scenery.js), roads end at the plate, park paths/ponds
+5 cm over the lawn and ponds beside the paths (`LAWN`/`PATH` in city-life.js), caps wider and taller than the peak, lane
+dashes 4.5 cm up + polygonOffset, fountain water 4.5 cm up. Guard: `check-city.mjs` "no-z-fighting" builds the real park
+ground and scenery of one city per theme and fails on any overlapping flat pieces < 0.04 m apart (or a cap on its mountain).
+
 **Correction to the 2026-09-28 handoff:** `ads-fill` is NOT a game bug and `persistence`/`poly-budget`/the other
 crashes are NOT WP-31/32 regressions - they are test-tool problems (details in `docs/CG_QA_AUDIT.md`, "Test-tool findings").
 

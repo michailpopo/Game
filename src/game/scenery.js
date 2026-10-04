@@ -21,6 +21,10 @@ import {
 import { mergeGeometries } from "three/addons/utils/BufferGeometryUtils.js";
 
 const TAU = Math.PI * 2;
+// Heights (m) of the flat boxes, all standing on y = -0.05 (the field). Layers that can overlap are >= 0.05 m apart so
+// the depth buffer can always tell them apart, also far away (camera near = 1% of its distance): field top +0.02,
+// pond +0.04, road +0.10, crop rows on a field +0.12, road dashes +0.16. Roads end at the plate edge, never on it.
+const LAYER = { field: 0.07, pond: 0.09, road: 0.15, row: 0.17, dash: 0.21 };
 const RECIPES = {
   meadow: { fields: 0.6, rows: 0.25, hills: 12, mesas: 0, groves: 5, pines: 0.35, rocks: 14, roads: true, crops: ["#e8c65a", "#a6d86a", "#5fae4f", "#c99a62", "#8fcf5f"], hill: ["#6cbd58", "#88cc62", "#5aa857"], rock: "#a7a3b8" },
   farm: { fields: 0.85, rows: 0.6, hills: 9, mesas: 0, groves: 3, pines: 0.2, rocks: 8, roads: true, windmills: 2, crops: ["#e9c75a", "#f0d77a", "#a9cf5a", "#7dbb4c", "#c79a5e", "#d4b06a"], hill: ["#9cc35a", "#86b44f", "#b0cc66"], rock: "#b3a497" },
@@ -68,12 +72,12 @@ export function createScenery({ W, rng, plate, camDir, lanes }) {
   const roads = [];
   if (R.roads && lanes.lx.length && lanes.lz.length) {
     const mid = (a) => a[Math.floor(a.length / 2)];
-    roads.push({ alongX: true, c: mid(lanes.lz), from: -P - 280, to: -P + 1 });        // leaves town to -x
-    roads.push({ alongX: false, c: mid(lanes.lx), from: -P - 280, to: -P + 1 });       // leaves town to -z
+    roads.push({ alongX: true, c: mid(lanes.lz), from: -P - 280, to: -P });            // leaves town to -x (ends at the plate)
+    roads.push({ alongX: false, c: mid(lanes.lx), from: -P - 280, to: -P });           // leaves town to -z
     for (const r of roads) {
       const len = r.to - r.from, cen = (r.to + r.from) / 2;
-      flat.push(r.alongX ? { x: cen, z: r.c, w: len, d: 6.5, h: 0.1, color: W.asphalt } : { x: r.c, z: cen, w: 6.5, d: len, h: 0.1, color: W.asphalt });
-      for (let v = r.from + 2; v < r.to - 2; v += 6) flat.push(r.alongX ? { x: v, z: r.c, w: 2.2, d: 0.35, h: 0.13, color: W.dash } : { x: r.c, z: v, w: 0.35, d: 2.2, h: 0.13, color: W.dash });
+      flat.push(r.alongX ? { x: cen, z: r.c, w: len, d: 6.5, h: LAYER.road, color: W.asphalt } : { x: r.c, z: cen, w: 6.5, d: len, h: LAYER.road, color: W.asphalt });
+      for (let v = r.from + 2; v < r.to - 2; v += 6) flat.push(r.alongX ? { x: v, z: r.c, w: 2.2, d: 0.35, h: LAYER.dash, color: W.dash } : { x: r.c, z: v, w: 0.35, d: 2.2, h: LAYER.dash, color: W.dash });
     }
   }
   const onRoad = (x, z, m) => roads.some((r) => (r.alongX ? Math.abs(z - r.c) < 3.25 + m && x < r.to + m : Math.abs(x - r.c) < 3.25 + m && z < r.to + m));
@@ -83,10 +87,10 @@ export function createScenery({ W, rng, plate, camDir, lanes }) {
       const x = gx + cell / 2, z = gz + cell / 2;
       if (!outside(x, z, cell / 2 + 4) || Math.hypot(x, z) > reach || onRoad(x, z, cell / 2) || rng.next() > R.fields) continue;
       const w = cell - rng.range(1.6, 3), d = cell - rng.range(1.6, 3), color = pick(R.crops);
-      flat.push({ x, z, w, d, h: 0.06, color });
+      flat.push({ x, z, w, d, h: LAYER.field, color });
       if (rng.next() < R.rows) {                                // crop rows: darker stripes across the field
         const dark = new Color(color).multiplyScalar(0.82).getStyle(), alongX = rng.next() < 0.5;
-        for (let k = -2; k <= 2; k++) flat.push(alongX ? { x, z: z + k * d * 0.18, w: w * 0.9, d: d * 0.07, h: 0.08, color: dark } : { x: x + k * w * 0.18, z, w: w * 0.07, d: d * 0.9, h: 0.08, color: dark });
+        for (let k = -2; k <= 2; k++) flat.push(alongX ? { x, z: z + k * d * 0.18, w: w * 0.9, d: d * 0.07, h: LAYER.row, color: dark } : { x: x + k * w * 0.18, z, w: w * 0.07, d: d * 0.9, h: LAYER.row, color: dark });
       }
     }
   }
@@ -94,7 +98,7 @@ export function createScenery({ W, rng, plate, camDir, lanes }) {
     for (let t = 0; t < 20; t++) {
       const a = rng.range(0, TAU), r = P + rng.range(14, 60), x = Math.cos(a) * r, z = Math.sin(a) * r;
       if (!outside(x, z, 10) || onRoad(x, z, 8)) continue;
-      flat.push({ x, z, w: rng.range(10, 18), d: rng.range(7, 12), h: 0.07, color: "#bfe4f7" });
+      flat.push({ x, z, w: rng.range(10, 18), d: rng.range(7, 12), h: LAYER.pond, color: "#bfe4f7" });
       break;
     }
   }
@@ -111,7 +115,8 @@ export function createScenery({ W, rng, plate, camDir, lanes }) {
       tall.push({ x, z, r: r * 0.7 });
       const h = r * rng.range(0.9, 1.4), rot = rng.range(0, TAU), sx = rng.range(0.85, 1.2);
       peaks.push({ x, z, r, h, rot, sx, color: pick(R.hill), y: -0.5 });
-      peaks.push({ x, z, r: r * 0.44, h: h * 0.44, rot, sx, color: R.cap, y: -0.5 + h * 0.56 });
+      // the cap is a touch wider and taller than the mountain's top (never the same surface: no z-fighting)
+      peaks.push({ x, z, r: r * 0.48, h: h * 0.47, rot, sx, color: R.cap, y: -0.5 + h * 0.56 });
       continue;
     }
     const dist = P + rng.range(45, 190), x = x0 * dist, z = z0 * dist;
@@ -284,6 +289,8 @@ export function createScenery({ W, rng, plate, camDir, lanes }) {
 
   return {
     group, trees, update,
+    layers: flat.map((f) => ({ x: f.x, z: f.z, w: f.w, d: f.d, top: -0.05 + f.h, color: f.color })),
+    peaks,
     counts: { flat: flat.length, mounds: mounds.length, peaks: peaks.length, mesas: mesas.length, mills: mills.length, trees: trees.length, cacti: cacti.length, rocks: rocks.length, clouds: clouds.length, boats: boats.length },
     dispose() { for (const r of own) r.dispose?.(); },
   };

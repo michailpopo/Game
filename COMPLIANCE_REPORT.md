@@ -1,14 +1,14 @@
 # Compliance report - Storm Grid
 
-Generated 2026-10-04 19:27 UTC · build `9007f704afef` · target stage **full** · register 2026.09.11 (researched 2026-09-11)
+Generated 2026-10-04 20:23 UTC · build `5d3746d4ed03` · target stage **full** · register 2026.09.11 (researched 2026-09-11)
 
-## Verdict: NOT VERIFIED - 35 mandatory requirements lack current evidence
+## Verdict: NOT VERIFIED - 34 mandatory requirements lack current evidence
 
 This is a record of what was checked, how and when. It is not an approval: only CrazyGames approves a submission.
 
 | PASS | FAIL | WARN | UNVERIFIED | PORTAL | STALE | N/A |
 |---|---|---|---|---|---|---|
-| 20 | 0 | 0 | 43 | 2 | 0 | 0 |
+| 21 | 0 | 0 | 42 | 2 | 0 | 0 |
 
 Legend: PORTAL = can only be confirmed in the Developer Portal preview or by CrazyGames QA · STALE = manual evidence recorded for a different build · UNVERIFIED = no evidence yet.
 
@@ -16,10 +16,10 @@ Legend: PORTAL = can only be confirmed in the Developer Portal preview or by Cra
 
 | Id | Requirement | Type | Stage | Status | Evidence |
 |---|---|---|---|---|---|
-| CG-TECH-001 | Initial download <= 50 MB | mandatory | both | **PASS** | PASS: ready in 3222 ms; 0.22 MB transferred up to first gameplayStart (limit 50 MB, mobile homepage 20 MB) _(browser-qa)_ |
+| CG-TECH-001 | Initial download <= 50 MB | mandatory | both | **PASS** | PASS: ready in 3356 ms; 0.23 MB transferred up to first gameplayStart (limit 50 MB, mobile homepage 20 MB) _(browser-qa)_ |
 | CG-TECH-002 | Total size <= 250 MB (<= 50 MB without SDK) | mandatory | both | **PASS** | PASS: 0.79 MB (limit 250 MB, SDK integrated) _(check-bundle)_ |
 | CG-TECH-003 | File count <= 1500 | mandatory | both | **PASS** | PASS: 6 files (limit 1500) _(check-bundle)_ |
-| CG-TECH-004 | Mobile homepage eligibility: initial download <= 20 MB | mandatory | both | **PASS** | PASS: ready in 3222 ms; 0.22 MB transferred up to first gameplayStart (limit 50 MB, mobile homepage 20 MB) _(browser-qa)_ |
+| CG-TECH-004 | Mobile homepage eligibility: initial download <= 20 MB | mandatory | both | **PASS** | PASS: ready in 3356 ms; 0.23 MB transferred up to first gameplayStart (limit 50 MB, mobile homepage 20 MB) _(browser-qa)_ |
 | CG-TECH-005 | Relative paths only | mandatory | both | **PASS** | PASS: no absolute asset paths _(check-bundle)_ |
 | CG-TECH-007 | Works on Chrome and Edge | mandatory | both | **UNVERIFIED** |  |
 | CG-TECH-008 | Smooth on a 4 GB RAM Chromebook | mandatory | both | **UNVERIFIED** | check with: browser-qa performance (evidence only) |
@@ -53,7 +53,7 @@ Legend: PORTAL = can only be confirmed in the Developer Portal preview or by Cra
 | CG-QUAL-001 | Avoid browser-reserved keys | guideline | both | **PASS** | PASS: Escape not bound _(policy-scan)_ |
 | CG-QUAL-002 | Key bindings adapt to keyboard layout | guideline | both | **PASS** | PASS: movement keys read via KeyboardEvent.code _(policy-scan)_ |
 | CG-QUAL-003 | In-gameplay, skippable, visual onboarding | guideline | both | **UNVERIFIED** |  |
-| CG-QUAL-004 | Honest buttons | guideline | both | **UNVERIFIED** |  |
+| CG-QUAL-004 | Honest buttons | guideline | both | **UNVERIFIED** | UNVERIFIED: 4 offers on ready/win/fail screens: video icon, shared .btn, decline in the same frame with equal size/font/colours - LOOK at qa/shots/ad-ui _(browser-qa)_ |
 | CG-QUAL-005 | Fun-experience principles | guideline | both | **UNVERIFIED** |  |
 | CG-QUAL-006 | Unique, honest identity | guideline | both | **UNVERIFIED** |  |
 | CG-QUAL-007 | Consistent high-quality visuals and audio | guideline | both | **UNVERIFIED** |  |
@@ -63,7 +63,7 @@ Legend: PORTAL = can only be confirmed in the Developer Portal preview or by Cra
 | Id | Requirement | Type | Stage | Status | Evidence |
 |---|---|---|---|---|---|
 | CG-SDK-001 | SDK required for Full Launch (HTML5 v3) | mandatory | full | **PASS** | PASS: SDK v3 tag in <head> before game code _(check-bundle)_ |
-| CG-SDK-002 | First gameplayStart marks a real playable state | mandatory | both | **PASS** | PASS: ready in 3222 ms; 0.22 MB transferred up to first gameplayStart (limit 50 MB, mobile homepage 20 MB) _(browser-qa)_<br>PASS: order ok: mockInstalled > init > loadingStart > hasAdblock > reportGameCompletedPercentage > loadingStop > gameplayStart > setGameContext >  _(browser-qa)_ |
+| CG-SDK-002 | First gameplayStart marks a real playable state | mandatory | both | **PASS** | PASS: ready in 3356 ms; 0.23 MB transferred up to first gameplayStart (limit 50 MB, mobile homepage 20 MB) _(browser-qa)_<br>PASS: order ok: mockInstalled > init > loadingStart > hasAdblock > reportGameCompletedPercentage > loadingStop > gameplayStart > setGameContext >  _(browser-qa)_ |
 | CG-SDK-003 | gameplayStart/gameplayStop on real breaks, not on focus loss | mandatory | full | **PASS** | PASS: order ok: mockInstalled > init > loadingStart > hasAdblock > reportGameCompletedPercentage > loadingStop > gameplayStart > setGameContext >  _(browser-qa)_<br>PASS: gameplayStop not tied to focus/visibility _(policy-scan)_ |
 | CG-SDK-004 | settings.muteAudio outranks the in-game toggle | mandatory | full | **UNVERIFIED** | check with: browser-qa mute-priority |
 | CG-SDK-005 | Handle SDK environments | mandatory | both | **UNVERIFIED** | check with: browser-qa no-sdk, sdk-disabled, sdk-init-hang |
@@ -82,9 +82,9 @@ Legend: PORTAL = can only be confirmed in the Developer Portal preview or by Cra
 | CG-ADS-004 | Mute on adStarted, unmute on finish/error | mandatory | full | **UNVERIFIED** | check with: browser-qa ads-fill |
 | CG-ADS-005 | Handle adError and continue | mandatory | full | **UNVERIFIED** | check with: browser-qa ads-basic-launch |
 | CG-ADS-006 | No custom midgame cooldown needed | mandatory | full | **UNVERIFIED** |  |
-| CG-ADS-007 | Rewarded offers are clearly optional and marked as video | mandatory | full | **UNVERIFIED** |  |
-| CG-ADS-008 | Decline option looks the same as accept | mandatory | full | **UNVERIFIED** |  |
-| CG-ADS-009 | No rewarded button on active gameplay screens | mandatory | full | **UNVERIFIED** |  |
+| CG-ADS-007 | Rewarded offers are clearly optional and marked as video | mandatory | full | **UNVERIFIED** | UNVERIFIED: 4 offers on ready/win/fail screens: video icon, shared .btn, decline in the same frame with equal size/font/colours - LOOK at qa/shots/ad-ui _(browser-qa)_ |
+| CG-ADS-008 | Decline option looks the same as accept | mandatory | full | **UNVERIFIED** | UNVERIFIED: 4 offers on ready/win/fail screens: video icon, shared .btn, decline in the same frame with equal size/font/colours - LOOK at qa/shots/ad-ui _(browser-qa)_ |
+| CG-ADS-009 | No rewarded button on active gameplay screens | mandatory | full | **PASS** | PASS: no rewarded offer visible during active gameplay (checked at +0.3 s and +1.5 s of a run) _(browser-qa)_ |
 | CG-ADS-010 | No ad chaining | mandatory | full | **UNVERIFIED** |  |
 | CG-ADS-011 | Not too often, not too aggressive | mandatory | full | **UNVERIFIED** |  |
 | CG-ADS-012 | A non-ad alternative exists | mandatory | full | **UNVERIFIED** |  |

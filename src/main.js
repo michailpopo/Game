@@ -216,6 +216,9 @@ async function boot() {
     if (!holding && e.pointerType !== "mouse") return;
     if (!sim || (sim.phase !== "ready" && sim.phase !== "run") || !canPlay()) return;
     [pointer.x, pointer.y] = local(e);
+    // A mouse press locks its building as the target until release: the camera keeps moving while it charges, so the
+    // cursor drifts over other buildings, but the strike goes where the press started.
+    if (holding && e.pointerType === "mouse") return;
     if (holding || e.pointerType === "mouse") { aim = view.pick(sim, pointer.x, pointer.y); if (!holding) inputMode = "mouse"; }
   }, { passive: true });
   const pointerUp = (e) => { if (e.pointerId === pointer.id) { pointer.down = false; pointer.id = null; } };

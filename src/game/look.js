@@ -84,7 +84,7 @@ export const THEMES = [
   },
   {
     id: "skyport", window: "#9ff8ff", accent: "#c86bff", fog: "#b8c4ee",
-    world: { scenery: "sky", park: "#9fdcb4", field: "#a9c4f2", asphalt: "#5d6aa0", pad: "#e8ecfb", padLit: "#fff1f8", unlit: "#8793c0", unlitWin: "#434c7a", trim: "#a4aed6", dash: "#ffffff", trees: ["#6fd08a", "#8fe09a", "#4fb87a"] },
+    world: { scenery: "sky", park: "#9fdcb4", field: "#8fb0f0", asphalt: "#5d6aa0", pad: "#e8ecfb", padLit: "#fff1f8", unlit: "#8793c0", unlitWin: "#434c7a", trim: "#a4aed6", dash: "#ffffff", trees: ["#6fd08a", "#8fe09a", "#4fb87a"] },
     lit: ["#ff6fb5", "#9d6bff", "#ffc21a", "#ff8c2a", "#ff5e57", "#3fd07a"],
     sky: { top: "#2f5ad0", horizon: "#ffd0e8", glow: "#fff0fa", glow2: "#c8a8ff", fog: "#b8c4ee", hemiSky: "#d0dcff" },
   },

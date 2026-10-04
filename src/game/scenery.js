@@ -6,7 +6,7 @@
  *   hills   (Hill Towers)   big faceted hills and pine forests, a few fields, roads
  *   snow    (Snow Peak)     low-poly rock mountains with snow caps, pine forests, frozen ponds, rocks
  *   desert  (Desert Spires) dunes, mesas, cacti, rocks, roads
- *   sky     (Sky Port)      cloud banks on a sky-blue field around the city, drifting slowly
+ *   sky     (Sky Port)      the city on a floating island over a sea of clouds, islets, balloons, an airship (sky.js)
  *   sea     (Harbour, Neon Bay)  boats sailing round the city's island (the islands themselves: islands.js)
  *
  * Tall things (hills, mesas, forests, windmills) stand behind and beside the city, never between it and the camera;
@@ -16,9 +16,10 @@
 
 import {
   BoxGeometry, Color, ConeGeometry, CylinderGeometry, DodecahedronGeometry, Float32BufferAttribute, Group, IcosahedronGeometry,
-  InstancedMesh, Matrix4, MeshStandardMaterial, Quaternion, SphereGeometry, Vector3,
+  InstancedMesh, Matrix4, MeshStandardMaterial, Quaternion, Vector3,
 } from "three";
 import { mergeGeometries } from "three/addons/utils/BufferGeometryUtils.js";
+import { createSkyWorld } from "./sky.js";
 
 const TAU = Math.PI * 2;
 // Heights (m) of the flat boxes, all standing on y = -0.05 (the field). Layers that can overlap are >= 0.05 m apart so
@@ -31,7 +32,7 @@ const RECIPES = {
   hills: { fields: 0.25, rows: 0.2, hills: 18, hillScale: 1.5, mesas: 0, groves: 8, pines: 0.75, rocks: 14, roads: true, crops: ["#a6d86a", "#e8c65a", "#5fae4f"], hill: ["#5fae55", "#77c160", "#4f9c50"], rock: "#9a9fb4" },
   snow: { fields: 0, rows: 0, hills: 13, peaks: true, mesas: 0, groves: 8, pines: 1, rocks: 18, ponds: 3, roads: true, crops: [], hill: ["#8f9ab6", "#a3acc6", "#7f89a6"], cap: "#f6f9ff", rock: "#8c95ad" },
   desert: { fields: 0, rows: 0, hills: 16, dunes: true, mesas: 8, groves: 0, pines: 0, rocks: 16, cacti: 30, roads: true, crops: [], hill: ["#efcf93", "#e6c084", "#f3d9a3"], rock: "#c08a63" },
-  sky: { fields: 0, rows: 0, hills: 0, mesas: 0, groves: 0, pines: 0, rocks: 0, clouds: 14, roads: false, crops: [], hill: [], rock: "#ffffff" },
+  sky: { fields: 0, rows: 0, hills: 0, mesas: 0, groves: 0, pines: 0, rocks: 0, roads: false, crops: [], hill: [], rock: "#ffffff" },
   sea: { fields: 0, rows: 0, hills: 0, mesas: 0, groves: 0, pines: 0, rocks: 0, boats: 5, roads: false, crops: [], hill: [], rock: "#ffffff" },
 };
 
@@ -55,7 +56,7 @@ const UP = new Vector3(0, 1, 0), FWD = new Vector3(0, 0, 1), ID = new Quaternion
  * @param {object} o  W: theme.world · rng: the city's look stream · plate: asphalt plate side (m) · camDir {x,z}: towards
  *   the camera · lanes { lx, lz }: avenue lines (roads leave town along the middle ones)
  * @returns {{ group: Group, trees: object[], update(time:number):void, dispose():void, counts: object }}
- *   trees: scenery trees for city-mesh's tree meshes (y = 0)
+ *   trees: scenery trees for city-mesh's tree meshes (y = 0, or their own y on the sky islets)
  */
 export function createScenery({ W, rng, plate, camDir, lanes }) {
   const R = RECIPES[W.scenery ?? "meadow"] ?? RECIPES.meadow;
@@ -173,20 +174,6 @@ export function createScenery({ W, rng, plate, camDir, lanes }) {
     rocks.push({ x, z, s: rng.range(0.7, 2.2), r: rng.range(0, TAU) });
   }
 
-  // ---------------------------------------------------------------- sky: cloud tops around the floating city
-  // cloud banks: R.clouds clusters of 3-6 puffs on the sky-blue field, the city above them
-  const clouds = [];
-  for (let k = 0; k < 400 && clouds.length < Math.min(50, (R.clouds ?? 0) * 5); k++) {
-    const a = rng.range(0, TAU), dist = P + rng.range(10, 160), cx = Math.cos(a) * dist, cz = Math.sin(a) * dist;
-    if (!outside(cx, cz, 14) || !clearOf(cx, cz, 14)) continue;
-    tall.push({ x: cx, z: cz, r: 12 });
-    const n = 3 + Math.floor(rng.next() * 4), phase = rng.range(0, TAU);
-    for (let i = 0; i < n; i++) {
-      const r = rng.range(6, 12) * (i === 0 ? 1.3 : 1), x = cx + rng.range(-9, 9), z = cz + rng.range(-6, 6);
-      if (outside(x, z, r * 0.7)) clouds.push({ x, z, r, y: -r * 0.1, phase, color: rng.next() < 0.75 ? "#ffffff" : "#eef0ff" });
-    }
-  }
-
   // ---------------------------------------------------------------- sea: boats sailing round the city's island
   const boats = [];
   const loop = P + 8 + 3 + 3.5;                                // half-size of the boats' rounded-square route (islands.js: rim 8, beach 3)
@@ -224,7 +211,6 @@ export function createScenery({ W, rng, plate, camDir, lanes }) {
   ]), cacti, "scenery-cacti", (c) => _m.compose(_p.set(c.x, 0, c.z), _q.setFromAxisAngle(UP, c.r), _s.setScalar(c.s)), null, { vertexColors: true });
   add(new DodecahedronGeometry(1, 0), rocks, "scenery-rocks",
     (r) => _m.compose(_p.set(r.x, r.s * 0.25, r.z), _q.setFromAxisAngle(UP, r.r), _s.set(r.s * 1.2, r.s * 0.7, r.s)), () => R.rock, { flatShading: true });
-  const cloudMesh = add(new SphereGeometry(1, 9, 6), clouds, "scenery-clouds", () => _m.identity(), (c) => c.color, { roughness: 1 });
   const millTowers = add(mergeGeometries([
     paint(new CylinderGeometry(1.1, 1.7, 7, 8), "#f4efe6", { y: 3.5 }),
     paint(new ConeGeometry(1.45, 2.2, 8), "#c75b4b", { y: 8.1 }),
@@ -258,13 +244,6 @@ export function createScenery({ W, rng, plate, camDir, lanes }) {
   const pt = { x: 0, z: 0, hx: 0, hz: 1 };
 
   function update(time) {
-    if (cloudMesh) {
-      clouds.forEach((c, i) => {
-        const b = Math.sin(time * 0.3 + c.phase);
-        cloudMesh.setMatrixAt(i, _m.compose(_p.set(c.x + b * 0.8, c.y + b * 0.25, c.z), ID, _s.set(c.r * 1.3, c.r * 0.45, c.r)));
-      });
-      cloudMesh.instanceMatrix.needsUpdate = true;
-    }
     if (millBlades) {
       mills.forEach((w, i) => {
         _q.setFromAxisAngle(UP, w.face).multiply(_spin.setFromAxisAngle(FWD, time * w.speed + w.phase));
@@ -287,11 +266,15 @@ export function createScenery({ W, rng, plate, camDir, lanes }) {
   }
   update(0);
 
+  const sky = W.scenery === "sky" ? createSkyWorld({ rng, plate, camDir }) : null;
+  if (sky) { group.add(sky.group); trees.push(...sky.trees); }
+
   return {
-    group, trees, update,
+    group, trees,
+    update(time) { update(time); sky?.update(time); },
     layers: flat.map((f) => ({ x: f.x, z: f.z, w: f.w, d: f.d, top: -0.05 + f.h, color: f.color })),
     peaks,
-    counts: { flat: flat.length, mounds: mounds.length, peaks: peaks.length, mesas: mesas.length, mills: mills.length, trees: trees.length, cacti: cacti.length, rocks: rocks.length, clouds: clouds.length, boats: boats.length },
-    dispose() { for (const r of own) r.dispose?.(); },
+    counts: { flat: flat.length, mounds: mounds.length, peaks: peaks.length, mesas: mesas.length, mills: mills.length, trees: trees.length, cacti: cacti.length, rocks: rocks.length, boats: boats.length, sky: sky?.counts },
+    dispose() { for (const r of own) r.dispose?.(); sky?.dispose(); },
   };
 }

@@ -26,7 +26,7 @@ const TAU = Math.PI * 2;
 // (angle growing from +x towards +z). Every band of one island has the same point count, point i facing point i.
 
 /** A rounded square/rectangle centred on (cx, cz); offsetting it by d = the same call with hw + d, hd + d, r + d. */
-function roundedRect(cx, cz, hw, hd, r, seg) {
+export function roundedRect(cx, cz, hw, hd, r, seg) {
   const pts = [];
   const corners = [[hw - r, hd - r, 0], [-(hw - r), hd - r, TAU / 4], [-(hw - r), -(hd - r), TAU / 2], [hw - r, -(hd - r), TAU * 0.75]];
   for (const [ox, oz, a0] of corners) {

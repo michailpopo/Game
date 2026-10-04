@@ -25,6 +25,7 @@ import { createRng } from "../core/rng.js";
 import { chamferPrismGeometry, propGeometries, toyBlockMaterial, toyTrimMaterial } from "../render/city-kit.js";
 import { LOOK } from "./look.js";
 import { WATER_Y, islandMeshes, planIslands, shoreField } from "./islands.js";
+import { SKY_FLOOR } from "./sky.js";
 import { createWaterMaterial } from "./water.js";
 import { createStormCloud } from "./storm-cloud.js";
 import { createCityLife } from "./city-life.js";
@@ -222,8 +223,8 @@ export class CityMesh {
     const size = Math.max(city.width, city.depth);
     const field = new Mesh(this.#own(new PlaneGeometry(size * 14 + 400, size * 14 + 400)), this.#own(new MeshStandardMaterial({ color: W.field, roughness: 0.95 })));
     field.rotation.x = -Math.PI / 2;
-    field.position.y = W.water ? WATER_Y : -0.05;
-    field.receiveShadow = true;
+    field.position.y = W.water ? WATER_Y : W.scenery === "sky" ? SKY_FLOOR : -0.05;   // Sky Port: the field is the sky far below
+    field.receiveShadow = W.scenery !== "sky";                // no city shadows on the sky far below
     field.name = "field";
     const avenue = plan?.avenue ?? 6;
     const plate = new Mesh(this.#own(chamferPrismGeometry(0.02)), this.#own(new MeshStandardMaterial({ color: W.asphalt, roughness: 0.9 })));
@@ -290,7 +291,7 @@ export class CityMesh {
       mesh.castShadow = cast;
       mesh.receiveShadow = kind !== "car";
       items.forEach((p, i) => {
-        mesh.setMatrixAt(i, _m.compose(_p.set(p.x, kind === "car" ? 0.1 : y0, p.z), _q.setFromAxisAngle(_up, p.r), _s.setScalar(p.s)));
+        mesh.setMatrixAt(i, _m.compose(_p.set(p.x, kind === "car" ? 0.1 : p.y ?? y0, p.z), _q.setFromAxisAngle(_up, p.r), _s.setScalar(p.s)));
         mesh.setColorAt(i, _c.set(kind === "car" ? ["#ff5a5f", "#ffd23f", "#4f8dff", "#ffffff", "#ff9f40"][i % 5] : W.trees[i % W.trees.length]));
       });
       this.group.add(mesh);

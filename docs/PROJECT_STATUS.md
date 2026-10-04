@@ -1,11 +1,12 @@
 # Project status - Storm Grid
 
-Updated: 2026-10-02 · Project folder: /home/user/Game (repo michailpopo/Game, branch claude/amazing-carson-87o6sf)
+Updated: 2026-10-04 · Project folder: /home/user/Game (repo michailpopo/Game, branch claude/amazing-carson-87o6sf)
 
 ## Where we are
 - **Phase:** 3 Build - Storm Grid (3D). Handoff to a new chat on 2026-09-28: read HANDOFF.md first.
 - **Current objective:** an original, dopamine-hitting game that looks premium, upload-ready this session.
 - **Latest:** CrazyGames QA audit done 2026-10-02 (`docs/CG_QA_AUDIT.md`): 38/45 mandatory PASS, 4 FAIL (covers + preview videos not made yet), 3 cannot verify (Edge, 4 GB Chromebook, CG-app safe areas), 6 warnings. No code requirement fails.
+- **Also 2026-10-04 (night):** Sky Port is a city on a floating island above a sea of clouds (islets with trees, hot-air balloons, an airship; `src/game/sky.js`), owner's request; 43 draw calls, <= 55.0k tris/frame on cities 36-40. A mouse press now keeps its building as the target until release (`main.js`), browser-verified. Waiting for the owner to look.
 - **Also 2026-10-04 (late):** z-fighting fixed on all maps (layer heights, snow caps, roads, parks, lane dashes, fountain); `check-city.mjs` guards it per theme.
 - **Also 2026-10-04 (evening):** toy thunderhead cloud, city life (parks, benches, lamps, walking people, driving cars) and a finished world around every theme (fields, hills, roads, windmills, mountains, desert, cloud banks, boats): `storm-cloud.js`, `city-life.js`, `scenery.js`. <= 44 draw calls, <= 51.4k tris/frame. Waiting for the owner to look.
 - **Also 2026-10-04 (water):** toy water shader for the island themes (`src/game/water.js`: shallow gradient, beach foam, waves rolling in, soft crests; 1 draw call, distance field once per city). Waiting for the owner to look.
@@ -75,6 +76,7 @@ npm run qa           # all automated checks + COMPLIANCE_REPORT.md
 | 2026-09-26 | Concept T1 Volt City, fully 3D; renamed Storm Grid | owner's picks ("It must be 3d game"; Volt City collides with a Volt Casino game) | T2 Shatterfall, T3 Magnet Heap; keeping the casino-colliding name |
 | 2026-09-26 | Look kit WP-20 done: Neutral tone mapping (ACES/AgX washed colours out), bloom only on high/ultra tiers | side-by-side captures in qa/wp20/ | ACES, AgX |
 | 2026-09-27 | Keep the UI; restyle the city from hit-game references, keep it simple | owner: "good in general, the ui looks great but the city is still looking too ai generated, grab some visual inspo from games with a lot of likes that are made in html5, do not overcomplicate" | neon-cyberpunk city |
+| 2026-10-04 | Sky Port = city on a floating island over a cloud sea, with a near-vertical cliff band | owner: "make Sky Port better"; the old flat cloud banks on a blue field did not say "sky"; the camera looks steeply down, so a tapering underside is invisible edge-on and only a steep cliff under the rim shows | flat cloud banks (old), a fully tapered rock cone (invisible from the game camera), extra waterfalls (needs a shader, not asked) |
 | 2026-10-04 | Dress every map: city life + per-theme scenery, all instanced and capped | owner: "all maps should look finished and not so plain", wants driving cars, people, benches, parks, a better cloud | loading model packs (download size, licences), one generic scenery for every theme |
 | 2026-10-04 | Stylised water from a shore distance field, not three.js Water/Water2 | owner asked for three.js water in the game style; the examples' Water (reflection render target) and Water2 (reflection + refraction) render the scene again every frame and look realistic, not toy; a distance field is exact here because the islands are known shapes | three.js Water.js / Water2.js, a depth pre-pass for foam, a displaced 72x72 wave grid (over the 2,000-triangle geometry budget) |
 | 2026-10-04 | Islands for the water themes, built new (never existed in git) | owner: "in some version before there were islands and no trees on water, that doesn't make sense, bring back the islands"; trees on a flat sea read as a bug | keeping the tree ring and recolouring the field; making the whole sea land |

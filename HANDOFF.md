@@ -96,7 +96,7 @@ commits on both branches; cars were static props only) - likely the WP-21 hit-ga
   building), cars driving on the avenues (two lanes on wide avenues and the ring road, one-way on narrow ones).
 - `src/game/scenery.js`: one recipe per theme (`world.scenery` in look.js): meadow (fields, hills, groves, roads out),
   farm (crop rows, windmills turning), hills (big hills, forests), snow (low-poly mountains with snow caps, pines, ponds),
-  desert (dunes, mesas, cacti), sky (cloud banks on a sky-blue field), sea (boats sailing round the island).
+  desert (dunes, mesas, cacti), sky (floating island, `sky.js` - see below), sea (boats sailing round the island).
 Budgets measured on cities 1/13/28/33/38/50: <= 44 draw calls (of 60), <= 51.4k triangles per frame (of 60k), heaviest
 geometry still fx-ribbons 1,920 tris. Research (WebSearch; pages blocked by the proxy): low-poly clouds from merged/chopped
 spheres, InstancedMesh traffic with per-frame matrices, flat-shaded low-poly terrain. Watch: browser `dead-air` longest
@@ -109,6 +109,21 @@ by 1 cm; park paths 2 cm over lawns and ponds overlapping paths 1 cm; city lane 
 5 cm over the lawn and ponds beside the paths (`LAWN`/`PATH` in city-life.js), caps wider and taller than the peak, lane
 dashes 4.5 cm up + polygonOffset, fountain water 4.5 cm up. Guard: `check-city.mjs` "no-z-fighting" builds the real park
 ground and scenery of one city per theme and fails on any overlapping flat pieces < 0.04 m apart (or a cap on its mountain).
+
+**2026-10-04 (night), owner: "hold on a building = it stays the target, don't touch the camera" - done.** `src/main.js`
+pointermove: while a mouse button is held the aim is not re-picked, so the strike goes where the press started even when
+the camera drifts under the cursor. Hover aiming (no press) and touch drag-aiming unchanged; camera code untouched.
+Browser probe (scratchpad, software GL): hover aims followed the mouse, press locked building 21 until release, one strike.
+
+**2026-10-04 (night), owner: "make Sky Port better" - done.** Sky Port (cities 36-40, every 8th theme) is now a city on a
+**floating island above the clouds** (`src/game/sky.js`, used by `scenery.js` when `world.scenery === "sky"`): grass rim and
+dirt band round the plate, a jagged warm-rock cliff that the steep camera sees past the plate's edges, then a taper to a tip
+~40 m down; up to 6 floating islets with trees (behind/beside the city); a sea of cumulus clusters (flat-bottomed puffs) far
+below, a few at city height; 4 striped hot-air balloons; an airship circling behind the city. The field drops to
+`SKY_FLOOR` (-70, deeper blue `#8fb0f0`) and receives no shadows. The old flat cloud banks in `scenery.js` are gone.
+4 draw calls; island mesh <= 1,320 tris. Measured on cities 36/37/38/40: 43 draw calls, <= 55.0k tris per frame (of 60k).
+Ideas from: The Aviator (codrops, low-poly sky scene), low-poly floating-island and cloud tutorials (WebSearch summaries; the
+pages themselves are blocked by the proxy). Tapering rock is edge-on to this camera - keep the near-vertical cliff band.
 
 **Correction to the 2026-09-28 handoff:** `ads-fill` is NOT a game bug and `persistence`/`poly-budget`/the other
 crashes are NOT WP-31/32 regressions - they are test-tool problems (details in `docs/CG_QA_AUDIT.md`, "Test-tool findings").
@@ -186,6 +201,10 @@ What I saw in the last screenshots (fix first; not re-judged on 2026-10-02):
 - Run the slow browser harness once per package with `--only <scenarios>`, not the full set every time.
 
 ## 8. Browser QA (re-run 2026-10-02, HEAD d575418, `PW_CHROMIUM_PATH=/opt/pw-browsers/chromium node tools/qa/browser-qa.mjs --serve`)
+
+Smoke re-run 2026-10-04 after Sky Port + target lock (`--only boot,poly-budget,dead-air,console-errors`): 4 PASS
+(boot 3.5 s / 0.23 MB, 24.8k tris / 43 calls, longest silence 2.1 s of 3 s, no console errors). Sky Port levels measured
+separately (scratchpad budget probe, cities 36/37/38/40): 43 calls, <= 55.0k tris. `npm run qa:fast` green, `check-city` PASS.
 
 Full run: 11 PASS, 8 FAIL, 1 UNVERIFIED (`touch` now passes). Every failure was traced (`docs/CG_QA_AUDIT.md`, "Test-tool findings"):
 - **`ads-fill` FAIL = test timing, not a bug.** An event-ordered probe shows: `adRequested` -> not muted, `adStarted` -> muted,

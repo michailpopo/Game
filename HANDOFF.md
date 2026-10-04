@@ -67,6 +67,13 @@ Code: `planIslands()` (pure, exported) + `buildIslands()` in `src/game/city-mesh
 Open for the owner's eyes: whether the islands look right, whether Sky Port (cities 36-40, white field) should also be floating
 islands, and Neon Bay is dark (teal land on indigo sea).
 
+**2026-10-04 (later), owner: "the beach should have the shape of the city, a square; the islets should not be squares"
+- done.** Islands moved to `src/game/islands.js`: the city's island is a square with softly rounded corners, parallel to the
+asphalt plate, with concentric bands (8 m grass, 3 m sand beach one step down, a foam line, 5.5 m shallow ring); islets are
+round, slightly irregular outlines (ellipse + 3 low harmonics, 20 points) with the same bands. Built as real outline
+geometry (3 merged meshes, 624 tris each, still 3 draw calls), not stretched instances. `check-city.mjs` now tests the drawn
+outlines with point-in-polygon (trees on grass with 0.6 m to spare, shallow rings never overlap, city island square, islets round).
+
 **Correction to the 2026-09-28 handoff:** `ads-fill` is NOT a game bug and `persistence`/`poly-budget`/the other
 crashes are NOT WP-31/32 regressions - they are test-tool problems (details in `docs/CG_QA_AUDIT.md`, "Test-tool findings").
 

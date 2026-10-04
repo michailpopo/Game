@@ -10,8 +10,10 @@
  * `clearance` m apart along one axis (config.js STORM.city), and no footprint side is under footprintMin.
  * Keep the two formulas below in step with city-mesh.js.
  *
- * Islands (themes whose field is sea): every scenery tree must stand on an island's grass (chamfered footprint, with
- * 0.5 m to spare) and no two islands may overlap, checked on cities 1-60 x 4 random streams.
+ * Islands (themes whose field is sea, src/game/islands.js), on cities 1-60 x 4 random streams, measured on the
+ * drawn outlines with a plain point-in-polygon test: every scenery tree stands on an island's grass with 0.6 m to
+ * spare; no two islands' shallow rings overlap; the city's island is a square around the asphalt plate; islets are
+ * round outlines (>= 16 points, never a square).
  */
 
 import { mkdirSync, writeFileSync } from "node:fs";
@@ -19,7 +21,7 @@ import { dirname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { STORM } from "../../src/config.js";
 import { createRng } from "../../src/core/rng.js";
-import { ISLAND_CHAMFER, planIslands } from "../../src/game/city-mesh.js";
+import { planIslands } from "../../src/game/islands.js";
 import { themeOf } from "../../src/game/look.js";
 import { generateCity } from "../../src/game/sim.js";
 
@@ -54,26 +56,56 @@ function measure(cities) {
   return { pairs, touching, tight, minAir, minSide, worst };
 }
 
+/** Ray-casting point-in-polygon, plus the distance to the polygon's edges (both on [x, z] outlines). */
+function inside(poly, x, z) {
+  let c = false;
+  for (let i = 0, j = poly.length - 1; i < poly.length; j = i++) {
+    const [xi, zi] = poly[i], [xj, zj] = poly[j];
+    if ((zi > z) !== (zj > z) && x < ((xj - xi) * (z - zi)) / (zj - zi) + xi) c = !c;
+  }
+  return c;
+}
+function edgeDistance(poly, x, z) {
+  let d = Infinity;
+  for (let i = 0, j = poly.length - 1; i < poly.length; j = i++) {
+    const [ax, az] = poly[j], [bx, bz] = poly[i], dx = bx - ax, dz = bz - az;
+    const t = Math.max(0, Math.min(1, ((x - ax) * dx + (z - az) * dz) / (dx * dx + dz * dz || 1)));
+    d = Math.min(d, Math.hypot(x - ax - t * dx, z - az - t * dz));
+  }
+  return d;
+}
+
 /** Island plans for every water-theme city; `shift` moves all trees (selftest: planted trees on water). */
 function checkIslands(cities, shift = 0) {
   const yaw = 35 * Math.PI / 180, vx = Math.sin(yaw), vz = Math.cos(yaw);
-  let plans = 0, trees = 0, onWater = 0, overlaps = 0, minIsles = Infinity, levels = 0;
-  const onGrass = (o, x, z) => { const u = Math.abs(x - o.x) / (o.w - 1), v = Math.abs(z - o.z) / (o.d - 1); return u <= 0.5 && v <= 0.5 && u + v <= 1 - ISLAND_CHAMFER; };
+  let plans = 0, trees = 0, onWater = 0, overlaps = 0, minIsles = Infinity, levels = 0, badMain = 0, badIslet = 0;
   for (const city of cities) {
     if (!themeOf(city).world.water) continue;
     levels++;
+    const plate = city.width + city.plan.avenue * 2 + 6;
     for (let k = 0; k < 4; k++) {
       const rng = createRng(`city-${city.level}:look:${city.level}:${k}`);
-      const { isles, trees: ts } = planIslands({ rng, plate: city.width + city.plan.avenue * 2 + 6, vx, vz });
+      const { isles, trees: ts } = planIslands({ rng, plate, vx, vz });
       plans++; minIsles = Math.min(minIsles, isles.length);
-      for (const t of ts) { trees++; if (!isles.some((o) => onGrass(o, t.x + shift, t.z + shift))) onWater++; }
+      for (const t of ts) {
+        trees++;
+        const x = t.x + shift, z = t.z + shift;
+        if (!isles.some((o) => inside(o.grass, x, z) && edgeDistance(o.grass, x, z) >= 0.6)) onWater++;
+      }
+      // The city's island: a square (equal width and depth, centred) that holds the whole plate.
+      const xs = isles[0].grass.map((p) => p[0]), zs = isles[0].grass.map((p) => p[1]);
+      const w = Math.max(...xs) - Math.min(...xs), d = Math.max(...zs) - Math.min(...zs);
+      if (Math.abs(w - d) > 1e-6 || Math.abs(Math.max(...xs) + Math.min(...xs)) > 1e-6 || w < plate) badMain++;
+      // Islets: round outlines, not squares.
+      for (const o of isles.slice(1)) if (o.grass.length < 16) badIslet++;
+      // No two shallow rings may overlap (any vertex of one inside the other).
       for (let i = 0; i < isles.length; i++) for (let j = i + 1; j < isles.length; j++) {
-        const a = isles[i], b = isles[j];   // sand outlines (grass + beach) must not touch
-        if (Math.abs(a.x - b.x) < (a.w + b.w) / 2 + a.beach + b.beach && Math.abs(a.z - b.z) < (a.d + b.d) / 2 + a.beach + b.beach) overlaps++;
+        const a = isles[i].shallow, b = isles[j].shallow;
+        if (a.some(([x, z]) => inside(b, x, z)) || b.some(([x, z]) => inside(a, x, z))) overlaps++;
       }
     }
   }
-  return { levels, plans, trees, onWater, overlaps, minIsles };
+  return { levels, plans, trees, onWater, overlaps, minIsles, badMain, badIslet };
 }
 
 const cities = [];
@@ -104,6 +136,11 @@ record({
   id: "islands-apart",
   status: isl.overlaps === 0 && isl.minIsles >= 4 ? "PASS" : "FAIL",
   summary: `${isl.plans} island plans: ${isl.overlaps} overlapping islands, fewest islands in a plan ${isl.minIsles}`,
+});
+record({
+  id: "island-shapes",
+  status: isl.badMain === 0 && isl.badIslet === 0 ? "PASS" : "FAIL",
+  summary: `city's island square around the plate: ${isl.plans - isl.badMain}/${isl.plans}; islets with a round outline: ${isl.badIslet} bad`,
 });
 
 // Same city twice must be identical: the layout is seeded, trimming draws no randoms.

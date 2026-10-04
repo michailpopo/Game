@@ -1,6 +1,6 @@
 # Compliance report - Storm Grid
 
-Generated 2026-10-04 10:57 UTC · build `a24596b5c8c4` · target stage **full** · register 2026.09.11 (researched 2026-09-11)
+Generated 2026-10-04 18:32 UTC · build `890f0b06f525` · target stage **full** · register 2026.09.11 (researched 2026-09-11)
 
 ## Verdict: NOT VERIFIED - 35 mandatory requirements lack current evidence
 

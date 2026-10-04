@@ -6,6 +6,7 @@ Updated: 2026-10-02 · Project folder: /home/user/Game (repo michailpopo/Game, b
 - **Phase:** 3 Build - Storm Grid (3D). Handoff to a new chat on 2026-09-28: read HANDOFF.md first.
 - **Current objective:** an original, dopamine-hitting game that looks premium, upload-ready this session.
 - **Latest:** CrazyGames QA audit done 2026-10-02 (`docs/CG_QA_AUDIT.md`): 38/45 mandatory PASS, 4 FAIL (covers + preview videos not made yet), 3 cannot verify (Edge, 4 GB Chromebook, CG-app safe areas), 6 warnings. No code requirement fails.
+- **Also 2026-10-04 (later):** the city's island is now a square that follows the city, islets are round and irregular (`src/game/islands.js`), owner's request.
 - **Also 2026-10-04:** water themes (Harbour, Neon Bay) stand on islands with beaches and islet trees instead of trees on open water (`planIslands` in `city-mesh.js`, guard in `tools/qa/check-city.mjs`). Waiting for the owner to look.
 - **Also 2026-10-02:** buildings that touched or intersected (from city 3) now keep >= 1.0 m of air between roof caps (`clearFootprints` in `sim.js`, guard `tools/qa/check-city.mjs`). Waiting for the owner to look.
 - **Next action (one concrete step):** fix the save fallback in `src/core/save.js` (audit W1) and the two harness scenarios `persistence` / `ads-fill` (test-tool problems, not game bugs), so `npm run qa` exits 0; then the owner judges the 3 visual items, plays, auditions the sounds; then the launch package (HANDOFF.md section 4).

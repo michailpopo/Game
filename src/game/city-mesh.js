@@ -10,6 +10,7 @@
  * glowing fill line, a white flash on the hit; its roof, cap and rod ball light when the flood reaches the top.
  * BLOCK POWERED: the district pad turns warm in a wave from its centre and its buildings pulse in order.
  * FULL POWER: sweep() ripples a flash across the whole city.
+ * Water themes (look.js world.water): the field is sea, the city stands on islands (buildIslands), trees only on land.
  * Ground: a calm field to the horizon, the asphalt plate, rounded district pads, lane dashes, park trees in
  * empty lots, a tree ring (no shadows), a few toy cars; the storm front is a row of slate puffs behind the city.
  * Built once per city (disposed on rebuild); per frame only the instance attributes that changed are uploaded.
@@ -40,6 +41,82 @@ const CAP = 0.55;               // roof rim cap height (m)
 const MAX_W = STORM.city.maxVisual;       // widest visual footprint (lots are 9 m apart, +-1.2 m jitter)
 const GROW = STORM.city.visualGrow;       // drawn body vs sim footprint
 const CAP_OVER = STORM.city.capOverhang;  // flat roof caps are this much wider than the body (sim.js keeps air between them)
+
+// Islands (themes whose field is sea, look.js world.water). The city stands on a green island: grass on top, a sand
+// beach one step below, a lighter shallow ring around it; a few small islets carry the scenery trees, so nothing
+// grows on water. Three instanced layers (grass, sand, shallow) = 3 draw calls, 22 triangles per island and layer.
+const WATER_Y = -1.0;           // sea level (land themes keep the field at -0.05)
+const ISLE_BASE = -1.4;         // island bottoms, hidden under the water
+const SAND_TOP = -0.45;         // beach height: a 0.45 m step down from the grass
+const SHALLOW_TOP = WATER_Y + 0.04;
+
+export const ISLAND_CHAMFER = 0.22;   // island footprints are chamfered rectangles (corners cut off)
+
+/**
+ * Where the islands are and which trees stand on them (pure: no meshes; tools/qa/check-city.mjs tests it).
+ * @param {object} o  rng: the look stream; plate: asphalt plate side (m); vx, vz: the camera's ground direction
+ * @returns {{ isles: {x:number,z:number,w:number,d:number,beach:number,shallow:number}[], trees: {kind:string,x:number,z:number,s:number,r:number}[] }}
+ *          isles[0] is the main island under the city; every tree stands on land (y = 0) inside some island's footprint
+ */
+export function planIslands({ rng, plate, vx, vz }) {
+  const half = plate / 2, rim = 9;                          // land margin around the asphalt plate (m)
+  const isles = [{ x: 0, z: 0, w: plate + rim * 2, d: plate + rim * 2, beach: 3.5, shallow: 6 }];
+  const mainReach = half + rim + 3.5 + 6;                   // the main island's shallow ring, from the centre
+  const trees = [];
+  // Inside the chamfered footprint of island o, shrunk by `pad` m (so a tree never stands on the beach edge).
+  const onLand = (o, x, z, pad) => {
+    const u = Math.abs(x - o.x) / (o.w - pad * 2), v = Math.abs(z - o.z) / (o.d - pad * 2);
+    return u <= 0.5 && v <= 0.5 && u + v <= 1 - ISLAND_CHAMFER;
+  };
+  const camSide = (x, z) => (x * vx + z * vz) / Math.max(1, Math.hypot(x, z)) > 0.35;   // between camera and city: stay open
+
+  // Small islets behind and beside the city.
+  for (let k = 0; k < 90 && isles.length < 10; k++) {
+    const rx = rng.range(3.6, 8.6), rz = rx * rng.range(0.75, 1.2);
+    const a = rng.range(0, Math.PI * 2), dist = mainReach + rx + rng.range(5, 52);
+    const x = Math.cos(a) * dist, z = Math.sin(a) * dist;
+    if (camSide(x, z)) continue;
+    if (Math.abs(x) < mainReach + rx + 3 && Math.abs(z) < mainReach + rz + 3) continue;   // clear of the main island
+    if (isles.some((o, i) => i > 0 && Math.hypot(o.x - x, o.z - z) < (o.w + o.d) / 4 + rx + rz + 7)) continue;
+    isles.push({ x, z, w: rx * 2, d: rz * 2, beach: 1.5, shallow: 3 });
+    const n = rx > 6.4 ? 3 : rx > 4.8 ? 2 : 1;
+    for (let t = 0; t < n; t++) {
+      const ta = rng.range(0, Math.PI * 2), tr = rng.range(0, 0.55);
+      trees.push({ kind: rng.next() < 0.55 ? "roundTree" : "coneTree", x: x + Math.cos(ta) * tr * rx, z: z + Math.sin(ta) * tr * rz, s: rng.range(1.6, 2.4), r: rng.range(0, 6.28) });
+    }
+  }
+  // A few trees on the main island's margin (never in front of the city).
+  for (let k = 0; k < 40 && trees.length < 40; k++) {
+    const x = rng.range(-1, 1) * (half + rim - 1.8), z = rng.range(-1, 1) * (half + rim - 1.8);
+    if (Math.abs(x) < half + 1.2 && Math.abs(z) < half + 1.2) continue;   // keep the asphalt plate clear
+    if (camSide(x, z) || !onLand(isles[0], x, z, 1.6)) continue;
+    trees.push({ kind: rng.next() < 0.55 ? "roundTree" : "coneTree", x, z, s: rng.range(1.8, 2.6), r: rng.range(0, 6.28) });
+  }
+  return { isles, trees };
+}
+
+/** The island meshes (grass, sand, shallow: 3 instanced layers). Returns the scenery trees to plant. */
+function buildIslands({ own, group, W, rng, plate, vx, vz }) {
+  const C = W.water;
+  const { isles, trees } = planIslands({ rng, plate, vx, vz });
+  const geo = own(chamferPrismGeometry(ISLAND_CHAMFER));
+  const layers = [
+    { name: "isle-shallow", color: C.shallow, top: SHALLOW_TOP, grow: (i) => (i.beach + i.shallow) * 2 },
+    { name: "isle-sand", color: C.sand, top: SAND_TOP, grow: (i) => i.beach * 2 },
+    { name: "isle-land", color: C.land, top: 0, grow: () => 0 },
+  ];
+  for (const L of layers) {
+    const mesh = new InstancedMesh(geo, own(new MeshStandardMaterial({ color: L.color, roughness: 0.92 })), isles.length);
+    mesh.name = L.name;
+    mesh.receiveShadow = true;
+    isles.forEach((o, i) => {
+      const g = L.grow(o);
+      mesh.setMatrixAt(i, _m.compose(_p.set(o.x, ISLE_BASE, o.z), ID, _s.set(o.w + g, L.top - ISLE_BASE, o.d + g)));
+    });
+    group.add(mesh);
+  }
+  return trees;
+}
 
 export class CityMesh {
   group = new Group();
@@ -214,7 +291,7 @@ export class CityMesh {
     const size = Math.max(city.width, city.depth);
     const field = new Mesh(this.#own(new PlaneGeometry(size * 14 + 400, size * 14 + 400)), this.#own(new MeshStandardMaterial({ color: W.field, roughness: 0.95 })));
     field.rotation.x = -Math.PI / 2;
-    field.position.y = -0.05;
+    field.position.y = W.water ? WATER_Y : -0.05;
     field.receiveShadow = true;
     field.name = "field";
     const avenue = plan?.avenue ?? 6;
@@ -262,14 +339,18 @@ export class CityMesh {
         for (let t = 0; t < k && trees.length < 70; t++) trees.push({ kind: rng.next() < 0.6 ? "roundTree" : "coneTree", x: x + rng.range(-2, 2), z: z + rng.range(-2, 2), s: rng.range(1.7, 2.3), r: rng.range(0, 6.28) });
       }
     }
-    // the tree ring: behind and beside the city only (the camera side stays open), sparse near the plate
+    // the tree ring: behind and beside the city only (the camera side stays open), sparse near the plate.
+    // Water themes: no ring on the sea - the trees stand on islands (buildIslands, 3 draws) instead.
     const outer = size / 2 + avenue + 8, yaw0 = 35 * Math.PI / 180, vx = Math.sin(yaw0), vz = Math.cos(yaw0);
-    for (let k = 0; k < 70 && ring.length < 38; k++) {
-      const a = rng.range(0, Math.PI * 2), rr = outer + rng.range(6, 60);
-      const x = Math.cos(a) * rr, z = Math.sin(a) * rr;
-      if (Math.abs(x) < outer - 2 && Math.abs(z) < outer - 2) continue;
-      if ((x * vx + z * vz) / rr > 0.35) continue;             // not between the camera and the city
-      ring.push({ kind: rng.next() < 0.55 ? "roundTree" : "coneTree", x, z, s: rng.range(1.8, 2.8), r: rng.range(0, 6.28) });
+    if (W.water) ring.push(...buildIslands({ own: (r) => this.#own(r), group: this.group, W, rng, plate: city.width + avenue * 2 + 6, vx, vz }));
+    else {
+      for (let k = 0; k < 70 && ring.length < 38; k++) {
+        const a = rng.range(0, Math.PI * 2), rr = outer + rng.range(6, 60);
+        const x = Math.cos(a) * rr, z = Math.sin(a) * rr;
+        if (Math.abs(x) < outer - 2 && Math.abs(z) < outer - 2) continue;
+        if ((x * vx + z * vz) / rr > 0.35) continue;             // not between the camera and the city
+        ring.push({ kind: rng.next() < 0.55 ? "roundTree" : "coneTree", x, z, s: rng.range(1.8, 2.8), r: rng.range(0, 6.28) });
+      }
     }
     for (let k = 0; k < Math.min(14, (lx.length + lz.length) * 2); k++) {
       const along = rng.next() < 0.5, list = along ? lx : lz;

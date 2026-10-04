@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 /**
- * City layout health: no two buildings may touch, in any city.
+ * City layout health: no two buildings may touch, and nothing may grow on water, in any city.
  *
  *   node tools/qa/check-city.mjs             check cities 1..60 (part of npm run qa)
  *   node tools/qa/check-city.mjs --selftest  also prove the check FAILS on footprints that were never trimmed
@@ -9,12 +9,18 @@
  * and the roof cap is capOverhang wider. Two buildings pass when their roof caps are at least
  * `clearance` m apart along one axis (config.js STORM.city), and no footprint side is under footprintMin.
  * Keep the two formulas below in step with city-mesh.js.
+ *
+ * Islands (themes whose field is sea): every scenery tree must stand on an island's grass (chamfered footprint, with
+ * 0.5 m to spare) and no two islands may overlap, checked on cities 1-60 x 4 random streams.
  */
 
 import { mkdirSync, writeFileSync } from "node:fs";
 import { dirname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { STORM } from "../../src/config.js";
+import { createRng } from "../../src/core/rng.js";
+import { ISLAND_CHAMFER, planIslands } from "../../src/game/city-mesh.js";
+import { themeOf } from "../../src/game/look.js";
 import { generateCity } from "../../src/game/sim.js";
 
 const root = resolve(dirname(fileURLToPath(import.meta.url)), "../..");
@@ -48,6 +54,28 @@ function measure(cities) {
   return { pairs, touching, tight, minAir, minSide, worst };
 }
 
+/** Island plans for every water-theme city; `shift` moves all trees (selftest: planted trees on water). */
+function checkIslands(cities, shift = 0) {
+  const yaw = 35 * Math.PI / 180, vx = Math.sin(yaw), vz = Math.cos(yaw);
+  let plans = 0, trees = 0, onWater = 0, overlaps = 0, minIsles = Infinity, levels = 0;
+  const onGrass = (o, x, z) => { const u = Math.abs(x - o.x) / (o.w - 1), v = Math.abs(z - o.z) / (o.d - 1); return u <= 0.5 && v <= 0.5 && u + v <= 1 - ISLAND_CHAMFER; };
+  for (const city of cities) {
+    if (!themeOf(city).world.water) continue;
+    levels++;
+    for (let k = 0; k < 4; k++) {
+      const rng = createRng(`city-${city.level}:look:${city.level}:${k}`);
+      const { isles, trees: ts } = planIslands({ rng, plate: city.width + city.plan.avenue * 2 + 6, vx, vz });
+      plans++; minIsles = Math.min(minIsles, isles.length);
+      for (const t of ts) { trees++; if (!isles.some((o) => onGrass(o, t.x + shift, t.z + shift))) onWater++; }
+      for (let i = 0; i < isles.length; i++) for (let j = i + 1; j < isles.length; j++) {
+        const a = isles[i], b = isles[j];   // sand outlines (grass + beach) must not touch
+        if (Math.abs(a.x - b.x) < (a.w + b.w) / 2 + a.beach + b.beach && Math.abs(a.z - b.z) < (a.d + b.d) / 2 + a.beach + b.beach) overlaps++;
+      }
+    }
+  }
+  return { levels, plans, trees, onWater, overlaps, minIsles };
+}
+
 const cities = [];
 for (let n = 1; n <= LEVELS; n++) cities.push(generateCity(n, `city-${n}`, 0));
 const m = measure(cities);
@@ -66,6 +94,18 @@ record({
   summary: `narrowest footprint side ${m.minSide.toFixed(2)} m (floor ${C.footprintMin} m)`,
 });
 
+const isl = checkIslands(cities);
+record({
+  id: "trees-on-land",
+  status: isl.levels > 0 && isl.trees > 0 && isl.onWater === 0 ? "PASS" : "FAIL",
+  summary: `${isl.levels} water-theme cities x 4 streams: ${isl.trees} scenery trees, ${isl.onWater} on water`,
+});
+record({
+  id: "islands-apart",
+  status: isl.overlaps === 0 && isl.minIsles >= 4 ? "PASS" : "FAIL",
+  summary: `${isl.plans} island plans: ${isl.overlaps} overlapping islands, fewest islands in a plan ${isl.minIsles}`,
+});
+
 // Same city twice must be identical: the layout is seeded, trimming draws no randoms.
 const again = generateCity(30, "city-30", 0), first = cities[29];
 const same = again.buildings.length === first.buildings.length && again.buildings.every((b, i) => {
@@ -80,6 +120,8 @@ if (process.argv.includes("--selftest")) {
   const p = measure(planted);
   const caught = p.touching > 0 || p.tight > 0;
   record({ id: "selftest", status: caught ? "PASS" : "FAIL", summary: `untrimmed footprints (must FAIL): ${p.touching} bodies touching, ${p.tight} roof caps too close -> ${caught ? "check reported failure" : "BAD: the check cannot detect this"}` });
+  const wet = checkIslands(cities, 40);   // every tree moved 40 m: onto the water
+  record({ id: "selftest-islands", status: wet.onWater > 0 ? "PASS" : "FAIL", summary: `trees moved onto the sea (must FAIL): ${wet.onWater} of ${wet.trees} on water -> ${wet.onWater > 0 ? "check reported failure" : "BAD: the check cannot detect this"}` });
 }
 
 mkdirSync(resolve(root, "qa/evidence"), { recursive: true });

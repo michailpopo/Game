@@ -31,7 +31,8 @@ export const LOOK = {
 /**
  * 8 themes x 5 cities (then they cycle). Names: i18n keys `theme_<id>`.
  *   window/accent/fog  legacy keys (still read by the UI side)
- *   world              field, asphalt, pad (sidewalk), padLit (a powered block), unlit, unlitWin, trim, dash, trees[]
+ *   world              field, asphalt, pad (sidewalk), padLit (a powered block), unlit, unlitWin, trim, dash, trees[],
+ *                      water? { land, sand, shallow } - set on themes whose field is sea: the city stands on islands (city-mesh.js)
  *   lit                candy colours for lit buildings (warm/candy; the bolt keeps cyan to itself)
  *   sky                overrides of BACKDROPS.dusk (top, horizon, glow, glow2, fog, hemiSky, hemiGround, key)
  */
@@ -44,7 +45,8 @@ export const THEMES = [
   },
   {
     id: "harbour", window: "#ffc07a", accent: "#7cf3ff", fog: "#8fb0d8",
-    world: { field: "#3f93d6", asphalt: "#56607f", pad: "#ece6dc", padLit: "#fff0cf", unlit: "#8b99b0", unlitWin: "#4a5873", trim: "#a3b0c6", dash: "#f4f6ff", trees: ["#4fbf6a", "#6fd07a", "#3aa36a"] },
+    world: { field: "#3f93d6", asphalt: "#56607f", pad: "#ece6dc", padLit: "#fff0cf", unlit: "#8b99b0", unlitWin: "#4a5873", trim: "#a3b0c6", dash: "#f4f6ff", trees: ["#4fbf6a", "#6fd07a", "#3aa36a"],
+      water: { land: "#86cb64", sand: "#f2e3b6", shallow: "#6bb8ee" } },
     lit: ["#ff5e57", "#ffc21a", "#ff8c2a", "#ff6fb5", "#3fd07a", "#ffe6a0"],
     sky: { top: "#1f4aa0", horizon: "#ffc49a", glow: "#ffe0b0", glow2: "#ff9ec0", fog: "#8fb0d8", hemiSky: "#bcd6ff" },
   },
@@ -62,7 +64,8 @@ export const THEMES = [
   },
   {
     id: "neonbay", window: "#ff9ad5", accent: "#ff3fa4", fog: "#6a5aa8",
-    world: { field: "#3552a8", asphalt: "#474c7e", pad: "#d3cdef", padLit: "#ffe3f4", unlit: "#7a80b0", unlitWin: "#3c4170", trim: "#9095c4", dash: "#e8e4ff", trees: ["#3fc48a", "#5fd49a", "#2fa47a"] },
+    world: { field: "#3552a8", asphalt: "#474c7e", pad: "#d3cdef", padLit: "#ffe3f4", unlit: "#7a80b0", unlitWin: "#3c4170", trim: "#9095c4", dash: "#e8e4ff", trees: ["#3fc48a", "#5fd49a", "#2fa47a"],
+      water: { land: "#3d9c8c", sand: "#e6d9f6", shallow: "#5573c9" } },
     lit: ["#ff4fb4", "#9d6bff", "#ff8c2a", "#9dff3a", "#ffcf3a", "#ff5e57"],
     sky: { top: "#1a1f6e", horizon: "#ff8ac8", glow: "#ffb0e0", glow2: "#9a7aff", fog: "#6a5aa8", hemiSky: "#a8b0ff", key: "#ffb8d8" },
   },

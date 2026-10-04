@@ -57,6 +57,16 @@ and random draws are untouched, so hops, balance and sim-health are identical. 1
 47). Knobs: `STORM.city.clearance / footprintMin / visualGrow / maxVisual / capOverhang` in `src/config.js` (city-mesh.js reads
 the same constants). Guard: `tools/qa/check-city.mjs` (in `npm run qa`, with a selftest). Not yet judged by the owner's eyes.
 
+**2026-10-04, owner feedback "trees on water make no sense, bring back the islands" - done.** There is no earlier island
+code in git (searched every commit), so the islands are new: the two water themes (Harbour cities 6-10, Neon Bay 21-25,
+cycling at 46-50 ...; flag `world.water` in `src/game/look.js`) now put the city on a grass island with a sand beach and a
+lighter shallow ring (sea level -1.0 m), plus up to 9 small islets behind and beside the city that carry the scenery trees.
+Nothing grows on water any more (the old "tree ring" on the sea is gone for those themes; land themes are unchanged).
+Code: `planIslands()` (pure, exported) + `buildIslands()` in `src/game/city-mesh.js`; +3 draw calls (max 35 of 60, 34.5k of
+60k tris at city 50). Guard in `tools/qa/check-city.mjs`: every tree on an island, islands never overlap (+ selftest).
+Open for the owner's eyes: whether the islands look right, whether Sky Port (cities 36-40, white field) should also be floating
+islands, and Neon Bay is dark (teal land on indigo sea).
+
 **Correction to the 2026-09-28 handoff:** `ads-fill` is NOT a game bug and `persistence`/`poly-budget`/the other
 crashes are NOT WP-31/32 regressions - they are test-tool problems (details in `docs/CG_QA_AUDIT.md`, "Test-tool findings").
 

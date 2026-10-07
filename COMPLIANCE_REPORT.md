@@ -1,6 +1,6 @@
 # Compliance report - Storm Grid
 
-Generated 2026-10-04 20:57 UTC · build `b1d7dbf5bc68` · target stage **full** · register 2026.09.11 (researched 2026-09-11)
+Generated 2026-10-07 19:55 UTC · build `053adf28dbc3` · target stage **full** · register 2026.09.11 (researched 2026-09-11)
 
 ## Verdict: NOT VERIFIED - 36 mandatory requirements lack current evidence
 
@@ -16,10 +16,10 @@ Legend: PORTAL = can only be confirmed in the Developer Portal preview or by Cra
 
 | Id | Requirement | Type | Stage | Status | Evidence |
 |---|---|---|---|---|---|
-| CG-TECH-001 | Initial download <= 50 MB | mandatory | both | **PASS** | PASS: ready in 3461 ms; 0.23 MB transferred up to first gameplayStart (limit 50 MB, mobile homepage 20 MB) _(browser-qa)_ |
-| CG-TECH-002 | Total size <= 250 MB (<= 50 MB without SDK) | mandatory | both | **PASS** | PASS: 0.79 MB (limit 250 MB, SDK integrated) _(check-bundle)_ |
+| CG-TECH-001 | Initial download <= 50 MB | mandatory | both | **PASS** | PASS: ready in 3571 ms; 0.23 MB transferred up to first gameplayStart (limit 50 MB, mobile homepage 20 MB) _(browser-qa)_ |
+| CG-TECH-002 | Total size <= 250 MB (<= 50 MB without SDK) | mandatory | both | **PASS** | PASS: 0.80 MB (limit 250 MB, SDK integrated) _(check-bundle)_ |
 | CG-TECH-003 | File count <= 1500 | mandatory | both | **PASS** | PASS: 6 files (limit 1500) _(check-bundle)_ |
-| CG-TECH-004 | Mobile homepage eligibility: initial download <= 20 MB | mandatory | both | **PASS** | PASS: ready in 3461 ms; 0.23 MB transferred up to first gameplayStart (limit 50 MB, mobile homepage 20 MB) _(browser-qa)_ |
+| CG-TECH-004 | Mobile homepage eligibility: initial download <= 20 MB | mandatory | both | **PASS** | PASS: ready in 3571 ms; 0.23 MB transferred up to first gameplayStart (limit 50 MB, mobile homepage 20 MB) _(browser-qa)_ |
 | CG-TECH-005 | Relative paths only | mandatory | both | **PASS** | PASS: no absolute asset paths _(check-bundle)_ |
 | CG-TECH-007 | Works on Chrome and Edge | mandatory | both | **UNVERIFIED** |  |
 | CG-TECH-008 | Smooth on a 4 GB RAM Chromebook | mandatory | both | **UNVERIFIED** | check with: browser-qa performance (evidence only) |
@@ -63,7 +63,7 @@ Legend: PORTAL = can only be confirmed in the Developer Portal preview or by Cra
 | Id | Requirement | Type | Stage | Status | Evidence |
 |---|---|---|---|---|---|
 | CG-SDK-001 | SDK required for Full Launch (HTML5 v3) | mandatory | full | **PASS** | PASS: SDK v3 tag in <head> before game code _(check-bundle)_ |
-| CG-SDK-002 | First gameplayStart marks a real playable state | mandatory | both | **PASS** | PASS: ready in 3461 ms; 0.23 MB transferred up to first gameplayStart (limit 50 MB, mobile homepage 20 MB) _(browser-qa)_ |
+| CG-SDK-002 | First gameplayStart marks a real playable state | mandatory | both | **PASS** | PASS: ready in 3571 ms; 0.23 MB transferred up to first gameplayStart (limit 50 MB, mobile homepage 20 MB) _(browser-qa)_ |
 | CG-SDK-003 | gameplayStart/gameplayStop on real breaks, not on focus loss | mandatory | full | **PASS** | PASS: gameplayStop not tied to focus/visibility _(policy-scan)_ |
 | CG-SDK-004 | settings.muteAudio outranks the in-game toggle | mandatory | full | **UNVERIFIED** | check with: browser-qa mute-priority |
 | CG-SDK-005 | Handle SDK environments | mandatory | both | **UNVERIFIED** | check with: browser-qa no-sdk, sdk-disabled, sdk-init-hang |

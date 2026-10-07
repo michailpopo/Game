@@ -89,8 +89,8 @@ WATER GLSL block (band spacing 3.4 m, speed 0.3, crest threshold 0.53 / opacity 
 **2026-10-04 (evening), owner: "small cars driving, small people, benches and parks; all maps should look finished, not
 plain; work on the cloud" - done.** No earlier version with people/benches/driving cars exists in git (searched all 45
 commits on both branches; cars were static props only) - likely the WP-21 hit-game reference images. Built new:
-- `src/game/storm-cloud.js`: the storm front is a toy thunderhead - one chopped (flat-bottomed) puff geometry instanced in
-  4 tiers, 2 rows deep, slate underneath / pale lilac on top, breathing, inner flicker while charging, flash on the strike.
+- `src/game/storm-cloud.js`: the storm front is a toy thunderhead (reshaped 2026-10-07, see below), inner flicker while
+  charging, flash on the strike.
 - `src/game/city-life.js`: empty lots become parks (lawn, paths, fountain / grove / pond layouts, benches, lamps, flower
   bushes, trees; front lots dressed first), lamps on the block rims, pawn people walking (parks + rims, never through a
   building), cars driving on the avenues (two lanes on wide avenues and the ring road, one-way on narrow ones).
@@ -124,6 +124,18 @@ below, a few at city height; 4 striped hot-air balloons; an airship circling beh
 4 draw calls; island mesh <= 1,320 tris. Measured on cities 36/37/38/40: 43 draw calls, <= 55.0k tris per frame (of 60k).
 Ideas from: The Aviator (codrops, low-poly sky scene), low-poly floating-island and cloud tutorials (WebSearch summaries; the
 pages themselves are blocked by the proxy). Tapering rock is edge-on to this camera - keep the near-vertical cliff band.
+
+**2026-10-07, owner: "work on the cloud more, don't stop till it looks good, don't touch the thunder or anything else,
+just the form of the cloud" - done.** Only `src/game/storm-cloud.js` changed (API, position, size, palette, flicker, flash,
+strike origin all unchanged). The 25 separate instanced spheres (read as dark pillows/stones, faceted, each with its own rim)
+are now ONE smooth cumulus surface: rows of round lobes stepping up and back to a crown over a scalloped, flat base, round
+bumps on the upper lobes, blended as metaballs (smooth-union signed distance field, flat cut underneath) and meshed with
+naive surface nets (normals from the field, darker crevices by field occlusion). The cloud turns with the camera, so faces no
+game view can see are dropped (measured camera range from the cloud: 12-36 deg above, 0-18 deg to the side, landscape +
+portrait; culling uses 0-50 deg / -40..+25 deg). It is now the project's one "hero" geometry: 4,434-4,670 tris (hero budget
+5,000; nothing else is over 2,000). Built once per city, ~30 ms median in Node. Tried and dropped on the way: rays from one
+centre / a tube of slices (spikes and walls on the stepped shape), many small cauliflower bumps (busy, brain-like), a single
+cap lobe on top (heart / mushroom shape). Close-up tool: scratchpad `cloud-close.mjs` (camera override via `__GS_VIEW__`).
 
 **Correction to the 2026-09-28 handoff:** `ads-fill` is NOT a game bug and `persistence`/`poly-budget`/the other
 crashes are NOT WP-31/32 regressions - they are test-tool problems (details in `docs/CG_QA_AUDIT.md`, "Test-tool findings").
@@ -201,6 +213,10 @@ What I saw in the last screenshots (fix first; not re-judged on 2026-10-02):
 - Run the slow browser harness once per package with `--only <scenarios>`, not the full set every time.
 
 ## 8. Browser QA (re-run 2026-10-02, HEAD d575418, `PW_CHROMIUM_PATH=/opt/pw-browsers/chromium node tools/qa/browser-qa.mjs --serve`)
+
+Smoke re-run 2026-10-07 after the cloud reshape (`--only boot,poly-budget,dead-air,console-errors`): 4 PASS (boot 3.6 s /
+0.23 MB, 25.4k tris / 43 calls, heaviest geometry storm-cloud 4,434 tris, longest silence 2.0 s of 3 s, no console errors).
+Budget probe cities 1/13/28/33/37/40/50: <= 44 calls, <= 55.7k tris per frame. `npm run qa:fast` green, `check-city` PASS.
 
 Smoke re-run 2026-10-04 after Sky Port + target lock (`--only boot,poly-budget,dead-air,console-errors`): 4 PASS
 (boot 3.5 s / 0.23 MB, 24.8k tris / 43 calls, longest silence 2.1 s of 3 s, no console errors). Sky Port levels measured

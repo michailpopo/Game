@@ -1,88 +1,255 @@
 /**
  * The storm front: a toy thunderhead behind the city, the place every bolt comes from.
  *
- * Built the way stylised low-poly clouds usually are (merged/instanced spheres, "chopped" flat at the bottom,
- * dark underneath and light on top): one puff geometry - a sphere whose lower part is flattened into a disc - is
- * instanced in four tiers (the lower ones two rows deep, so it reads as a mass). The base tier sits on one shared height, so the whole cloud gets a flat, dark underside;
- * a middle tier and a few top puffs build the tower. Instance colours go from slate (base) to pale lilac (top) and the
- * puff's own vertex colours darken its underside, so every puff reads round. The puffs breathe slowly (per-frame
- * matrices, 25 instances); while a strike charges the cloud flickers from inside, and on the strike it flashes.
+ * One continuous surface, not a pile of spheres. The cloud is authored as soft "metaball" puffs - a scalloped base
+ * roll, rows of round lobes stepping up and back to a crown in the middle, round bumps on the upper lobes - blended
+ * into one signed distance field (smooth union) and cut flat underneath (smoothly, so the base edge is rounded). The
+ * mesh comes from naive surface nets over that field (evenly spaced vertices, normals from the field), so the puffs
+ * melt into each other without seams. The cloud turns with the camera, so only the faces some game view can see are
+ * kept; that buys the finer grid.
  *
- * Cost: 1 draw call, one 11x8 sphere (~150 triangles) x 25 puffs.
+ * Colour (vertex colours, same palette as before): slate at the base to pale lilac on top, darker on faces turned
+ * down, darker in the crevices between billows (distance-field occlusion), so the billows read in any light.
+ * The surface churns slowly (each vertex moves a little along its normal, a slow wave; the base stays flat); while a
+ * strike charges the cloud flickers from inside, and on the strike it flashes.
+ *
+ * Cost: 1 draw call, ~3,000-4,500 triangles (the project's one "hero" geometry, budget 5,000); built once per city
+ * (~30 ms), a light per-vertex update per frame.
  */
 
-import { BufferAttribute, Color, Group, InstancedMesh, Matrix4, MeshStandardMaterial, Quaternion, SphereGeometry, Vector3 } from "three";
+import { BufferAttribute, BufferGeometry, Color, Group, Mesh, MeshStandardMaterial } from "three";
 import { enhance } from "../render/materials.js";
 
-const CHOP = -0.32;              // puff y below this is pressed flat: the flat underside
-const TIERS = [
-  // count, spread (share of the cloud width), radius range (m, before the size scale), height step, squash, rows in depth
-  // (m, before the scale), colour: slate underneath, pale lilac-grey on top
-  { n: 10, spread: 0.9, r: [6.0, 8.2], y: 0.0, squash: 0.6, rows: [-4.5, 4.5], color: "#5f6688" },
-  { n: 8, spread: 0.82, r: [6.4, 9.2], y: 0.55, squash: 0.82, rows: [-1.5, 2.5], color: "#7c83a8" },
-  { n: 5, spread: 0.52, r: [5.6, 7.8], y: 1.2, squash: 0.9, rows: [0, 1.5], color: "#9fa5c8" },
-  { n: 2, spread: 0.18, r: [4.6, 5.8], y: 1.8, squash: 0.95, rows: [0.5], color: "#b9bed9" },
-];
-
-function puffGeometry() {
-  const g = new SphereGeometry(1, 11, 8);
-  const p = g.attributes.position, n = p.count, col = new Float32Array(n * 3);
-  for (let i = 0; i < n; i++) {
-    const y = p.getY(i);
-    if (y < CHOP) p.setY(i, CHOP);                      // the chop
-    const k = 0.62 + 0.38 * Math.min(1, Math.max(0, (y - CHOP) / (1 - CHOP)));   // darker underside
-    col.set([k, k, k * 1.04], i * 3);
-  }
-  g.setAttribute("color", new BufferAttribute(col, 3));
-  g.computeVertexNormals();
-  return g;
+const COLORS = [[0, "#5f6688"], [0.3, "#7c83a8"], [0.62, "#9fa5c8"], [1, "#b9bed9"]];   // slate base -> pale lilac top
+const MAX_TRIS = 4900;   // the cloud is the project's one "hero" geometry (budget 5,000)
+// Directions (cloud frame: x across, y up, z towards the camera) the game camera can look at the cloud from: it turns
+// with the camera, which stays 12-36 deg above it and up to 18 deg to the side (measured, landscape and portrait);
+// 0-50 deg and -40..+25 deg here for margin and perspective. Triangles facing away from all of them are dropped.
+const VIEWS = [];
+for (const e of [0, 12.5, 25, 37.5, 50]) for (const a of [-40, -20, 0, 25]) {
+  const er = (e * Math.PI) / 180, ar = (a * Math.PI) / 180;
+  VIEWS.push(Math.sin(ar) * Math.cos(er), Math.sin(er), Math.cos(ar) * Math.cos(er));
 }
 
-const _m = new Matrix4(), _p = new Vector3(), _s = new Vector3(), _c = new Color();
-const ID = new Quaternion();
+const smoothstep = (a, b, x) => { const t = Math.min(1, Math.max(0, (x - a) / (b - a))); return t * t * (3 - 2 * t); };
+/** Polynomial smooth minimum: the union of two distances with a fillet of size k. */
+const smin = (a, b, k) => { const h = Math.max(k - Math.abs(a - b), 0) / k; return Math.min(a, b) - h * h * k * 0.25; };
+
+/**
+ * The cloud's puffs in its own frame: x across the view, y up from the flat base, z towards the camera.
+ * Rows of round lobes step up and back like a tiered cake, so from the game camera (a little above, in front) every
+ * row shows a lit top over a darker front - the way a cumulus reads; small cauliflower bumps sit on the upper rows.
+ * @returns {{ x:number, y:number, z:number, rx:number, ry:number, rz:number }[]}
+ */
+function authorPuffs(rng, across, s) {
+  const puffs = [], half = across * 0.45;
+  const add = (x, y, z, r, sx, sy) => { const p = { x, y, z, rx: r * sx, ry: r * sy, rz: r }; puffs.push(p); return p; };
+  // n lobes across `spread` of the cloud, radius r (shrinking towards the ends), centre height y, depth z (+ = camera side)
+  const row = (n, spread, r, y, z, sx, sy, drop = 0.35) => {
+    const out = [];
+    for (let i = 0; i < n; i++) {
+      const t = (n === 1 ? 0 : (i / (n - 1)) * 2 - 1) + rng.range(-0.25, 0.25) / n;
+      const rr = r * (1 - 0.28 * t * t) * rng.range(0.9, 1.1);
+      out.push(add(t * half * spread, (y - drop * Math.abs(t) * y) * rng.range(0.94, 1.06), z + rng.range(-0.8, 0.8) * s, rr, sx, sy));
+    }
+    return out;
+  };
+  const lobes = [];
+  row(8, 1, 6.6 * s, 2.0 * s, 6.0 * s, 1.15, 0.78, 0);          // front base roll, sitting on the flat base: the scallops
+  row(6, 0.92, 7.0 * s, 2.4 * s, -3.0 * s, 1.2, 0.75, 0);        // back base roll (thickness; mostly hidden)
+  lobes.push(...row(6, 0.84, 7.4 * s, 6.0 * s, 2.4 * s, 1.1, 0.82));   // second row, up and back
+  lobes.push(...row(4, 0.6, 7.6 * s, 10.2 * s, -0.4 * s, 1.06, 0.86)); // third row
+  lobes.push(...row(3, 0.36, 6.8 * s, 14 * s, -2.0 * s, 1.06, 0.88));  // the tower's crown (its bumps make the top)
+  // a couple of round bumps on the upper, camera-facing side of each upper lobe (big enough to read as lobes, not noise)
+  for (const d of lobes) {
+    for (let k = 0; k < 2; k++) {
+      const a = (k ? 1 : -1) * rng.range(0.25, 0.9), up = rng.range(0.5, 0.8), h = Math.sqrt(1 - up * up);
+      const vx = Math.sin(a) * h, vz = Math.cos(a) * h;            // a = 0: straight at the camera
+      add(d.x + vx * d.rx * 0.78, d.y + up * d.ry * 0.78, d.z + vz * d.rz * 0.78, rng.range(3.0, 4.0) * s, 1.08, 0.88);
+    }
+  }
+  return puffs;
+}
+
+/** Signed distance to the cloud: the puffs' smooth union, cut flat at y = 0 with a rounded edge. */
+function cloudField(puffs, s) {
+  const k = 1.0 * s, kb = 0.9 * s;
+  const F = new Float64Array(puffs.length * 7);                  // flat: x, y, z, 1/rx, 1/ry, 1/rz, max radius
+  puffs.forEach((p, i) => F.set([p.x, p.y, p.z, 1 / p.rx, 1 / p.ry, 1 / p.rz, Math.max(p.rx, p.ry, p.rz)], i * 7));
+  return (x, y, z) => {
+    let d = Infinity;
+    for (let o = 0; o < F.length; o += 7) {
+      const dx = x - F[o], dy = y - F[o + 1], dz = z - F[o + 2];
+      if (d !== Infinity) { const m = d + k + F[o + 6]; if (m > 0 && dx * dx + dy * dy + dz * dz > m * m) continue; }   // too far to matter
+      const ix = F[o + 3], iy = F[o + 4], iz = F[o + 5], qx = dx * ix, qy = dy * iy, qz = dz * iz;
+      const k0 = Math.sqrt(qx * qx + qy * qy + qz * qz);
+      const k1 = Math.sqrt(qx * qx * ix * ix + qy * qy * iy * iy + qz * qz * iz * iz) || 1e-6;
+      const e = (k0 * (k0 - 1)) / k1;                             // ellipsoid distance bound (Quilez)
+      d = d === Infinity ? e : smin(d, e, k);
+    }
+    return -smin(-d, y, kb);                                     // smooth max(d, -y): the flat base
+  };
+}
+
+/** The field's gradient (central differences), normalised: the surface normal. */
+function gradient(sdf, x, y, z, e, out) {
+  const gx = sdf(x + e, y, z) - sdf(x - e, y, z), gy = sdf(x, y + e, z) - sdf(x, y - e, z), gz = sdf(x, y, z + e) - sdf(x, y, z - e);
+  const l = Math.sqrt(gx * gx + gy * gy + gz * gz) || 1;
+  out[0] = gx / l; out[1] = gy / l; out[2] = gz / l;
+  return out;
+}
+
+/**
+ * The mesh: naive surface nets over the distance field. The field is sampled on a grid of cell h; every cell the
+ * surface passes through gets one vertex (the mean of its edge crossings, then snapped onto the surface along the
+ * gradient), and every grid edge the surface crosses gets a quad between the four cells round it. Watertight, evenly
+ * spaced vertices; normals come from the field itself, so the shading is smooth at any cell size.
+ */
+function surfaceNet(puffs, sdf, h) {
+  let x0 = Infinity, x1 = -Infinity, y1 = 0, z0 = Infinity, z1 = -Infinity;
+  for (const p of puffs) { x0 = Math.min(x0, p.x - p.rx); x1 = Math.max(x1, p.x + p.rx); y1 = Math.max(y1, p.y + p.ry); z0 = Math.min(z0, p.z - p.rz); z1 = Math.max(z1, p.z + p.rz); }
+  const m = 2 * h, ox = x0 - m, oy = -m, oz = z0 - m;
+  const nx = Math.ceil((x1 + m - ox) / h) + 1, ny = Math.ceil((y1 + m - oy) / h) + 1, nz = Math.ceil((z1 + m - oz) / h) + 1;
+  const S = new Float32Array(nx * ny * nz), at = (i, j, k) => i + nx * (j + ny * k);
+  // a coarse pass (every other sample) first; the fine samples are only evaluated near the surface
+  for (let k = 0; k < nz; k += 2) for (let j = 0; j < ny; j += 2) for (let i = 0; i < nx; i += 2) S[at(i, j, k)] = sdf(ox + i * h, oy + j * h, oz + k * h);
+  const band = 2.2 * h;
+  for (let k = 0; k < nz; k++) for (let j = 0; j < ny; j++) for (let i = 0; i < nx; i++) {
+    if (!(i & 1) && !(j & 1) && !(k & 1)) continue;
+    const c = S[at(Math.min(i + (i & 1), nx - 1) & ~1, Math.min(j + (j & 1), ny - 1) & ~1, Math.min(k + (k & 1), nz - 1) & ~1)];
+    S[at(i, j, k)] = Math.abs(c) > band ? c : sdf(ox + i * h, oy + j * h, oz + k * h);
+  }
+  const cell = new Int32Array(nx * ny * nz).fill(-1), pos = [], nrm = [], g = [0, 0, 0];
+  // the 8 corners of a cell (offsets in grid units and in S) and its 12 edges (corner pairs)
+  const CX = [0, 1, 0, 1, 0, 1, 0, 1], CY = [0, 0, 1, 1, 0, 0, 1, 1], CZ = [0, 0, 0, 0, 1, 1, 1, 1];
+  const CO = CX.map((x, c) => x + nx * (CY[c] + ny * CZ[c]));
+  const EA = [0, 2, 4, 6, 0, 1, 4, 5, 0, 1, 2, 3], EB = [1, 3, 5, 7, 2, 3, 6, 7, 4, 5, 6, 7];
+  const v = new Float32Array(8);
+  for (let k = 0; k + 1 < nz; k++) for (let j = 0; j + 1 < ny; j++) for (let i = 0; i + 1 < nx; i++) {
+    const o = at(i, j, k);
+    let inside = 0;
+    for (let c = 0; c < 8; c++) { v[c] = S[o + CO[c]]; if (v[c] < 0) inside++; }
+    if (inside === 0 || inside === 8) continue;
+    let px = 0, py = 0, pz = 0, n = 0;
+    for (let e = 0; e < 12; e++) {
+      const a = EA[e], b = EB[e];
+      if ((v[a] < 0) === (v[b] < 0)) continue;
+      const t = v[a] / (v[a] - v[b]);
+      px += CX[a] + (CX[b] - CX[a]) * t; py += CY[a] + (CY[b] - CY[a]) * t; pz += CZ[a] + (CZ[b] - CZ[a]) * t; n++;
+    }
+    let x = ox + (i + px / n) * h, y = oy + (j + py / n) * h, z = oz + (k + pz / n) * h;
+    // the cell's own gradient (from the samples) decides if any camera can see this vertex; only those are snapped
+    // onto the surface and get the field's exact normal (the rest keep the cheap one: back faces, dropped below)
+    let gx = 0, gy = 0, gz = 0;
+    for (let c = 0; c < 8; c++) { gx += CX[c] ? v[c] : -v[c]; gy += CY[c] ? v[c] : -v[c]; gz += CZ[c] ? v[c] : -v[c]; }
+    const gl = Math.sqrt(gx * gx + gy * gy + gz * gz) || 1;
+    g[0] = gx / gl; g[1] = gy / gl; g[2] = gz / gl;
+    let seen = false;
+    for (let w = 0; w < VIEWS.length && !seen; w += 3) seen = g[0] * VIEWS[w] + g[1] * VIEWS[w + 1] + g[2] * VIEWS[w + 2] > -0.35;
+    if (seen) {
+      const d = sdf(x, y, z);
+      gradient(sdf, x, y, z, 0.3 * h, g);
+      x -= g[0] * d; y -= g[1] * d; z -= g[2] * d;
+    }
+    cell[o] = pos.length / 3;
+    pos.push(x, y, z); nrm.push(g[0], g[1], g[2]);
+  }
+  // one quad per crossed grid edge; axis a with (b, c) the next two axes in cyclic order, so b x c = a
+  const tri = [], D = [[1, 0, 0], [0, 1, 0], [0, 0, 1]];
+  for (let k = 1; k + 1 < nz; k++) for (let j = 1; j + 1 < ny; j++) for (let i = 1; i + 1 < nx; i++) {
+    const s0 = S[at(i, j, k)] < 0;
+    for (let a = 0; a < 3; a++) {
+      const [ai, aj, ak] = D[a];
+      if (s0 === (S[at(i + ai, j + aj, k + ak)] < 0)) continue;
+      const [bi, bj, bk] = D[(a + 1) % 3], [ci, cj, ck] = D[(a + 2) % 3];
+      const q00 = cell[at(i - bi - ci, j - bj - cj, k - bk - ck)], q10 = cell[at(i - ci, j - cj, k - ck)];
+      const q11 = cell[at(i, j, k)], q01 = cell[at(i - bi, j - bj, k - bk)];
+      if (q00 < 0 || q10 < 0 || q11 < 0 || q01 < 0) continue;
+      if (s0) tri.push(q00, q10, q11, q00, q11, q01);           // inside at the low end: the surface faces +a
+      else tri.push(q00, q11, q10, q00, q01, q11);
+    }
+  }
+  // keep only the triangles some game camera can see (the rest are back faces from every view, never drawn)
+  const remap = new Int32Array(pos.length / 3).fill(-1), P = [], Nn = [], idx = [];
+  for (let t = 0; t < tri.length; t += 3) {
+    const a = tri[t] * 3, b = tri[t + 1] * 3, c = tri[t + 2] * 3;
+    const ux = pos[b] - pos[a], uy = pos[b + 1] - pos[a + 1], uz = pos[b + 2] - pos[a + 2];
+    const wx = pos[c] - pos[a], wy = pos[c + 1] - pos[a + 1], wz = pos[c + 2] - pos[a + 2];
+    const fx = uy * wz - uz * wy, fy = uz * wx - ux * wz, fz = ux * wy - uy * wx;
+    let seen = false;
+    for (let w = 0; w < VIEWS.length && !seen; w += 3) seen = fx * VIEWS[w] + fy * VIEWS[w + 1] + fz * VIEWS[w + 2] > 0;
+    if (!seen) continue;
+    for (let q = 0; q < 3; q++) {
+      const o = tri[t + q];
+      if (remap[o] < 0) { remap[o] = P.length / 3; P.push(pos[o * 3], pos[o * 3 + 1], pos[o * 3 + 2]); Nn.push(nrm[o * 3], nrm[o * 3 + 1], nrm[o * 3 + 2]); }
+      idx.push(remap[o]);
+    }
+  }
+  const geo = new BufferGeometry();
+  geo.setAttribute("position", new BufferAttribute(new Float32Array(P), 3));
+  geo.setAttribute("normal", new BufferAttribute(new Float32Array(Nn), 3));
+  geo.setIndex(idx);
+  return { geometry: geo, top: y1 };
+}
 
 /**
  * @param {{ range(a:number,b:number):number }} rng
- * @param {{ center: Vector3, yaw: number, across: number, scale: number, rim: string, glow: string }} o
- *   center: middle of the cloud's underside · yaw: the camera yaw (puffs spread across the view) · across: width (m)
+ * @param {{ center: import("three").Vector3, yaw: number, across: number, scale: number, rim: string, glow: string }} o
+ *   center: middle of the cloud's underside · yaw: the camera yaw (the cloud spreads across the view) · across: width (m)
  */
 export function createStormCloud(rng, { center, yaw, across, scale, rim, glow }) {
-  const geo = puffGeometry();
+  const s = scale;
+  const puffs = authorPuffs(rng, across, s);
+  const sdf = cloudField(puffs, s);
+  let h = 1.27 * s, net = surfaceNet(puffs, sdf, h);           // ~4,300 visible triangles at this cell size
+  for (let tries = 0; tries < 4 && net.geometry.index.count / 3 > MAX_TRIS; tries++) {   // coarser until in budget
+    h *= Math.sqrt(net.geometry.index.count / 3 / MAX_TRIS) * 1.03;
+    net.geometry.dispose();
+    net = surfaceNet(puffs, sdf, h);
+  }
+  const { geometry: geo, top } = net;
+  const P = geo.attributes.position, Nm = geo.attributes.normal, n = P.count;
+
+  // vertex colours: height ramp x underside shade x crevice occlusion
+  const ramp = COLORS.map(([t, hex]) => [t, new Color(hex)]);
+  const col = new Float32Array(n * 3), c = new Color();
+  const base = new Float32Array(P.array), amp = new Float32Array(n), phase = new Float32Array(n);
+  const occ = 2.0 * s;
+  for (let i = 0; i < n; i++) {
+    const x = P.getX(i), y = P.getY(i), z = P.getZ(i), nx = Nm.getX(i), ny = Nm.getY(i), nz = Nm.getZ(i);
+    const h = Math.min(1, Math.max(0, y / top));
+    let k = 1;
+    while (k < ramp.length - 1 && ramp[k][0] < h) k++;
+    c.copy(ramp[k - 1][1]).lerp(ramp[k][1], Math.min(1, Math.max(0, (h - ramp[k - 1][0]) / (ramp[k][0] - ramp[k - 1][0]))));
+    const shade = 0.62 + 0.38 * smoothstep(-0.9, 0.6, ny);
+    const open = Math.min(1, Math.max(0, sdf(x + nx * occ, y + ny * occ, z + nz * occ) / occ));
+    const ao = 0.45 + 0.55 * open;
+    col.set([c.r * shade * ao, c.g * shade * ao, c.b * shade * ao * 1.02], i * 3);
+    amp[i] = 0.32 * s * smoothstep(0.6 * s, 4 * s, y);           // the flat base stays put
+    phase[i] = x * 0.11 / s + y * 0.17 / s + z * 0.07 / s;
+  }
+  geo.setAttribute("color", new BufferAttribute(col, 3));
+  geo.computeBoundingSphere();
+  geo.boundingSphere.radius += 0.5 * s;
+
   const mat = enhance(new MeshStandardMaterial({ vertexColors: true, roughness: 1, emissive: glow, emissiveIntensity: 0, envMapIntensity: 0.3 }),
     { rim: 0.45, rimPower: 2.2, rimColor: rim, rimTint: 0 });
-  const puffs = [];
-  const ax = Math.cos(yaw), az = -Math.sin(yaw);        // across the view
-  const dx = -Math.sin(yaw), dz = -Math.cos(yaw);       // away from the camera
-  for (const T of TIERS) {
-    for (let i = 0; i < T.n; i++) {
-      const t = (T.n === 1 ? 0 : i / (T.n - 1) - 0.5) * T.spread + rng.range(-0.03, 0.03);
-      const taper = 1 - Math.abs(t) * 0.5;   // round ends, no trailing single puffs
-      const r = rng.range(T.r[0], T.r[1]) * scale * taper;
-      const depth = (T.rows[i % T.rows.length] + rng.range(-1.5, 1.5)) * scale;   // rows in depth: a mass, not a chain
-      // the base tier shares one height (flat underside); upper tiers rise towards the middle
-      const y = T.y === 0 ? -CHOP * r * T.squash : (T.y + (1 - Math.abs(t) * 2) * 0.35) * 6 * scale;
-      puffs.push({
-        x: center.x + ax * t * across + dx * depth, z: center.z + az * t * across + dz * depth, y: center.y + y,
-        r, squash: T.squash, color: T.color, phase: rng.range(0, 6.28), base: T.y === 0,
-      });
-    }
-  }
-  const mesh = new InstancedMesh(geo, mat, puffs.length);
+  const mesh = new Mesh(geo, mat);
   mesh.name = "storm-cloud";
-  puffs.forEach((p, i) => mesh.setColorAt(i, _c.set(p.color)));
+  mesh.position.copy(center);
+  mesh.rotation.y = yaw;                                         // x across the view, z towards the camera
   const group = new Group();
   group.add(mesh);
 
   let flashAt = -10;
   /** @param {number} time view seconds · @param {number} charge 0..1 while holding (inner flicker) */
   function update(time, charge = 0) {
-    for (let i = 0; i < puffs.length; i++) {
-      const p = puffs[i];
-      const breathe = 1 + Math.sin(time * 0.55 + p.phase) * 0.035;
-      const bob = p.base ? 0 : Math.sin(time * 0.4 + p.phase) * 0.35 * scale;   // the underside stays flat
-      mesh.setMatrixAt(i, _m.compose(_p.set(p.x, p.y + bob, p.z), ID, _s.set(p.r * 1.2 * breathe, p.r * p.squash * breathe, p.r * breathe)));
+    const a = P.array, nn = Nm.array;
+    for (let i = 0; i < n; i++) {
+      const w = amp[i] * Math.sin(time * 0.55 + phase[i]), j = i * 3;
+      a[j] = base[j] + nn[j] * w; a[j + 1] = base[j + 1] + nn[j + 1] * w; a[j + 2] = base[j + 2] + nn[j + 2] * w;
     }
-    mesh.instanceMatrix.needsUpdate = true;
+    P.needsUpdate = true;
     const flick = charge > 0 ? charge * (0.55 + 0.45 * Math.sin(time * 37) * Math.sin(time * 23)) : 0;
     const flash = Math.max(0, 1 - (time - flashAt) / 0.35);
     mat.emissiveIntensity = Math.max(0, flick) * 0.35 + flash * flash * 0.9;

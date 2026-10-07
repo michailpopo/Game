@@ -5,16 +5,16 @@
  * base roll of wide scallops, a body and a broad crown, stepping up and back - blended with wide fillets into one
  * signed distance field (smooth union) and cut flat underneath (smoothly, so the base edge is rounded). The
  * mesh comes from naive surface nets over that field (evenly spaced vertices, normals from the field), so the puffs
- * melt into each other without seams. The cloud turns with the camera, so only the faces some game view can see are
- * kept; that buys the finer grid.
+ * melt into each other without seams. The mesh is closed all round (the camera circles the finished city and sees
+ * the cloud's back).
  *
  * Colour (vertex colours, same palette as before): slate at the base to pale lilac on top, darker on faces turned
  * down, darker in the creases between lobes (distance-field occlusion), so the billows read in any light.
  * The surface churns slowly (each vertex moves a little along its normal, a slow wave; the base stays flat); while a
  * strike charges the cloud flickers from inside, and on the strike it flashes.
  *
- * Cost: 1 draw call, ~3,000-4,500 triangles (the project's one "hero" geometry, budget 5,000); built once per city
- * (~30 ms), a light per-vertex update per frame.
+ * Cost: 1 draw call, ~3,200-4,800 triangles (the project's one "hero" geometry, budget 5,000); built once per city
+ * (~10 ms), a light per-vertex update per frame.
  */
 
 import { BufferAttribute, BufferGeometry, Color, Group, Mesh, MeshStandardMaterial } from "three";
@@ -22,15 +22,6 @@ import { enhance } from "../render/materials.js";
 
 const COLORS = [[0, "#5f6688"], [0.3, "#7c83a8"], [0.62, "#9fa5c8"], [1, "#b9bed9"]];   // slate base -> pale lilac top
 const MAX_TRIS = 4900;   // the cloud is the project's one "hero" geometry (budget 5,000)
-// Directions (cloud frame: x across, y up, z towards the camera) the game camera can look at the cloud from: it turns
-// with the camera, which stays 12-36 deg above it and up to 18 deg to the side (measured, landscape and portrait);
-// 0-50 deg and -40..+25 deg here for margin and perspective. Triangles facing away from all of them are dropped.
-const VIEWS = [];
-for (const e of [0, 12.5, 25, 37.5, 50]) for (const a of [-40, -20, 0, 25]) {
-  const er = (e * Math.PI) / 180, ar = (a * Math.PI) / 180;
-  VIEWS.push(Math.sin(ar) * Math.cos(er), Math.sin(er), Math.cos(ar) * Math.cos(er));
-}
-
 const smoothstep = (a, b, x) => { const t = Math.min(1, Math.max(0, (x - a) / (b - a))); return t * t * (3 - 2 * t); };
 /** Polynomial smooth minimum: the union of two distances with a fillet of size k. */
 const smin = (a, b, k) => { const h = Math.max(k - Math.abs(a - b), 0) / k; return Math.min(a, b) - h * h * k * 0.25; };
@@ -128,19 +119,9 @@ function surfaceNet(puffs, sdf, h) {
       px += CX[a] + (CX[b] - CX[a]) * t; py += CY[a] + (CY[b] - CY[a]) * t; pz += CZ[a] + (CZ[b] - CZ[a]) * t; n++;
     }
     let x = ox + (i + px / n) * h, y = oy + (j + py / n) * h, z = oz + (k + pz / n) * h;
-    // the cell's own gradient (from the samples) decides if any camera can see this vertex; only those are snapped
-    // onto the surface and get the field's exact normal (the rest keep the cheap one: back faces, dropped below)
-    let gx = 0, gy = 0, gz = 0;
-    for (let c = 0; c < 8; c++) { gx += CX[c] ? v[c] : -v[c]; gy += CY[c] ? v[c] : -v[c]; gz += CZ[c] ? v[c] : -v[c]; }
-    const gl = Math.sqrt(gx * gx + gy * gy + gz * gz) || 1;
-    g[0] = gx / gl; g[1] = gy / gl; g[2] = gz / gl;
-    let seen = false;
-    for (let w = 0; w < VIEWS.length && !seen; w += 3) seen = g[0] * VIEWS[w] + g[1] * VIEWS[w + 1] + g[2] * VIEWS[w + 2] > -0.35;
-    if (seen) {
-      const d = sdf(x, y, z);
-      gradient(sdf, x, y, z, 0.3 * h, g);
-      x -= g[0] * d; y -= g[1] * d; z -= g[2] * d;
-    }
+    const d = sdf(x, y, z);                                       // snap onto the surface; its gradient is the normal
+    gradient(sdf, x, y, z, 0.3 * h, g);
+    x -= g[0] * d; y -= g[1] * d; z -= g[2] * d;
     cell[o] = pos.length / 3;
     pos.push(x, y, z); nrm.push(g[0], g[1], g[2]);
   }
@@ -159,26 +140,11 @@ function surfaceNet(puffs, sdf, h) {
       else tri.push(q00, q11, q10, q00, q01, q11);
     }
   }
-  // keep only the triangles some game camera can see (the rest are back faces from every view, never drawn)
-  const remap = new Int32Array(pos.length / 3).fill(-1), P = [], Nn = [], idx = [];
-  for (let t = 0; t < tri.length; t += 3) {
-    const a = tri[t] * 3, b = tri[t + 1] * 3, c = tri[t + 2] * 3;
-    const ux = pos[b] - pos[a], uy = pos[b + 1] - pos[a + 1], uz = pos[b + 2] - pos[a + 2];
-    const wx = pos[c] - pos[a], wy = pos[c + 1] - pos[a + 1], wz = pos[c + 2] - pos[a + 2];
-    const fx = uy * wz - uz * wy, fy = uz * wx - ux * wz, fz = ux * wy - uy * wx;
-    let seen = false;
-    for (let w = 0; w < VIEWS.length && !seen; w += 3) seen = fx * VIEWS[w] + fy * VIEWS[w + 1] + fz * VIEWS[w + 2] > 0;
-    if (!seen) continue;
-    for (let q = 0; q < 3; q++) {
-      const o = tri[t + q];
-      if (remap[o] < 0) { remap[o] = P.length / 3; P.push(pos[o * 3], pos[o * 3 + 1], pos[o * 3 + 2]); Nn.push(nrm[o * 3], nrm[o * 3 + 1], nrm[o * 3 + 2]); }
-      idx.push(remap[o]);
-    }
-  }
+  // closed all round: the camera circles the finished city while the cloud stays put, so its back shows too
   const geo = new BufferGeometry();
-  geo.setAttribute("position", new BufferAttribute(new Float32Array(P), 3));
-  geo.setAttribute("normal", new BufferAttribute(new Float32Array(Nn), 3));
-  geo.setIndex(idx);
+  geo.setAttribute("position", new BufferAttribute(new Float32Array(pos), 3));
+  geo.setAttribute("normal", new BufferAttribute(new Float32Array(nrm), 3));
+  geo.setIndex(tri);
   return { geometry: geo, top: y1 };
 }
 
@@ -191,7 +157,7 @@ export function createStormCloud(rng, { center, yaw, across, scale, rim, glow })
   const s = scale;
   const puffs = authorPuffs(rng, across, s);
   const sdf = cloudField(puffs, s);
-  let h = 1.27 * s, net = surfaceNet(puffs, sdf, h);           // ~4,300 visible triangles at this cell size
+  let h = 1.5 * s, net = surfaceNet(puffs, sdf, h);            // ~4,500 triangles all round at this cell size
   for (let tries = 0; tries < 4 && net.geometry.index.count / 3 > MAX_TRIS; tries++) {   // coarser until in budget
     h *= Math.sqrt(net.geometry.index.count / 3 / MAX_TRIS) * 1.03;
     net.geometry.dispose();

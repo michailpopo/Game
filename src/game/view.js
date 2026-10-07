@@ -89,6 +89,7 @@ export class GameView {
     this.followW = 0;
     this.punch = 0;                    // FOV punch timer (s)
     this.orbitT = 0;                   // seconds since the run ended
+    this.cloudHeld = false;            // the storm front stops turning with the camera once the run ends
     this.fit = { key: "", dist: 100, ty: 0, shift: 0, side: 0, fov: 45, pitch: 38 * RAD, yaw: YAW };
     this.floats = { n: 0, pending: 0, at: -9, x: 0, y: 0, z: 0 };
     this.forkShown = 1;
@@ -133,6 +134,7 @@ export class GameView {
     this.followW = 0;
     this.forkShown = 1;
     this.orbitT = 0;
+    this.cloudHeld = false;
     this.floats.n = 0;
     this.floats.pending = 0;
     this.fit.key = "";
@@ -514,7 +516,10 @@ export class GameView {
       return;
     }
     const done = sim.phase === "won" || sim.phase === "failed";
-    this.cityMesh.setCloudYaw(this.yaw - fit.yaw);
+    // The storm front stays behind the city as the camera drifts, but once the run ends it stays put in the world while
+    // the camera circles the city (and after "One more strike", until the next city).
+    if (done) this.cloudHeld = true;
+    if (!this.cloudHeld) this.cityMesh.setCloudYaw(this.yaw - fit.yaw);
     if (done) {
       this.orbitT += dt;
       this.yaw += dt * (this.orbitT < 3 ? 20 : 4) * RAD;       // result orbit

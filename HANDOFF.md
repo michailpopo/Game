@@ -125,6 +125,13 @@ below, a few at city height; 4 striped hot-air balloons; an airship circling beh
 Ideas from: The Aviator (codrops, low-poly sky scene), low-poly floating-island and cloud tutorials (WebSearch summaries; the
 pages themselves are blocked by the proxy). Tapering rock is edge-on to this camera - keep the near-vertical cliff band.
 
+**2026-10-07 (later still), owner: "when the city turns at the end (the camera), the cloud must stay fixed and not turn
+with the camera" - done.** `src/game/view.js` #frame: the cloud follows the camera's yaw only until the run ends
+(`cloudHeld`); from won/failed it stays put in the world (also after "One more strike", until the next city builds). Camera
+code untouched. The cloud mesh is now closed all round (the view-based face culling is gone, since the orbit shows its
+back), at a coarser cell (1.5 m x scale) to stay under the hero budget: 4,512-4,672 tris. Verified with scratchpad
+`orbit-probe.mjs`: win (city 13) and fail (city 36) - camera turned 56-59 deg, cloud rotation and centre unchanged.
+
 **2026-10-07 (later), owner: "much better but too much form" -> "it must stay smooth, just not so many circles /
 spheres" - done.** Same smooth surface-net cloud, but authored from 14 big lobes instead of ~70 (no small bumps): a base
 roll of 5 wide scallops (+4 behind), a body of 3, a broad crown of 2, blended with wide fillets (smooth-union k 2.0 m
@@ -219,6 +226,9 @@ What I saw in the last screenshots (fix first; not re-judged on 2026-10-02):
 - Run the slow browser harness once per package with `--only <scenarios>`, not the full set every time.
 
 ## 8. Browser QA (re-run 2026-10-02, HEAD d575418, `PW_CHROMIUM_PATH=/opt/pw-browsers/chromium node tools/qa/browser-qa.mjs --serve`)
+
+Smoke re-run 2026-10-07 after the fixed cloud at the end orbit: 4 PASS (boot 3.3 s, 25.5k tris / 43 calls, storm-cloud
+4,512 tris, silence 2.0 s, no console errors); budget probe 1/13/28/37/50: <= 44 calls, <= 55.8k tris.
 
 Smoke re-run 2026-10-07 after the fewer-lobes cloud: 4 PASS (boot 3.1 s, 25.4k tris / 43 calls, storm-cloud 4,380 tris,
 silence 1.8 s, no console errors); budget probe cities 1/13/28/37/50: <= 44 calls, <= 55.6k tris.

@@ -1,15 +1,15 @@
 /**
  * The storm front: a toy thunderhead behind the city, the place every bolt comes from.
  *
- * One continuous surface, not a pile of spheres. The cloud is authored as soft "metaball" puffs - a scalloped base
- * roll, rows of round lobes stepping up and back to a crown in the middle, round bumps on the upper lobes - blended
- * into one signed distance field (smooth union) and cut flat underneath (smoothly, so the base edge is rounded). The
+ * One continuous, smooth surface, not a pile of spheres. The cloud is authored as a few big soft "metaball" lobes - a
+ * base roll of wide scallops, a body and a broad crown, stepping up and back - blended with wide fillets into one
+ * signed distance field (smooth union) and cut flat underneath (smoothly, so the base edge is rounded). The
  * mesh comes from naive surface nets over that field (evenly spaced vertices, normals from the field), so the puffs
  * melt into each other without seams. The cloud turns with the camera, so only the faces some game view can see are
  * kept; that buys the finer grid.
  *
  * Colour (vertex colours, same palette as before): slate at the base to pale lilac on top, darker on faces turned
- * down, darker in the crevices between billows (distance-field occlusion), so the billows read in any light.
+ * down, darker in the creases between lobes (distance-field occlusion), so the billows read in any light.
  * The surface churns slowly (each vertex moves a little along its normal, a slow wave; the base stays flat); while a
  * strike charges the cloud flickers from inside, and on the strike it flashes.
  *
@@ -37,8 +37,8 @@ const smin = (a, b, k) => { const h = Math.max(k - Math.abs(a - b), 0) / k; retu
 
 /**
  * The cloud's puffs in its own frame: x across the view, y up from the flat base, z towards the camera.
- * Rows of round lobes step up and back like a tiered cake, so from the game camera (a little above, in front) every
- * row shows a lit top over a darker front - the way a cumulus reads; small cauliflower bumps sit on the upper rows.
+ * A few big lobes in rows that step up and back, so from the game camera (a little above, in front) every row shows a
+ * lit top over a darker front - the way a cumulus reads, with few round shapes.
  * @returns {{ x:number, y:number, z:number, rx:number, ry:number, rz:number }[]}
  */
 function authorPuffs(rng, across, s) {
@@ -54,26 +54,16 @@ function authorPuffs(rng, across, s) {
     }
     return out;
   };
-  const lobes = [];
-  row(8, 1, 6.6 * s, 2.0 * s, 6.0 * s, 1.15, 0.78, 0);          // front base roll, sitting on the flat base: the scallops
-  row(6, 0.92, 7.0 * s, 2.4 * s, -3.0 * s, 1.2, 0.75, 0);        // back base roll (thickness; mostly hidden)
-  lobes.push(...row(6, 0.84, 7.4 * s, 6.0 * s, 2.4 * s, 1.1, 0.82));   // second row, up and back
-  lobes.push(...row(4, 0.6, 7.6 * s, 10.2 * s, -0.4 * s, 1.06, 0.86)); // third row
-  lobes.push(...row(3, 0.36, 6.8 * s, 14 * s, -2.0 * s, 1.06, 0.88));  // the tower's crown (its bumps make the top)
-  // a couple of round bumps on the upper, camera-facing side of each upper lobe (big enough to read as lobes, not noise)
-  for (const d of lobes) {
-    for (let k = 0; k < 2; k++) {
-      const a = (k ? 1 : -1) * rng.range(0.25, 0.9), up = rng.range(0.5, 0.8), h = Math.sqrt(1 - up * up);
-      const vx = Math.sin(a) * h, vz = Math.cos(a) * h;            // a = 0: straight at the camera
-      add(d.x + vx * d.rx * 0.78, d.y + up * d.ry * 0.78, d.z + vz * d.rz * 0.78, rng.range(3.0, 4.0) * s, 1.08, 0.88);
-    }
-  }
+  row(5, 1, 8.4 * s, 2.4 * s, 5.0 * s, 1.25, 0.78, 0);          // front base roll on the flat base: a few wide scallops
+  row(4, 0.88, 8.6 * s, 2.8 * s, -3.0 * s, 1.25, 0.75, 0);       // back base roll (thickness; mostly hidden)
+  row(3, 0.66, 9.6 * s, 7.4 * s, 1.0 * s, 1.15, 0.84);           // the body
+  row(2, 0.26, 8.4 * s, 14 * s, -1.8 * s, 1.12, 0.9);           // a broad crown
   return puffs;
 }
 
 /** Signed distance to the cloud: the puffs' smooth union, cut flat at y = 0 with a rounded edge. */
 function cloudField(puffs, s) {
-  const k = 1.0 * s, kb = 0.9 * s;
+  const k = 2.0 * s, kb = 1.0 * s;                              // wide fillets: the lobes melt into one mass
   const F = new Float64Array(puffs.length * 7);                  // flat: x, y, z, 1/rx, 1/ry, 1/rz, max radius
   puffs.forEach((p, i) => F.set([p.x, p.y, p.z, 1 / p.rx, 1 / p.ry, 1 / p.rz, Math.max(p.rx, p.ry, p.rz)], i * 7));
   return (x, y, z) => {

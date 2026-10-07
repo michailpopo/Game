@@ -125,6 +125,12 @@ below, a few at city height; 4 striped hot-air balloons; an airship circling beh
 Ideas from: The Aviator (codrops, low-poly sky scene), low-poly floating-island and cloud tutorials (WebSearch summaries; the
 pages themselves are blocked by the proxy). Tapering rock is edge-on to this camera - keep the near-vertical cliff band.
 
+**2026-10-07 (later), owner: "much better but too much form" -> "it must stay smooth, just not so many circles /
+spheres" - done.** Same smooth surface-net cloud, but authored from 14 big lobes instead of ~70 (no small bumps): a base
+roll of 5 wide scallops (+4 behind), a body of 3, a broad crown of 2, blended with wide fillets (smooth-union k 2.0 m
+instead of 1.0). A faceted low-poly (flat-shaded, ~1,000 tris) version was tried in between and REJECTED by the owner
+("not what I mean, it must be smooth") - do not make the cloud faceted. Still the one hero geometry: 4,380-4,494 tris.
+
 **2026-10-07, owner: "work on the cloud more, don't stop till it looks good, don't touch the thunder or anything else,
 just the form of the cloud" - done.** Only `src/game/storm-cloud.js` changed (API, position, size, palette, flicker, flash,
 strike origin all unchanged). The 25 separate instanced spheres (read as dark pillows/stones, faceted, each with its own rim)
@@ -213,6 +219,9 @@ What I saw in the last screenshots (fix first; not re-judged on 2026-10-02):
 - Run the slow browser harness once per package with `--only <scenarios>`, not the full set every time.
 
 ## 8. Browser QA (re-run 2026-10-02, HEAD d575418, `PW_CHROMIUM_PATH=/opt/pw-browsers/chromium node tools/qa/browser-qa.mjs --serve`)
+
+Smoke re-run 2026-10-07 after the fewer-lobes cloud: 4 PASS (boot 3.1 s, 25.4k tris / 43 calls, storm-cloud 4,380 tris,
+silence 1.8 s, no console errors); budget probe cities 1/13/28/37/50: <= 44 calls, <= 55.6k tris.
 
 Smoke re-run 2026-10-07 after the cloud reshape (`--only boot,poly-budget,dead-air,console-errors`): 4 PASS (boot 3.6 s /
 0.23 MB, 25.4k tris / 43 calls, heaviest geometry storm-cloud 4,434 tris, longest silence 2.0 s of 3 s, no console errors).

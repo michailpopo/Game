@@ -11,7 +11,7 @@
 export const GAME = {
   slug: "storm-grid",
   title: "Storm Grid",          // owner, 2026-09-26 (the only place the name lives besides i18n/index.html)
-  saveVersion: 3,               // 3 = + daily gift, tried skins, boost cadence (v2 Storm Grid core, v1 Comet Chain)
+  saveVersion: 4,               // 4 = finer upgrade levels (owner 2026-10-07); 3 = + daily gift, tried skins, boost cadence
   // Midgame from this city on, on "Next city" and "Retry" (GAME_BRIEF "Midgame"; the SDK paces the rest).
   firstMidgameLevel: 4,
 };
@@ -62,7 +62,7 @@ export const STORM = {
     themeRelief: 0.85,          // the first city of each theme (6, 11, 16 ...) is smaller
     themeEvery: 5,              // cities per theme
     themes: 8,                  // Downtown, Harbour, Old Town, Hill Towers, Neon Bay, Snow Peak, Desert Spires, Sky Port
-    rampCities: 40,
+    rampCities: 70,             // the difficulty climbs to here, then holds (was 40: owner 2026-10-07, longer play)
     lotsSmall: 3,               // district = 3x3 lots while N <= smallUpTo, else 4x4
     lotsLarge: 4,
     smallUpTo: 40,
@@ -88,7 +88,7 @@ export const STORM = {
   strike: {
     fillSec: 1.2,               // 0 -> 100% charge
     band: [0.8, 0.95],          // SUPERCHARGE band; each Capacitor level widens it downward
-    capacitorStep: 0.03,
+    capacitorStep: 0.015,       // per Capacitor level (10 levels: 80% -> 65%)
     firstCity: { fillSec: 1.6, bandLo: 0.6 },   // city 1: slower fill, wider band (the first strike must land)
     weakBelow: 0.4,             // WEAK: 0.5 x E0
     weakShare: 0.5,             // CHARGED (weakBelow .. band): E0 x (0.5 + 1.25 x (c - 0.4)), up to E0
@@ -97,15 +97,15 @@ export const STORM = {
     overSec: 0.35,              // held this long past 100%: auto-fires a FIZZLE
     fizzleEnergy: 3,            // ... with 3 hops and no forks
     strikes: 3,                 // per city; +1 per Strikes level
-    maxStrikeLevels: 3,
+    maxStrikeLevels: 4,         // 3 -> 7 strikes
   },
   chain: {
     e0: 8,                      // E0 = e0 + e0PerVoltage x Voltage (hops per bolt)
-    e0PerVoltage: 2,
+    e0PerVoltage: 1,
     range: 16,                  // R = range + rangePerVoltage x Voltage (m, 3D between antenna tips)
-    rangePerVoltage: 0.5,
+    rangePerVoltage: 0.25,
     fork: 0.05,                 // F = fork + forkPerLevel x Fork, rolled on every hop
-    forkPerLevel: 0.03,
+    forkPerLevel: 0.01,
     forkShare: 0.6,             // both halves carry ceil(forkShare x (e - 1))
     hopFast: 0.08,              // hop time = hopFast + hopSlow x (1 - e / e_strike): fresh bolts leap fast
     hopSlow: 0.07,
@@ -116,13 +116,18 @@ export const STORM = {
     // "+N" = round((1 + floors / floorsDiv) x cityGrowth^(city-1) x min(depthCap, 1 + depthStep x depth)) x gold
     floorM: 4,
     floorsDiv: 8,
-    cityGrowth: 1.06,
+    cityGrowth: 1.04,           // coins per building grow 4% per city (was 6%: prices could not keep up)
     depthStep: 0.02,
     depthCap: 2,
     districtShare: 0.25,        // BLOCK POWERED: +25% of the district's buildings' value
     // Jackpot plates on the run's coins, by share powered: [at least, multiplier]
     plates: [[1, 10], [0.95, 5], [0.8, 3], [0.6, 2]],
-    passAt: 0.6,                // below this: x1 and the city is not cleared (retry it)
+    passAt: 0.6,                // below this: x1 (the jackpot plates start here)
+    // The share needed to CLEAR a city climbs from passAt at city 1 to passTo at city passRampCities (owner
+    // 2026-10-07: progress was too fast). A run between the plate mark and the pass mark still pays its plate.
+    passTo: 0.7,
+    passRampFrom: 8,            // cities 1-8 clear at passAt (learning the game)
+    passRampCities: 35,
   },
   input: {
     snapPx: 80,                 // the target snaps to the antenna nearest the finger within this (screen px)
@@ -135,18 +140,23 @@ export const STORM = {
  * run at the best city reached (the brief's Monte Carlo table, interpolated), x the streak multiplier.
  */
 export const ECONOMY = {
+  // Many small levels with steep prices (owner 2026-10-07: "maxed everything after a few minutes"). The storm at
+  // max is as strong as before (38 hops / 23.5 m, 35% forks, 6 strikes, band 65-95%, 5 rods); it takes 2x the
+  // levels and far more coins to get there: an upgrade after almost every run at first, every few runs later,
+  // everything maxed only after hours of play (tools/qa/economy-sim.mjs measures it).
+  // price = base x growth^level, x lateGrowth for every level past lateFrom (src/game/meta.js upgradeCost)
   upgrades: {
-    voltage: { max: 15, base: 60, growth: 1.45 },    // +2 hops per bolt (E0), +0.5 m range
-    fork: { max: 10, base: 100, growth: 1.55 },      // +3% fork chance
-    strikes: { max: 3, base: 600, growth: 3 },       // +1 strike per city (3 -> 6)
-    capacitor: { max: 5, base: 150, growth: 1.9 },   // SUPERCHARGE band 3 points wider
-    gold: { max: 5, base: 300, growth: 2.1 },        // +1 gold rod per city (from city 3)
+    voltage: { max: 30, base: 60, growth: 1.25, lateFrom: 10, lateGrowth: 1.06 },     // +1 hop per bolt (E0), +0.25 m range
+    fork: { max: 30, base: 90, growth: 1.25, lateFrom: 10, lateGrowth: 1.06 },        // +1% fork chance
+    strikes: { max: 4, base: 1500, growth: 8 },                                     // +1 strike per city (3 -> 7; the 4th is the end goal)
+    capacitor: { max: 10, base: 150, growth: 1.9, lateFrom: 4, lateGrowth: 1.25 },   // SUPERCHARGE band 1.5 points wider
+    gold: { max: 5, base: 400, growth: 4.3 },                                       // +1 gold rod per city (from city 3)
   },
   skins: { base: 250, growth: 1.45 },                // "Unlock random": 250 x 1.45^(owned-1)
   gift: {
     runs: 2,
-    // average coins per run by city (GAME_BRIEF "Coins per run", average player); +6%/city past the table
-    runCoins: [[1, 174], [5, 394], [10, 1043], [20, 4044], [40, 6065]],
+    // average coins per run by city (tools/qa/economy-sim.mjs, average player, 2026-10-07); +4%/city past the table
+    runCoins: [[1, 150], [5, 250], [10, 440], [20, 770], [40, 3800], [60, 10500], [80, 24000]],
     streak: [1, 1.15, 1.3, 1.45, 1.6, 1.8, 2],       // day 1..7; a missed day steps back one day
   },
 };

@@ -10,8 +10,8 @@
  * Phases: ready -> run -> won | failed
  *   ready   the dark city idles; the first press starts the run (and starts charging)
  *   run     hold to charge, release to strike; `strikesMax` strikes per city
- *   won     strikes spent (or FULL POWER) with at least payout.passAt of the city powered
- *   failed  strikes spent below payout.passAt (retry the city)
+ *   won     strikes spent (or FULL POWER) with at least passFor(level) of the city powered
+ *   failed  strikes spent below passFor(level) (retry the city)
  *
  * Rules (docs/GAME_BRIEF.md "The charge meter" / "The chain algorithm"; numbers in STORM):
  *  - release: WEAK (< 40%) 0.5 x E0; CHARGED up to the band; SUPERCHARGE (band) two bolts of
@@ -529,9 +529,15 @@ function cascadeEnd(s, time) {
   s.events.push({ type: "cascadeEnd", hops: s.cascadeHops, value: s.cascadeValue, lit: s.litCount, t: time });
 }
 
+/** The share of a city that must be powered to clear it (climbs with the city number, then holds). */
+export function passFor(level) {
+  const p = S.payout;
+  return lerp(p.passAt, p.passTo, clamp((level - p.passRampFrom) / (p.passRampCities - p.passRampFrom), 0, 1));
+}
+
 function endRun(s) {
   const share = progress(s);
-  s.phase = share >= S.payout.passAt - 1e-9 ? "won" : "failed";
+  s.phase = share >= passFor(s.level) - 1e-9 ? "won" : "failed";
   s.events.push({ type: "runEnd", share, plate: plateFor(share), phase: s.phase });
 }
 

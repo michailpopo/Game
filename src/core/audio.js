@@ -14,9 +14,10 @@
  *   - iOS interrupts the context when backgrounded; resume() must run inside a
  *     touchend/click handler, visibilitychange alone is not enough (CG-TECH-017).
  *
- * Sounds are procedural (ZzFX, MIT) so the template ships zero audio files.
- * Claude cannot listen to these: tune them in the ZzFX designer
- * (killedbyapixel.github.io/ZzFX) and have a human audition every sound.
+ * Sounds are procedural (ZzFX, MIT) by default. A game may also pass `samples` (name -> { url, gain, pitchExp }):
+ * those files are fetched by preload() (or on unlock) and decoded once the AudioContext exists; until a file is
+ * decoded - or if it fails to load - the ZzFX sound of the same name plays, so audio never waits on the network.
+ * Claude cannot listen to these: a human auditions every sound.
  */
 
 import { buildSamples } from "./zzfx.js";
@@ -40,10 +41,39 @@ export class AudioService {
   #platformMute = false; #adMute = false; #hiddenMute = false; #userMute = false;
   #buffers = new Map(); #lastPlay = new Map(); #active = new Map();
   #listeners = new Set();
+  #samples; #raw = new Map(); #mix = new Map();
 
-  constructor({ sounds = SFX, userMuted = false } = {}) {
+  /**
+   * @param {{ sounds?: object, samples?: Record<string, { url: string, gain?: number, pitchExp?: number }>, userMuted?: boolean }} [o]
+   *   samples: gain = this file's level in the mix; pitchExp: play-time pitch p becomes p ** pitchExp for the file
+   *   (< 1 narrows a pitch ladder that a sampled sound cannot follow as far as a synthesised one)
+   */
+  constructor({ sounds = SFX, samples = {}, userMuted = false } = {}) {
     this.#defs = sounds;
+    this.#samples = samples;
     this.#userMute = userMuted;
+  }
+
+  /** Starts fetching the sample files (no AudioContext needed). Safe to call more than once. */
+  preload() {
+    for (const [name, s] of Object.entries(this.#samples)) {
+      if (this.#raw.has(name)) continue;
+      this.#raw.set(name, fetch(s.url).then((r) => (r.ok ? r.arrayBuffer() : null)).catch(() => null));
+    }
+    return this;
+  }
+
+  /** Decodes each fetched sample into the context; a decoded file replaces the ZzFX sound of the same name. */
+  #decodeSamples() {
+    this.preload();
+    for (const [name, pending] of this.#raw) {
+      pending.then((bytes) => (bytes ? this.#ctx.decodeAudioData(bytes.slice(0)) : null)).then((buf) => {
+        if (!buf) return;
+        this.#buffers.set(name, buf);
+        const s = this.#samples[name];
+        this.#mix.set(name, { gain: s.gain ?? 1, pitchExp: s.pitchExp ?? 1 });
+      }).catch(() => { /* keep the ZzFX fallback */ });
+    }
   }
 
   get muted() { return this.#platformMute || this.#adMute || this.#hiddenMute || this.#userMute; }
@@ -53,6 +83,7 @@ export class AudioService {
     return {
       platformMute: this.#platformMute, adMute: this.#adMute, hiddenMute: this.#hiddenMute,
       userMute: this.#userMute, effectiveMuted: this.muted, context: this.#ctx?.state ?? "none",
+      samplesDecoded: this.#mix.size,
     };
   }
 
@@ -88,6 +119,7 @@ export class AudioService {
       this.#sfx.gain.value = 0.9;
       this.#sfx.connect(this.#master);
       for (const [name, params] of Object.entries(this.#defs)) this.#build(name, params);
+      this.#decodeSamples();
       this.#apply();
     }
     if (this.#ctx.state !== "running") this.#ctx.resume().catch(() => {});
@@ -114,11 +146,12 @@ export class AudioService {
     if ((this.#active.get(name) ?? 0) >= maxVoices) return false;
     this.#lastPlay.set(name, now);
 
+    const mix = this.#mix.get(name);
     const src = ctx.createBufferSource();
     src.buffer = buffer;
-    src.playbackRate.value = pitch;
+    src.playbackRate.value = mix ? pitch ** mix.pitchExp : pitch;
     const g = ctx.createGain();
-    g.gain.value = volume;
+    g.gain.value = mix ? volume * mix.gain : volume;
     src.connect(g).connect(this.#sfx);
     this.#active.set(name, (this.#active.get(name) ?? 0) + 1);
     src.onended = () => this.#active.set(name, Math.max(0, (this.#active.get(name) ?? 1) - 1));

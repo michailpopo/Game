@@ -45,6 +45,8 @@ export const DEFAULT_SAVE = {
  * Save migrations (SaveService runs every step from the saved version up):
  *  v1 -> v2  Comet Chain -> Storm Grid: a different game; keep the coins and the mute choice only
  *  v2 -> v3  WP-32 fields (daily gift, tried skins, boost cadence); skin ids unchanged
+ *  v3 -> v4  finer upgrade levels (2026-10-07): Voltage, Fork and Capacitor levels now do 1/2, 1/3 and 1/2 of what
+ *            they did, so their saved levels are scaled up to keep the player's storm exactly as strong
  */
 export const MIGRATIONS = {
   2: (d) => ({ coins: Math.max(0, d.coins | 0), userMuted: !!d.userMuted }),
@@ -55,6 +57,12 @@ export const MIGRATIONS = {
     giftStreak: Number.isFinite(d.giftStreak) ? d.giftStreak : 0,
     lastBoostRun: Number.isFinite(d.lastBoostRun) ? d.lastBoostRun : -99,
     owned: Array.isArray(d.owned) && d.owned.length ? d.owned : ["cyan"],
+  }),
+  4: (d) => ({
+    ...d,
+    upVoltage: Math.min(ECONOMY.upgrades.voltage.max, (d.upVoltage | 0) * 2),
+    upFork: Math.min(ECONOMY.upgrades.fork.max, (d.upFork | 0) * 3),
+    upCapacitor: Math.min(ECONOMY.upgrades.capacitor.max, (d.upCapacitor | 0) * 2),
   }),
 };
 
@@ -114,12 +122,15 @@ export const UPGRADES = {
   gold: { key: "upGold", ...ECONOMY.upgrades.gold },
 };
 
-/** Price of the next level, or null when maxed. */
+/**
+ * Price of the next level, or null when maxed: base x growth^level, x lateGrowth for every level past lateFrom
+ * (cheap early levels for a purchase after almost every run, steep late ones so maxing takes hours).
+ */
 export function upgradeCost(kind, save) {
   const u = UPGRADES[kind];
   const lvl = save[u.key];
   if (lvl >= u.max) return null;
-  return round5(u.base * u.growth ** lvl);
+  return round5(u.base * u.growth ** lvl * (u.lateGrowth ?? 1) ** Math.max(0, lvl - (u.lateFrom ?? u.max)));
 }
 
 /** Upgrade levels for the simulation (sim.js deriveParams). */

@@ -1,14 +1,14 @@
 # Compliance report - Storm Grid
 
-Generated 2026-10-07 20:39 UTC · build `c02102e07a57` · target stage **full** · register 2026.09.11 (researched 2026-09-11)
+Generated 2026-10-07 21:11 UTC · build `74c6d7c9dda1` · target stage **full** · register 2026.09.11 (researched 2026-09-11)
 
-## Verdict: NOT VERIFIED - 36 mandatory requirements lack current evidence
+## Verdict: NOT VERIFIED - 35 mandatory requirements lack current evidence
 
 This is a record of what was checked, how and when. It is not an approval: only CrazyGames approves a submission.
 
 | PASS | FAIL | WARN | UNVERIFIED | PORTAL | STALE | N/A |
 |---|---|---|---|---|---|---|
-| 19 | 0 | 0 | 44 | 2 | 0 | 0 |
+| 20 | 0 | 0 | 43 | 2 | 0 | 0 |
 
 Legend: PORTAL = can only be confirmed in the Developer Portal preview or by CrazyGames QA · STALE = manual evidence recorded for a different build · UNVERIFIED = no evidence yet.
 
@@ -16,10 +16,10 @@ Legend: PORTAL = can only be confirmed in the Developer Portal preview or by Cra
 
 | Id | Requirement | Type | Stage | Status | Evidence |
 |---|---|---|---|---|---|
-| CG-TECH-001 | Initial download <= 50 MB | mandatory | both | **PASS** | PASS: ready in 3262 ms; 0.23 MB transferred up to first gameplayStart (limit 50 MB, mobile homepage 20 MB) _(browser-qa)_ |
-| CG-TECH-002 | Total size <= 250 MB (<= 50 MB without SDK) | mandatory | both | **PASS** | PASS: 0.80 MB (limit 250 MB, SDK integrated) _(check-bundle)_ |
-| CG-TECH-003 | File count <= 1500 | mandatory | both | **PASS** | PASS: 6 files (limit 1500) _(check-bundle)_ |
-| CG-TECH-004 | Mobile homepage eligibility: initial download <= 20 MB | mandatory | both | **PASS** | PASS: ready in 3262 ms; 0.23 MB transferred up to first gameplayStart (limit 50 MB, mobile homepage 20 MB) _(browser-qa)_ |
+| CG-TECH-001 | Initial download <= 50 MB | mandatory | both | **PASS** | PASS: ready in 2886 ms; 0.25 MB transferred up to first gameplayStart (limit 50 MB, mobile homepage 20 MB) _(browser-qa)_ |
+| CG-TECH-002 | Total size <= 250 MB (<= 50 MB without SDK) | mandatory | both | **PASS** | PASS: 0.93 MB (limit 250 MB, SDK integrated) _(check-bundle)_ |
+| CG-TECH-003 | File count <= 1500 | mandatory | both | **PASS** | PASS: 20 files (limit 1500) _(check-bundle)_ |
+| CG-TECH-004 | Mobile homepage eligibility: initial download <= 20 MB | mandatory | both | **PASS** | PASS: ready in 2886 ms; 0.25 MB transferred up to first gameplayStart (limit 50 MB, mobile homepage 20 MB) _(browser-qa)_ |
 | CG-TECH-005 | Relative paths only | mandatory | both | **PASS** | PASS: no absolute asset paths _(check-bundle)_ |
 | CG-TECH-007 | Works on Chrome and Edge | mandatory | both | **UNVERIFIED** |  |
 | CG-TECH-008 | Smooth on a 4 GB RAM Chromebook | mandatory | both | **UNVERIFIED** | check with: browser-qa performance (evidence only) |
@@ -41,7 +41,7 @@ Legend: PORTAL = can only be confirmed in the Developer Portal preview or by Cra
 | CG-GAME-004 | Loads quickly, no errors or crashes | mandatory | both | **PASS** | PASS: no console errors or page errors across all scenarios _(browser-qa)_<br>PASS: no source maps, mock SDK, localhost URLs or secrets _(check-bundle)_ |
 | CG-GAME-005 | English localization; accurate translations from SDK locale | mandatory | both | **UNVERIFIED** |  |
 | CG-GAME-006 | Intuitive controls on each device type | mandatory | both | **UNVERIFIED** |  |
-| CG-GAME-007 | Original name, assets and content | mandatory | both | **PASS** | PASS: 0 shipped asset files, all in the manifest _(check-licenses)_<br>PASS: 3 manifest rows, none with a forbidden license _(check-licenses)_<br>PASS: no custom-license (tier C) assets _(check-licenses)_<br>PASS: all rows have source, license and tier _(check-licenses)_<br>PASS: every runtime dependency has a license notice _(check-licenses)_ |
+| CG-GAME-007 | Original name, assets and content | mandatory | both | **PASS** | PASS: 20 shipped asset files, all in the manifest _(check-licenses)_<br>PASS: 4 manifest rows, none with a forbidden license _(check-licenses)_<br>PASS: no custom-license (tier C) assets _(check-licenses)_<br>PASS: all rows have source, license and tier _(check-licenses)_<br>PASS: every runtime dependency has a license notice _(check-licenses)_ |
 | CG-GAME-008 | No custom fullscreen button | mandatory | both | **PASS** | PASS: no custom fullscreen _(policy-scan)_ |
 | CG-GAME-009 | No cross-promotion (narrow exceptions) | mandatory | both | **PASS** | PASS: no window.open _(policy-scan)_<br>PASS: no app store links _(policy-scan)_<br>WARN: external URL (cross-promotion or externally loaded asset?): src/core/zzfx.js:3: https://github.com/KilledByAPixel/ZzFX _(policy-scan)_ |
 | CG-GAME-010 | PEGI 12, audience 13+, not targeted at kids | mandatory | both | **UNVERIFIED** |  |
@@ -63,9 +63,9 @@ Legend: PORTAL = can only be confirmed in the Developer Portal preview or by Cra
 | Id | Requirement | Type | Stage | Status | Evidence |
 |---|---|---|---|---|---|
 | CG-SDK-001 | SDK required for Full Launch (HTML5 v3) | mandatory | full | **PASS** | PASS: SDK v3 tag in <head> before game code _(check-bundle)_ |
-| CG-SDK-002 | First gameplayStart marks a real playable state | mandatory | both | **PASS** | PASS: ready in 3262 ms; 0.23 MB transferred up to first gameplayStart (limit 50 MB, mobile homepage 20 MB) _(browser-qa)_ |
+| CG-SDK-002 | First gameplayStart marks a real playable state | mandatory | both | **PASS** | PASS: ready in 2886 ms; 0.25 MB transferred up to first gameplayStart (limit 50 MB, mobile homepage 20 MB) _(browser-qa)_ |
 | CG-SDK-003 | gameplayStart/gameplayStop on real breaks, not on focus loss | mandatory | full | **PASS** | PASS: gameplayStop not tied to focus/visibility _(policy-scan)_ |
-| CG-SDK-004 | settings.muteAudio outranks the in-game toggle | mandatory | full | **UNVERIFIED** | check with: browser-qa mute-priority |
+| CG-SDK-004 | settings.muteAudio outranks the in-game toggle | mandatory | full | **PASS** | PASS: ?muteAudio=true + in-game toggles: gain=0; muteAudio flipped mid-game: gain=0 _(browser-qa)_ |
 | CG-SDK-005 | Handle SDK environments | mandatory | both | **UNVERIFIED** | check with: browser-qa no-sdk, sdk-disabled, sdk-init-hang |
 | CG-SDK-006 | loadingStart/loadingStop (optional) | guideline | full | **UNVERIFIED** | check with: browser-qa sdk-events |
 | CG-SDK-007 | Report completion percentage | guideline | full | **UNVERIFIED** |  |
@@ -107,7 +107,7 @@ Legend: PORTAL = can only be confirmed in the Developer Portal preview or by Cra
 | Id | Requirement | Type | Stage | Status | Evidence |
 |---|---|---|---|---|---|
 | CG-SUB-001 | Three cover images | mandatory | both | **UNVERIFIED** | check with: check-submission |
-| CG-SUB-002 | Cover content restrictions | mandatory | both | **PASS** | PASS: 0 shipped asset files, all in the manifest _(check-licenses)_<br>PASS: 3 manifest rows, none with a forbidden license _(check-licenses)_<br>PASS: no custom-license (tier C) assets _(check-licenses)_<br>PASS: all rows have source, license and tier _(check-licenses)_<br>PASS: every runtime dependency has a license notice _(check-licenses)_ |
+| CG-SUB-002 | Cover content restrictions | mandatory | both | **PASS** | PASS: 20 shipped asset files, all in the manifest _(check-licenses)_<br>PASS: 4 manifest rows, none with a forbidden license _(check-licenses)_<br>PASS: no custom-license (tier C) assets _(check-licenses)_<br>PASS: all rows have source, license and tier _(check-licenses)_<br>PASS: every runtime dependency has a license notice _(check-licenses)_ |
 | CG-SUB-003 | Preview videos | mandatory | both | **UNVERIFIED** | check with: check-submission + watch the video |
 | CG-SUB-004 | Qualitative metadata | mandatory | both | **UNVERIFIED** | check with: docs/STORE_METADATA.md |
 | CG-SUB-005 | Test in the Developer Portal preview | mandatory | both | **PORTAL** |  |

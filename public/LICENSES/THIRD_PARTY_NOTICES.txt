@@ -144,3 +144,6 @@ INCLUDING ANY GENERAL, SPECIAL, INDIRECT, INCIDENTAL, OR CONSEQUENTIAL
 DAMAGES, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING
 FROM, OUT OF THE USE OR INABILITY TO USE THE FONT SOFTWARE OR FROM
 OTHER DEALINGS IN THE FONT SOFTWARE.
+
+Sound effects and jingles (src/assets/sfx/) - from Kenney's audio packs (www.kenney.nl) - Creative Commons CC0 1.0
+(public domain; credit not required). License text: KENNEY_LICENSE.txt

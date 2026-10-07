@@ -56,7 +56,7 @@ import {
   upgradeCost, upgradeLevels,
 } from "./game/meta.js";
 import { boostDue, boostOffer, cashOffer, dailyGiftOffer, freeUpgradeOffer, reviveOffer, trySkinOffer } from "./game/offers.js";
-import { STORM_SFX } from "./game/sfx.js";
+import { STORM_SAMPLES, STORM_SFX } from "./game/sfx.js";
 import { themeOf } from "./game/look.js";
 import { GameView } from "./game/view.js";
 import { createUI } from "./ui/ui.js";
@@ -121,7 +121,7 @@ async function boot() {
   const pause = new PauseArbiter([Reason.BOOT]);
   const gameplay = createGameplayReporter(platform, pause);
   const save = new SaveService({ key: `${GAME.slug}.save`, version: GAME.saveVersion, defaults: DEFAULT_SAVE, migrations: MIGRATIONS }).init(platform);
-  const audio = new AudioService({ sounds: { ...SFX, ...STORM_SFX }, userMuted: save.data.userMuted }).bindPlatform(platform).installUnlockHandlers(window);
+  const audio = new AudioService({ sounds: { ...SFX, ...STORM_SFX }, samples: STORM_SAMPLES, userMuted: save.data.userMuted }).bindPlatform(platform).installUnlockHandlers(window);
   const input = new Input(canvas, { bindings: { action: ["Space", "Enter"], pause: ["KeyP"] } }).attach();
   const stage = createStage(canvas);
   const quality = new AdaptiveQuality(stage.renderer);
@@ -896,6 +896,7 @@ async function boot() {
   pause.release(Reason.BOOT);
   document.getElementById("boot").classList.add("done");
   enterReady();
+  audio.preload();                         // the recorded sounds (~150 KB) load behind the ready screen
 
   if (qa) {
     // Feedback timestamps for the dead-air check: every sound and floating number the

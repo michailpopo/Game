@@ -120,6 +120,16 @@ Formulas:
 - The pass threshold `passPct = 0.60` is the main tuning knob. Raising it to 0.80 lengthens the mid-game (see Risks).
 
 ## Progression and difficulty (average player, from the Monte Carlo)
+
+> **Rebalanced 2026-10-07** (owner: "too fast progress, too few levels, I maxed everything after a few minutes").
+> Measured with `node tools/qa/economy-sim.mjs` on the real sim and prices (no ads, no gift): before, all upgrades
+> were maxed after 6-7 min and a hard wall stood at city ~37-50 from minute ~15. Now: 79 upgrade levels (Voltage 30,
+> Fork 30, Strikes 4, Capacitor 10, Gold 5) with the same per-level storm power spread over 2x the levels (Voltage
+> +1 hop/+0.25 m, Fork +1%, Capacitor +1.5 points) plus a 4th Strikes level as the end goal; prices
+> base x growth^n x lateGrowth^(n - lateFrom); the share needed to CLEAR a city climbs 60% -> 70% over cities 8-35
+> (`passFor`, plates unchanged); the difficulty ramp runs to city 70 (was 40); coins grow 4% per city (was 6%).
+> Skilled / average simulated player: city ~21 / 18 at 5 min, ~50 / 43 at 30 min, ~63 / 62 at 1 h, all upgrades at
+> ~98 / 119 min, then slow endless progress (city ~111 / 92 at 4 h). The table below is the original design.
 | City | Buildings | Typical upgrades on arrival (Volt/Fork/Strikes/Cap/Gold) | E0 / SUPERCHARGE per bolt | R | Fork | Strikes | % powered (novice / avg / skilled) | Avg plate (avg) | Tries to clear (novice / avg) |
 |---|---|---|---|---|---|---|---|---|---|
 | 1 | 24 | 0/0/0/0/0 | 8 / 10 | 16 m | 5% | 3 | 80 / 90 / 96% | x4.8 | 1.1 / 1.0 |
@@ -153,7 +163,19 @@ Formulas:
 | 20 | 1,776 | 4,044 | 5,960 |
 | 40 | 3,811 | 6,065 | 7,203 |
 
-**Upgrades** (rounded to 5 below 1,000, to 50 above; shown as objects on the storm-control rooftop in the result screen):
+**Upgrades since 2026-10-07** (src/config.js ECONOMY.upgrades; prices from src/game/meta.js upgradeCost):
+
+| Upgrade | Effect per level | Levels | First prices ... last | Total |
+|---|---|---|---|---|
+| **Voltage** | +1 hop per bolt, +0.25 m range | 30 | 60, 75, 95, 115, 145 ... 66,800, 88,550, 117,300 | 478,525 |
+| **Fork** | +1% fork chance (5% -> 35%) | 30 | 90, 115, 140, 175 ... 100,250, 132,800, 175,950 | 717,785 |
+| **Strikes** | +1 strike per city (3 -> 7) | 4 | 1,500, 12,000, 96,000, 768,000 | 877,500 |
+| **Capacitor** | SUPERCHARGE band 1.5 points wider (80-95% -> 65-95%) | 10 | 150, 285, 540, 1,050 ... 62,200, 147,700 | 255,775 |
+| **Gold rods** | +1 gold antenna per city | 5 | 400, 1,700, 7,400, 31,800, 136,750 | 178,050 |
+
+Saves from before (v3) are migrated to v4 with equal power (Voltage x2, Fork x3, Capacitor x2 levels).
+
+**Original upgrades** (until 2026-10-07; rounded to 5 below 1,000, to 50 above; shown as objects on the storm-control rooftop in the result screen):
 
 | Upgrade | Effect per level | Price | Max | Prices | Total |
 |---|---|---|---|---|---|
@@ -263,7 +285,12 @@ Formulas:
     this fantasy to copy.
 
 ## Audio direction
-Procedural ZzFX, zero files. **Claude cannot hear: the owner auditions every sound** in the ZzFX designer and in game.
+**Since 2026-10-07 (owner: "better sounds, free ones"):** recorded CC0 sounds from Kenney's packs (src/assets/sfx/,
+20 MP3s, ~150 KB, built and loudness-matched by tools/audio/build-sfx.mjs; the thunder is layered from a crack, a crunchy
+blast, a low boom and a generated rumble). The ZzFX sounds below remain the fallback while a file loads. The owner
+auditions every sound.
+
+Original direction: procedural ZzFX, zero files. **Claude cannot hear: the owner auditions every sound** in the ZzFX designer and in game.
 - **Charge hum:** a looped low tone whose pitch rises 1.0 -> 2.0 and volume 0.3 -> 0.8 with the charge.
 - **Supercharge ding:** a bright bell + shimmer when entering the band. **Overcharge:** a warning buzz. **Fizzle:** a
   sputter.

@@ -125,6 +125,33 @@ below, a few at city height; 4 striped hot-air balloons; an airship circling beh
 Ideas from: The Aviator (codrops, low-poly sky scene), low-poly floating-island and cloud tutorials (WebSearch summaries; the
 pages themselves are blocked by the proxy). Tapering rock is edge-on to this camera - keep the near-vertical cliff band.
 
+**2026-10-07 (evening), owner: "better the sounds, find free ones; make the game more long-time playable: too fast
+progress, too few levels, I maxed everything after a few minutes" - done (owner must audition the sounds).**
+- **Sounds:** 20 recorded sounds from Kenney's CC0 audio packs (kenney.nl, the only sound site the container's proxy
+  allows; license read on the pages and in each pack's License.txt) replace the ZzFX synth sounds: thunder (layered:
+  crack + crunchy blast + low boom + generated brown-noise rumble with echoes, 2.6 s), charge (rising phaser), hum
+  (forcefield slice), SUPERCHARGE ding (glass), buzz, per-hop crackle (short laser zap, ladder narrowed to 1 octave by
+  `pitchExp`), fork (two-tone zap), gold (bell), BLOCK POWERED (pizzicato flourish), fizzle (falling phaser), power sweep
+  (rising power-up), FULL POWER / win / fail (steel-drum jingles: rising / rising / falling), coins (casino chips),
+  click, pop, tier (upgrade bought), gateBad. Picked by measured properties (duration, brightness, pitch contour) -
+  Claude cannot hear. `tools/audio/build-sfx.mjs <kenney-dir>` rebuilds them (trim, fade, mono, loudness-matched to
+  -16 dBFS RMS, MP3 80 kbps) into `src/assets/sfx/`; the mix is `MIX` in `src/game/sfx.js`. `AudioService` (src/core/audio.js)
+  fetches the files after boot (`audio.preload()`), decodes them on the first gesture and falls back to the ZzFX sound
+  of the same name until a file is ready or if it fails. ~150 KB, 0.25 MB to first gameplayStart. Manifest row +
+  public/LICENSES/KENNEY_LICENSE.txt. Sources are not committed (`assets-src/` is gitignored; zips: kenney.nl/assets/<pack>).
+- **Progression:** measured with the new `node tools/qa/economy-sim.mjs` (real sim + real prices, skilled and average
+  simulated players, no ads). Before: everything maxed after 6-7 min, a hard wall at city ~37-50 from minute ~15. Now:
+  79 upgrade levels (Voltage 30, Fork 30, Strikes 4, Capacitor 10, Gold 5) - same power per level spread over 2x the
+  levels, a 4th Strikes level as the end goal, two-phase prices (`lateFrom`/`lateGrowth`, meta.js upgradeCost); the share
+  needed to CLEAR a city climbs 60% -> 70% over cities 8-35 (`passFor` in sim.js; plates unchanged); difficulty ramp to
+  city 70 (was 40); coins +4%/city (was 6%); gift table re-measured. Result (skilled / average): city ~21 / 18 at 5 min,
+  ~50 / 43 at 30 min, ~63 / 62 at 1 h, all upgrades at ~98 / 119 min, then slow endless progress (city ~111 / 92 at 4 h).
+  Save v3 -> v4 migration keeps old storms equally strong (Voltage x2, Fork x3, Capacitor x2). Upgrade labels now
+  "+1 hop" / "+1% forks". GAME_BRIEF updated. Note for the owner: an old save (e.g. in the playtest page) migrates
+  as maxed except the new 4th strike; clear the page's site data to feel the new pace from city 1.
+- Also: crop rows only on fields within P+60 (around the biggest Old Town cities the rows cost ~5k tris; city 55 at
+  rest 63.1k -> 59.1k).
+
 **2026-10-07 (later still), owner: "when the city turns at the end (the camera), the cloud must stay fixed and not turn
 with the camera" - done.** `src/game/view.js` #frame: the cloud follows the camera's yaw only until the run ends
 (`cloudHeld`); from won/failed it stays put in the world (also after "One more strike", until the next city builds). Camera
@@ -162,6 +189,13 @@ What I saw in the last screenshots (fix first; not re-judged on 2026-10-02):
 3. Check that bolt skins actually recolour the bolt in play, and that every offer screen has at most 2 video buttons.
 
 ## 4. What is left to be upload-ready (in this order)
+
+0. **New 2026-10-07:** (a) the owner auditions the new recorded sounds (and says which to swap - other Kenney
+   candidates are easy, see tools/audio/build-sfx.mjs); (b) the owner plays the new progression from a fresh save;
+   (c) **frame triangles peak at 63-67k during cascades in 300-building cities** (city 37: 63.9k, 40: 63.4k, 55: 67.3k,
+   sampled every 250 ms over 10 s of autopilot; budget 60k) - pre-existing, mostly bolt ribbons (1,920 tris each); the
+   browser `poly-budget` scenario only measures an early city, so extend it to a 300-building city and trim (cheaper
+   ribbons or far scenery).
 
 1. **Three small fixes from the 2026-10-02 audit** (ask the owner or just do them; each is tiny):
    a. `src/core/save.js` (audit W1, real bug): with the Data module off, progress is written to `localStorage` but never
@@ -226,6 +260,11 @@ What I saw in the last screenshots (fix first; not re-judged on 2026-10-02):
 - Run the slow browser harness once per package with `--only <scenarios>`, not the full set every time.
 
 ## 8. Browser QA (re-run 2026-10-02, HEAD d575418, `PW_CHROMIUM_PATH=/opt/pw-browsers/chromium node tools/qa/browser-qa.mjs --serve`)
+
+Smoke re-run 2026-10-07 after sounds + progression (`--only boot,poly-budget,dead-air,console-errors,mute-priority`):
+5 PASS (boot 2.9 s / 0.25 MB, 25.5k tris / 43 calls, silence 1.6 s, mute priority holds with the samples, no console
+errors). Scratchpad sound probe: 20/20 samples decoded after the first gesture. `npm run qa:fast` green (licenses
+included), `sim-health --selftest` PASS, `check-city` PASS. Budget at rest: cities 15/55/95/135 <= 59.1k tris, <= 44 calls.
 
 Smoke re-run 2026-10-07 after the fixed cloud at the end orbit: 4 PASS (boot 3.3 s, 25.5k tris / 43 calls, storm-cloud
 4,512 tris, silence 2.0 s, no console errors); budget probe 1/13/28/37/50: <= 44 calls, <= 55.8k tris.

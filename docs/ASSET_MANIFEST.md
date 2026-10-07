@@ -1,4 +1,4 @@
-# Asset manifest - Working Title
+# Asset manifest - Storm Grid
 
 Every shipped file (images, models, audio, fonts, vendored code) gets a row **before** it is committed.
 `node tools/qa/check-licenses.mjs` fails on any file under `src/assets/` or `public/` (except

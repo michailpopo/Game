@@ -1,4 +1,4 @@
-# Originality review - Volt City (name under review)
+# Originality review - Storm Grid (formerly "Volt City")
 
 Date: 2026-09-26 · See the skill's `references/design/originality.md`. Not legal advice.
 The Comet Chain review is in git history (commit f357f8c and earlier).
@@ -62,3 +62,12 @@ from another game.
 The owner renamed the game to **Storm Grid** after the "Volt City" casino collision above. Planner re-check the same
 day: CrazyGames search API `q=storm grid` -> no results. The designer's checks for Storm Grid (slug 404, Poki sitemap,
 WebSearch) are logged above in the name search section.
+
+## Re-check before upload (2026-10-07)
+- CrazyGames search API `q=storm grid` -> no results; `q=storm grill` -> no results; `crazygames.com/game/storm-grid` -> 404.
+- WebSearch `"Storm Grid" game` and `"Storm Grid" crazygames OR poki OR "app store" OR steam lightning game`: no game of
+  this exact name. Nearest: "Grid Legion, Storm" (Steam strategy card game, Wind Jester Games) and "Grid Seeker:
+  Project Storm Hammer" (1992 Taito shooter) - different words and genres; "Storm Grill" (a browser incremental game on
+  a third-party page; not found on CrazyGames) - one letter apart but a different word and game. Risk: low.
+- The side-by-side with City Surge (itch.io clicker) stays as in the table above: same fantasy (lighting buildings),
+  different verb (one charged strike -> 3D chain lightning vs speed tapping).

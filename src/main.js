@@ -828,6 +828,9 @@ async function boot() {
     uiRoot.classList.add("marketing");
     document.getElementById("boot").classList.add("done");
     ui.showHome(false);
+    // ?capture_up=V,F,S,C,G: the storm of a real mid-game save (upgrade levels; this context only, never flushed)
+    const up = (qs.get("capture_up") || "").split(",").map(Number);
+    if (up.length === 5 && up.every(Number.isFinite)) [save.data.upVoltage, save.data.upFork, save.data.upStrikes, save.data.upCapacitor, save.data.upGold] = up;
     loadLevel(Number(qs.get(kind ? "cover_level" : "capture_level") || 8));
     startRun(sim);
     ui.showRoundHud(!kind);
@@ -948,7 +951,7 @@ async function boot() {
       forceWin() { forceWin(sim); },
       /** @param {number} [at] share powered 0..1 at which the run ends (the One-more-strike offer needs reviveAt) */
       forceFail(at = 0) { forceFail(sim, at); },
-      renderInfo: () => ({ ...stage.renderer.info.render, geometries: stage.renderer.info.memory.geometries, textures: stage.renderer.info.memory.textures }),
+      renderInfo: () => ({ ...stage.renderer.info.render, geometries: stage.renderer.info.memory.geometries, textures: stage.renderer.info.memory.textures, shadowBake: !!window.__GS_LOOK__?.info?.().shadowBake }),
       /** Triangles per unique geometry in the scene - the "not high poly" budget (project.json budgets). */
       sceneStats() {
         const rows = new Map();

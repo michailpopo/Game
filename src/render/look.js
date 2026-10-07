@@ -31,7 +31,7 @@
  *    splits scene vs post
  *
  * API: look.setQuality(tier) · setBackdrop(nameOrPreset) · setFocus(x, y, z, radius) · refreshShadows()
- *      look.info() -> { calls, triangles, sceneCalls, sceneTriangles, postCalls, bloom, shadows, dpr }
+ *      look.info() -> { calls, triangles, sceneCalls, sceneTriangles, postCalls, bloom, shadows, dpr, shadowBake }
  *      look.key / rim / hemi (lights) · look.bloomPass (strength/radius/threshold) · look.ground
  * `stage.render()` and `stage.resize()` keep working - applyLook swaps them in place.
  */
@@ -261,7 +261,7 @@ export function applyLook(stage, opts = {}) {
   let composer = null, renderPass = null, bloomPass = null, outputPass = null;
   let lastW = -1, lastH = -1, lastDpr = -1;
   let bloomScale = 0.5;
-  const stats = { sceneCalls: 0, sceneTriangles: 0 };
+  const stats = { sceneCalls: 0, sceneTriangles: 0, shadowBake: false };
   function ensureComposer(msaa) {
     if (composer) {
       if (composer.renderTarget1.samples !== msaa) {
@@ -345,6 +345,9 @@ export function applyLook(stage, opts = {}) {
   }
   function render() {
     renderer.info.reset();
+    // A frame that re-bakes the static shadow map (after a build or a quality change) also draws every caster into
+    // the map: a one-off cost, flagged so per-frame budgets can tell it apart (QA renderInfo().shadowBake).
+    stats.shadowBake = renderer.shadowMap.enabled && renderer.shadowMap.needsUpdate;
     alignHorizon();
     if (useComposer) {
       syncComposer();
@@ -365,6 +368,7 @@ export function applyLook(stage, opts = {}) {
       tier: tier.name, dpr: renderer.getPixelRatio(), bloom: useComposer, shadows: key.castShadow,
       calls: r.calls, triangles: r.triangles, points: r.points, lines: r.lines,
       sceneCalls: stats.sceneCalls, sceneTriangles: stats.sceneTriangles, postCalls: r.calls - stats.sceneCalls,
+      shadowBake: stats.shadowBake,
     };
   }
 

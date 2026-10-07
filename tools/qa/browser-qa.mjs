@@ -271,27 +271,40 @@ await scenario("ads-basic-launch", async () => {
 
 await scenario("ads-fill", async () => {
   // Adapter (Storm Grid): the very first city result has no video offer (GAME_BRIEF "Claim x3 ... from run 2").
+  // Event-ordered (2026-10-07): the page samples the game's state right after each ad event the SDK mock fires, so a
+  // slow renderer cannot make the check miss a phase (fixed sleeps sampled too late in software GL).
   const { ctx, page, errors } = await openGame("runs=2&mockAdDelay=900&mockAdLength=900");
   await reachResult(page, "win");
   const before = (await state(page)).coins;
+  await page.evaluate(() => {
+    const seen = (window.__ADS_FILL__ = []);
+    const sample = (at) => { const st = window.__GS_QA__.state; seen.push({ at, adMute: st.audio.adMute, gameplay: st.gameplayReported, overlay: !!document.querySelector(".ad-block:not([hidden])") && getComputedStyle(document.querySelector(".ad-block")).display !== "none" }); };
+    window.__CG_MOCK_ON_RECORD__ = (e) => {
+      if (!["adRequested", "adStarted", "adFinished", "adError"].includes(e.event)) return;
+      setTimeout(() => sample(e.event), 0);   // after the game's own handler for this event has run
+    };
+  });
   await page.click('button[data-id="claim_x"]');
-  await sleep(350);   // requested, not started yet
-  const during = await state(page);
-  const overlay = await page.isVisible(".ad-block");
-  await sleep(900);    // started
-  const playing = await state(page);
-  await sleep(1500);
+  await page.waitForFunction(() => (window.__ADS_FILL__ || []).some((x) => x.at === "adFinished" || x.at === "adError"), null, { timeout: 30000 });
+  await page.waitForFunction((c) => window.__GS_QA__.state.coins > c, before, { timeout: 15000 }).catch(() => {});
+  const seen = await page.evaluate(() => window.__ADS_FILL__);
   const after = await state(page);
+  const at = (ev) => seen.find((x) => x.at === ev);
+  const req = at("adRequested"), start = at("adStarted"), fin = at("adFinished");
   const problems = [];
-  if (!overlay) problems.push("no blocking overlay while the ad was requested");
-  if (during.audio.adMute) problems.push("muted on request instead of on adStarted");
-  if (!playing.audio.adMute) problems.push("not muted while the ad played");
-  if (after.audio.adMute) problems.push("still muted after the ad");
-  if (during.gameplayReported || playing.gameplayReported) problems.push("gameplay reported during the ad");
+  if (!req || !start || !fin) problems.push(`ad events missing: ${seen.map((x) => x.at).join(",") || "none"}`);
+  else {
+    if (!req.overlay) problems.push("no blocking overlay while the ad was requested");
+    if (req.adMute) problems.push("muted on request instead of on adStarted");
+    if (!start.adMute) problems.push("not muted while the ad played");
+    if (fin.adMute) problems.push("still muted after the ad");
+    if (req.gameplay || start.gameplay) problems.push("gameplay reported during the ad");
+  }
+  if (after.audio.adMute) problems.push("still muted after the ad (final state)");
   if (after.coins <= before) problems.push("reward not granted after adFinished");
   allErrors.push(...errors);
   record({ id: "ads-fill", requirements: ["CG-ADS-003", "CG-ADS-004", "CG-ADS-013", "CG-SDK-003"], status: problems.length ? "FAIL" : "PASS",
-    summary: problems.length ? problems.join("; ") : `overlay during request, mute only while playing, coins ${before} -> ${after.coins}`, evidence: { during: during.audio, playing: playing.audio } });
+    summary: problems.length ? problems.join("; ") : `overlay during request, mute only between adStarted and adFinished, coins ${before} -> ${after.coins}`, evidence: { seen } });
   await ctx.close();
 });
 
@@ -386,26 +399,37 @@ await scenario("tab-hidden", async () => {
 });
 
 await scenario("persistence", async () => {
+  // Two halves, one page at a time (two live software-GL pages starve each other; 2026-10-07 fix):
+  // 1) Data module on: a cleared city survives a reload. 2) Data module disabled ("Progress Save" off): the game falls
+  //    back to localStorage AND reads it back after a reload (the W1 bug of the 2026-10-02 audit).
   const { ctx, page, errors } = await openGame("");
   await reachResult(page, "win");
   await page.click('button[data-id="claim"]');
-  await page.waitForFunction(() => window.__GS_QA__.state.phase === "ready", null, { timeout: 10000 });
+  await page.waitForFunction(() => window.__GS_QA__.state.phase === "ready", null, { timeout: 15000 });
   const before = await state(page);
   await page.reload();
-  await page.waitForFunction(() => window.__GS_QA__ && document.getElementById("boot")?.classList.contains("done"));
+  await page.waitForFunction(() => window.__GS_QA__ && document.getElementById("boot")?.classList.contains("done"), null, { timeout: 60000 });
   const after = await state(page);
-  const ok = after.coins === before.coins && after.level === before.level && after.level > 1;
-  const { page: p2, ctx: ctx2 } = await openGame("mockDataDisabled=true");
-  await reachResult(p2, "win");
-  await p2.click('button[data-id="claim"]');
-  await p2.waitForFunction(() => window.__GS_QA__.state.phase === "ready", null, { timeout: 10000 });
-  const fb = await state(p2);
+  const okOn = after.coins === before.coins && after.level === before.level && after.level > 1;
   allErrors.push(...errors);
-  record({ id: "persistence", requirements: ["CG-DATA-001", "CG-DATA-002"], status: ok && fb.save.provider === "localStorage" ? "PASS" : "FAIL",
-    summary: `reload keeps level ${after.level} / ${after.coins} coins via ${after.save.provider}; Data module disabled -> ${fb.save.provider}`,
-    evidence: { before: before.save, after: after.save, fallback: fb.save, note: "cross-device cloud sync can only be checked on CrazyGames (portal preview)" } });
   await ctx.close();
-  await ctx2.close();
+
+  const off = await openGame("mockDataDisabled=true");
+  await reachResult(off.page, "win");
+  await off.page.click('button[data-id="claim"]');
+  await off.page.waitForFunction(() => window.__GS_QA__.state.phase === "ready", null, { timeout: 15000 });
+  await off.page.evaluate(() => window.dispatchEvent(new Event("pagehide")));   // flush now
+  const offBefore = await state(off.page);
+  await off.page.reload();
+  await off.page.waitForFunction(() => window.__GS_QA__ && document.getElementById("boot")?.classList.contains("done"), null, { timeout: 60000 });
+  const offAfter = await state(off.page);
+  const okOff = offBefore.save.provider === "localStorage" && offAfter.save.provider === "localStorage"
+    && offAfter.coins === offBefore.coins && offAfter.level === offBefore.level && offAfter.level > 1;
+  allErrors.push(...off.errors);
+  await off.ctx.close();
+  record({ id: "persistence", requirements: ["CG-DATA-001", "CG-DATA-002"], status: okOn && okOff ? "PASS" : "FAIL",
+    summary: `Data module on: reload keeps level ${after.level} / ${after.coins} coins via ${after.save.provider}; disabled: ${offBefore.save.provider} -> reload keeps level ${offAfter.level} / ${offAfter.coins} coins (${offAfter.save.loadedFrom})`,
+    evidence: { before: before.save, after: after.save, offBefore: offBefore.save, offAfter: offAfter.save, note: "cross-device cloud sync can only be checked on CrazyGames (portal preview)" } });
 });
 
 await scenario("touch", async () => {
@@ -460,37 +484,50 @@ function offerProblems(offers, moment) {
 }
 
 await scenario("poly-budget", async () => {
-  const { ctx, page, errors } = await openGame("");
-  await page.evaluate(() => window.__GS_QA__.setAutopilot?.(true));
-  await startRun(page);
-  const samples = await page.evaluate(() => new Promise((res) => {
-    const out = []; const t0 = performance.now();
-    const tick = () => { out.push(window.__GS_QA__.renderInfo()); if (performance.now() - t0 < 6000) requestAnimationFrame(tick); else res(out); };
-    requestAnimationFrame(tick);
-  }));
-  const stats = await page.evaluate(() => window.__GS_QA__.sceneStats?.() ?? null);
-  await page.screenshot({ path: resolve(SHOTS, "poly-budget.png") });
-  const maxTris = Math.max(...samples.map((s) => s.triangles));
-  const maxCalls = Math.max(...samples.map((s) => s.calls));
+  // Two cities: the first one, and a 300-building city (where the frame is heaviest; added 2026-10-07). A frame that
+  // re-bakes the static shadow map (after a build or an adaptive-quality change) also draws every caster into the map:
+  // a one-off cost, reported separately and not held to the per-frame budget.
+  const measure = async (query) => {
+    const { ctx, page, errors } = await openGame(query);
+    await page.evaluate(() => window.__GS_QA__.setAutopilot?.(true));
+    await startRun(page);
+    const samples = await page.evaluate(() => new Promise((res) => {
+      const out = []; const t0 = performance.now();
+      const tick = () => { out.push(window.__GS_QA__.renderInfo()); if (performance.now() - t0 < 6000) requestAnimationFrame(tick); else res(out); };
+      requestAnimationFrame(tick);
+    }));
+    const stats = await page.evaluate(() => window.__GS_QA__.sceneStats?.() ?? null);
+    if (!query) await page.screenshot({ path: resolve(SHOTS, "poly-budget.png") });
+    allErrors.push(...errors);
+    await ctx.close();
+    const steady = samples.filter((x) => !x.shadowBake), bakes = samples.filter((x) => x.shadowBake);
+    return {
+      maxTris: Math.max(...steady.map((x) => x.triangles)), maxCalls: Math.max(...steady.map((x) => x.calls)),
+      bakeFrames: bakes.length, bakeMax: bakes.length ? Math.max(...bakes.map((x) => x.triangles)) : 0, frames: samples.length, stats,
+    };
+  };
+  const first = await measure("");
+  const big = await measure("level=55");
   const problems = [];
+  const stats = first.stats;
   if (!stats) problems.push("the game does not expose __GS_QA__.sceneStats()");
   if (budgets && stats) {
-    if (maxTris > budgets.trianglesPerFrame) problems.push(`${maxTris} triangles in one frame > ${budgets.trianglesPerFrame}`);
-    if (maxCalls > budgets.drawCalls) problems.push(`${maxCalls} draw calls > ${budgets.drawCalls}`);
-    const heavy = stats.heaviest.filter((g) => g.triangles > budgets.trianglesPerGeometry);
-    if (heavy.length > 1 || heavy.some((g) => g.triangles > budgets.heroTriangles)) {
-      problems.push(`geometries over ${budgets.trianglesPerGeometry} tris: ${heavy.map((g) => `${g.name} ${g.triangles}`).join(", ")} (one hero allowed up to ${budgets.heroTriangles})`);
+    for (const [name, m] of [["city 1", first], ["city 55", big]]) {
+      if (m.maxTris > budgets.trianglesPerFrame) problems.push(`${name}: ${m.maxTris} triangles in one frame > ${budgets.trianglesPerFrame}`);
+      if (m.maxCalls > budgets.drawCalls) problems.push(`${name}: ${m.maxCalls} draw calls > ${budgets.drawCalls}`);
+      const heavy = (m.stats?.heaviest ?? []).filter((g) => g.triangles > budgets.trianglesPerGeometry);
+      if (heavy.length > 1 || heavy.some((g) => g.triangles > budgets.heroTriangles)) {
+        problems.push(`${name}: geometries over ${budgets.trianglesPerGeometry} tris: ${heavy.map((g) => `${g.name} ${g.triangles}`).join(", ")} (one hero allowed up to ${budgets.heroTriangles})`);
+      }
     }
   }
-  const top = stats?.heaviest?.[0];
-  allErrors.push(...errors);
+  const top = big.stats?.heaviest?.[0];
   record({
     id: "poly-budget", requirements: [], status: !budgets ? "INFO" : problems.length ? "FAIL" : "PASS",
     summary: problems.length ? problems.join("; ")
-      : `max ${maxTris} tris / ${maxCalls} draw calls per frame over 6 s of play${budgets ? ` (budget ${budgets.trianglesPerFrame} / ${budgets.drawCalls})` : " (no budgets in project.json)"}; heaviest geometry ${top ? `${top.name} ${top.triangles} tris x${top.instances}` : "?"}; ${stats?.geometries ?? "?"} geometries`,
-    evidence: { maxTris, maxCalls, stats, budgets },
+      : `max per frame over 6 s of play: city 1 ${first.maxTris} tris / ${first.maxCalls} calls, city 55 ${big.maxTris} tris / ${big.maxCalls} calls${budgets ? ` (budget ${budgets.trianglesPerFrame} / ${budgets.drawCalls})` : ""}; shadow re-bake frames: ${first.bakeFrames + big.bakeFrames} (max ${Math.max(first.bakeMax, big.bakeMax)} tris, one-off); heaviest geometry ${top ? `${top.name} ${top.triangles} tris x${top.instances}` : "?"}`,
+    evidence: { first: { ...first, stats: undefined }, big: { ...big, stats: undefined }, stats: big.stats, budgets },
   });
-  await ctx.close();
 });
 
 await scenario("dead-air", async () => {

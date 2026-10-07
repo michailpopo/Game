@@ -83,15 +83,15 @@ export function createScenery({ W, rng, plate, camDir, lanes }) {
   }
   const onRoad = (x, z, m) => roads.some((r) => (r.alongX ? Math.abs(z - r.c) < 3.25 + m && x < r.to + m : Math.abs(x - r.c) < 3.25 + m && z < r.to + m));
   if (R.fields > 0) {
-    const cell = 17, reach = P + 95;
+    const cell = 17, reach = P + 80;                              // far fields sit in the fog (frame budget, 2026-10-07)
     for (let gx = -reach; gx < reach; gx += cell) for (let gz = -reach; gz < reach; gz += cell) {
       const x = gx + cell / 2, z = gz + cell / 2;
       if (!outside(x, z, cell / 2 + 4) || Math.hypot(x, z) > reach || onRoad(x, z, cell / 2) || rng.next() > R.fields) continue;
       const w = cell - rng.range(1.6, 3), d = cell - rng.range(1.6, 3), color = pick(R.crops);
       flat.push({ x, z, w, d, h: LAYER.field, color });
       // crop rows: darker stripes across the field - only on the nearer fields, where they read (far ones are plain:
-      // around the biggest cities the rows alone cost ~5k triangles, frame budget 60k)
-      if (rng.next() < R.rows && Math.hypot(x, z) < P + 60) {
+      // around the biggest cities the rows alone cost ~6k triangles, frame budget 60k)
+      if (rng.next() < R.rows && Math.hypot(x, z) < P + 45) {
         const dark = new Color(color).multiplyScalar(0.82).getStyle(), alongX = rng.next() < 0.5;
         for (let k = -2; k <= 2; k++) flat.push(alongX ? { x, z: z + k * d * 0.18, w: w * 0.9, d: d * 0.07, h: LAYER.row, color: dark } : { x: x + k * w * 0.18, z, w: w * 0.07, d: d * 0.9, h: LAYER.row, color: dark });
       }

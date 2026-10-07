@@ -2,7 +2,11 @@
 /**
  * Record the two mandatory CrazyGames preview videos from the game's ?capture=1 mode.
  *
- *   npm run build && node tools/launch/record-preview.mjs --serve [--seconds 18] [--level 8]
+ *   npm run build && node tools/launch/record-preview.mjs --serve [--seconds 18] [--level 12] [--up 12,10,1,4,2]
+ *
+ * Storm Grid (2026-10-07): --up = upgrade levels Voltage,Fork,Strikes,Capacitor,Gold of the storm shown (a real
+ * mid-game save, ~10 min of play); a clip only encodes when the autopilot clears the city with at least --min-share
+ * powered (a preview that fails or scrapes by sells nothing).
  *
  * Spec (docs.crazygames.com/requirements/game-covers, read 2026-09-11):
  *   15-20 s (longer is cut to 20), <= 50 MB, landscape 1080p 16:9 AND portrait 1080p 2:3,
@@ -26,10 +30,9 @@ const args = process.argv.slice(2);
 const opt = (n, d = null) => { const i = args.indexOf(`--${n}`); return i >= 0 ? args[i + 1] : d; };
 const seconds = Number(opt("seconds", 18));
 const fps = Number(opt("fps", 30));
-const level = Number(opt("level", 5));
-const units = Number(opt("units", 40));                          // start crowd: an upgraded mid-game player
-const minWinCrowd = Number(opt("min-win-crowd", 12));            // a clip that squeaks past with 1 unit is not a highlight
-const lead = Number(opt("lead", Math.round(seconds * 0.6)));     // seconds of running before the finish line
+const level = Number(opt("level", 12));
+const up = opt("up", "12,10,1,4,2");                             // Voltage,Fork,Strikes,Capacitor,Gold: a mid-game storm
+const minShare = Number(opt("min-share", 0.8));                  // the city must end at least this powered
 const outDir = resolve(root, opt("out", "submission/video"));
 const VIDEOS = [["landscape", 1920, 1080], ["portrait", 1080, 1620]];
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
@@ -58,30 +61,30 @@ for (const [kind, w, h] of VIDEOS) {
   const page = await ctx.newPage();
 
   // Opening frame: the cover composition at video resolution.
-  await page.goto(`${base}?cover=${kind}&dpr=1`);
+  await page.goto(`${base}?cover=${kind}&dpr=1&cover_level=${level}&capture_up=${up}`);
   await page.waitForFunction(() => window.__GS_COVER_READY__ === true, null, { timeout: 30000 });
   await page.screenshot({ path: resolve(frames, "cover.png") });
 
-  await page.goto(`${base}?capture=1&dpr=1&capture_level=${level}&capture_lead=${lead}&capture_units=${units}`);
+  await page.goto(`${base}?capture=1&dpr=1&capture_level=${level}&capture_up=${up}`);
   await page.waitForFunction(() => window.__GS_CAPTURE__, null, { timeout: 30000 });
   const total = Math.round(seconds * fps);
   let last;
-  let crowdAtWin = null;
+  let shareAtEnd = null;
   for (let i = 0; i < total; i++) {
     last = await page.evaluate((dt) => window.__GS_CAPTURE__.frame(dt), 1 / fps);
     if (last.phase === "failed") break;
-    if (last.phase === "won" && crowdAtWin === null) crowdAtWin = last.count;
+    if (last.phase === "won" && shareAtEnd === null) shareAtEnd = last.progress;
     await page.screenshot({ path: resolve(frames, `${String(i).padStart(5, "0")}.jpg`), type: "jpeg", quality: 92 });
-    if (i % fps === 0) process.stdout.write(`\r${kind}: ${i}/${total} frames (phase ${last.phase}, crowd ${last.count})   `);
+    if (i % fps === 0) process.stdout.write(`\r${kind}: ${i}/${total} frames (phase ${last.phase}, ${Math.round(100 * last.progress)}% powered)   `);
   }
   process.stdout.write("\n");
   await ctx.close();
-  const weak = last.phase === "failed" || crowdAtWin === null || crowdAtWin < minWinCrowd;
+  const weak = last.phase === "failed" || shareAtEnd === null || shareAtEnd < minShare;
   if (weak) {
-    // A preview that ends in defeat, never reaches the finish, or scrapes by with a
-    // handful of units sells nothing. Measurable spec checks cannot catch this.
-    const what = last.phase === "failed" ? `LOST at frame ${last.frame}` : crowdAtWin === null ? `never won (ended in phase ${last.phase})` : `won with only ${crowdAtWin} units`;
-    console.error(`${kind}: the autopilot ${what}. Not encoding. Try --units ${units + 20}, another --level, or a different --lead.`);
+    // A preview that ends in defeat, never finishes the city, or scrapes by sells nothing.
+    // Measurable spec checks cannot catch this.
+    const what = last.phase === "failed" ? `FAILED the city at frame ${last.frame}` : shareAtEnd === null ? `never finished (ended in phase ${last.phase})` : `cleared only ${Math.round(100 * shareAtEnd)}%`;
+    console.error(`${kind}: the autopilot ${what}. Not encoding. Try a stronger --up, another --level or more --seconds.`);
     await browser.close();
     server?.kill();
     process.exit(1);

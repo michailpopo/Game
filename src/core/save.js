@@ -72,6 +72,9 @@ export class SaveService {
     this.#platform = platform;
     this.#pickProvider();
     this.load();
+    // The first read can reveal that the Data module is disabled for this game ("Progress Save" off): then the
+    // progress lives in localStorage (flush() falls back there), so read it from there instead of starting fresh.
+    if (this.#provider instanceof DataModuleProvider && !platform.dataAvailable) { this.#pickProvider(); this.load(); }
     return this;
   }
 

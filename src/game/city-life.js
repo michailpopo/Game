@@ -7,8 +7,9 @@
  *   - Lamps along the sidewalk rims of the blocks.
  *   - People: little pawns walking back and forth on park paths and along the block rims (only where no building
  *     stands on the rim).
- *   - Cars driving along the avenues (two lanes on wide avenues and the ring road, one-way in the middle of narrow
- *     ones), shrinking in and out at the plate edge.
+ *   - Cars driving random routes through the grid of avenues and the ring road (a lane each way on wide avenues and
+ *     the ring road, one-way in the middle of narrow ones), turning at the crossings on a smooth curve. They never
+ *     leave the plate, so nothing pops in or out.
  *
  * Built like the rest of the city: one InstancedMesh per prop type (flat ground pieces 1, benches 1, lamps 1,
  * fountains 1, bushes 1, people 2 (bodies + heads), cars 1 = 8 draw calls), no shadow casting, counts capped so a
@@ -198,23 +199,82 @@ export function createCityLife({ city, bs, rng, W, base, pitch, lanes, camDir })
   }
 
   // ---------------------------------------------------------------- cars on the avenues
-  // Narrow avenues (the road between two pads is avenue - 1.6 m) are one-way streets with the car in the middle;
-  // wide ones have two lanes. The ring road outside the blocks is always wide enough for two.
+  // The avenues and the ring road (the first and last lane lines) cross in a grid of crossings; each car drives a
+  // random route through it and turns on a smooth curve, so it never leaves the plate. Narrow avenues (the road between
+  // two pads is avenue - 1.6 m) are one-way streets with the car in the middle, alternating direction; wide ones and the
+  // ring road have a lane each way. All cars share one speed, so cars in one lane never drive through each other.
+  // The car count and its random draws are the same as for the old straight lanes, so the look stream after it is unchanged.
   const cars = [];
   const laneDirs = [];
   const road = lanes.avenue - 1.6, twoWay = road >= 5.2;
-  const addLanes = (list, alongX) => list.forEach((c, i) => {
+  const addLanes = (list) => list.forEach((c, i) => {
     const ring = i === 0 || i === list.length - 1;
-    if (twoWay || ring) for (const side of [1, -1]) laneDirs.push({ alongX, c, side, off: 1.45 * side, scale: 1.35 });
-    else laneDirs.push({ alongX, c, side: i % 2 ? 1 : -1, off: 0, scale: Math.min(1.35, (road - 0.3) / 1.5) });
+    if (twoWay || ring) laneDirs.push(0, 0); else laneDirs.push(0);
   });
-  addLanes(lanes.lx, false);
-  addLanes(lanes.lz, true);
+  addLanes(lanes.lx);
+  addLanes(lanes.lz);
   for (let k = 0; k < laneDirs.length && cars.length < CAP.cars; k++) {
-    const L = laneDirs[(k * 7) % laneDirs.length];
     const per = laneDirs.length * 2 <= CAP.cars ? 2 : 1;
-    for (let j = 0; j < per && cars.length < CAP.cars; j++) cars.push({ ...L, speed: rng.range(5.5, 7.5), offset: rng.range(0, 1) + j * 0.5, color: SHIRTS[Math.floor(rng.next() * 6)] });
+    for (let j = 0; j < per && cars.length < CAP.cars; j++) {
+      rng.range(5.5, 7.5);                                     // was the lane speed
+      cars.push({ seed: rng.range(0, 1) + j * 0.5, color: SHIRTS[Math.floor(rng.next() * 6)] });
+    }
   }
+  const X = lanes.lx, Z = lanes.lz, nx = X.length, nz = Z.length;
+  const CAR = { speed: 6.5, scale: Math.min(1.35, (road - 0.3) / 1.5), lane: 1.45, turn: 3 };
+  const wideX = (i) => twoWay || i === 0 || i === nx - 1, wideZ = (j) => twoWay || j === 0 || j === nz - 1;
+  const oneWay = (k) => (k % 2 ? 1 : -1);
+  // moves out of crossing (i, j) as [di, dj]: along x-line i (z changes) or z-line j (x changes), one-way rules kept
+  const moves = (i, j) => {
+    const out = [];
+    for (const dj of [1, -1]) if (j + dj >= 0 && j + dj < nz && (wideX(i) || dj === oneWay(i))) out.push([0, dj]);
+    for (const di of [1, -1]) if (i + di >= 0 && i + di < nx && (wideZ(j) || di === oneWay(j))) out.push([di, 0]);
+    return out;
+  };
+  // the lane of move m through crossing (i, j): offset to the right of the driving direction on a wide road
+  const laneOff = (i, j, m) => (m[0] === 0 ? [wideX(i) ? -m[1] * CAR.lane : 0, 0] : [0, wideZ(j) ? m[0] * CAR.lane : 0]);
+  // the curve through crossing (i, j) from move a to move b: start p0, control c, end p2 (straight on: a line)
+  const curve = (i, j, a, b) => {
+    const oa = laneOff(i, j, a), T = CAR.turn;
+    let cx = X[i] + oa[0], cz = Z[j] + oa[1];
+    if (a[0] !== b[0] || a[1] !== b[1]) { const ob = laneOff(i, j, b); cx += ob[0]; cz += ob[1]; }
+    return { p0: [cx - a[0] * T, cz - a[1] * T], c: [cx, cz], p2: [cx + b[0] * T, cz + b[1] * T] };
+  };
+  const pick = (car, i, j, from) => {                          // the next move at a crossing: straight on twice as likely, no U-turn
+    const opts = moves(i, j).filter((m) => m[0] !== -from[0] || m[1] !== -from[1]);
+    const w = opts.map((m) => (m[0] === from[0] && m[1] === from[1] ? 2 : 1));
+    let r = car.rand() * w.reduce((a, b) => a + b, 0);
+    for (let k = 0; k < opts.length; k++) if ((r -= w[k]) < 0) return opts[k];
+    return opts[opts.length - 1] ?? [-from[0], -from[1]];
+  };
+  const dist = (a, b) => Math.hypot(b[0] - a[0], b[1] - a[1]);
+  // a run along the lane from the last curve's end to the next curve's start, then that curve
+  const enterEdge = (car, i, j, m, start) => {
+    const ti = i + m[0], tj = j + m[1];
+    const next = pick(car, ti, tj, m);
+    const cv = curve(ti, tj, m, next);
+    Object.assign(car, { ti, tj, m, next, cv, kind: "run", a: start, b: cv.p0, s: 0 });
+    car.len = Math.max(1e-3, dist(start, cv.p0));
+  };
+  const advance = (car) => {
+    if (car.kind === "run") {
+      const { p0, c, p2 } = car.cv;
+      car.kind = "turn"; car.s = 0;
+      car.len = Math.max(1e-3, (2 * dist(p0, p2) + dist(p0, c) + dist(c, p2)) / 3);
+    } else enterEdge(car, car.ti, car.tj, car.next, car.cv.p2);
+  };
+  if (nx >= 2 && nz >= 2) {
+    cars.forEach((car) => {
+      let st = Math.floor(car.seed * 1e9) >>> 0;               // the car's own route stream (mulberry32)
+      car.rand = () => { st = (st + 0x6D2B79F5) >>> 0; let t = st; t = Math.imul(t ^ (t >>> 15), t | 1); t ^= t + Math.imul(t ^ (t >>> 7), t | 61); return ((t ^ (t >>> 14)) >>> 0) / 4294967296; };
+      let i = Math.floor(car.rand() * nx), j = Math.floor(car.rand() * nz), opts = moves(i, j);
+      for (let k = 0; !opts.length && k < 20; k++) { i = Math.floor(car.rand() * nx); j = Math.floor(car.rand() * nz); opts = moves(i, j); }
+      const m = opts[Math.floor(car.rand() * opts.length)] ?? [1, 0];
+      const o = laneOff(i, j, m);
+      enterEdge(car, i, j, m, [X[i] + o[0] + m[0] * CAR.turn, Z[j] + o[1] + m[1] * CAR.turn]);
+      car.s = car.rand() * car.len;                            // spread along their first stretch
+    });
+  } else cars.length = 0;
 
   // ---------------------------------------------------------------- meshes
   const mat = (opts = {}) => { const m = new MeshStandardMaterial({ vertexColors: true, roughness: 0.85, ...opts }); own.push(m); return m; };
@@ -242,6 +302,7 @@ export function createCityLife({ city, bs, rng, W, base, pitch, lanes, camDir })
     group.add(carMesh);
   }
 
+  let lastT = 0;
   function update(time) {
     if (bodies) {
       walkers.forEach((w, i) => {
@@ -259,14 +320,22 @@ export function createCityLife({ city, bs, rng, W, base, pitch, lanes, camDir })
       heads.instanceMatrix.needsUpdate = true;
     }
     if (carMesh) {
-      const span = lanes.span, len = span * 2;
+      const dt = Math.min(0.1, Math.max(0, time - lastT));
+      lastT = time;
       cars.forEach((c, i) => {
-        const v = -span + (((c.offset * len + time * c.speed) % len) + len) % len;      // along the lane, its direction
-        const along = v * c.side;
-        const grow = Math.min(1, (span - Math.abs(along)) / 4);                        // shrink in / out at the plate edge
-        const x = c.alongX ? along : c.c + c.off, z = c.alongX ? c.c + c.off : along;
-        const r = c.alongX ? (c.side > 0 ? Math.PI / 2 : -Math.PI / 2) : (c.side > 0 ? 0 : Math.PI);
-        carMesh.setMatrixAt(i, _m.compose(_p.set(x, 0.1, z), _q.setFromAxisAngle(UP, r), _s.setScalar(c.scale * Math.max(0.001, grow))));
+        c.s += dt * CAR.speed;
+        for (let k = 0; c.s >= c.len && k < 8; k++) { c.s -= c.len; advance(c); }
+        const t = Math.min(1, c.s / c.len);
+        let x, z, dx, dz;
+        if (c.kind === "run") { x = c.a[0] + (c.b[0] - c.a[0]) * t; z = c.a[1] + (c.b[1] - c.a[1]) * t; dx = c.m[0]; dz = c.m[1]; }
+        else {
+          const { p0, c: q, p2 } = c.cv, u = 1 - t;
+          x = u * u * p0[0] + 2 * u * t * q[0] + t * t * p2[0];
+          z = u * u * p0[1] + 2 * u * t * q[1] + t * t * p2[1];
+          dx = u * (q[0] - p0[0]) + t * (p2[0] - q[0]);
+          dz = u * (q[1] - p0[1]) + t * (p2[1] - q[1]);
+        }
+        carMesh.setMatrixAt(i, _m.compose(_p.set(x, 0.1, z), _q.setFromAxisAngle(UP, Math.atan2(dx, dz)), _s.setScalar(CAR.scale)));
       });
       carMesh.instanceMatrix.needsUpdate = true;
     }

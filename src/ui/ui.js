@@ -29,6 +29,8 @@ const ICON = {
   video: `<svg viewBox="0 0 24 24" aria-hidden="true"><rect x="2" y="5" width="14" height="14" rx="3"/><path d="M17 10.2 22 7v10l-5-3.2z"/></svg>`,
   soundOn: `<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 9h4l5-4v14l-5-4H4z"/><path d="M16 8.5a5 5 0 0 1 0 7M18.5 6a8.5 8.5 0 0 1 0 12" fill="none" stroke="#fff" stroke-width="2" stroke-linecap="round"/></svg>`,
   soundOff: `<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 9h4l5-4v14l-5-4H4z"/><path d="M16.5 9.5l5 5m0-5-5 5" fill="none" stroke="#fff" stroke-width="2.2" stroke-linecap="round"/></svg>`,
+  musicOn: `<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M9 17.5V6.2l10-2.2v11.3" fill="none" stroke="#fff" stroke-width="2.1" stroke-linejoin="round"/><ellipse cx="6.6" cy="17.6" rx="2.9" ry="2.3"/><ellipse cx="16.6" cy="15.4" rx="2.9" ry="2.3"/></svg>`,
+  musicOff: `<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M9 17.5V6.2l10-2.2v11.3" fill="none" stroke="#fff" stroke-width="2.1" stroke-linejoin="round" opacity=".55"/><ellipse cx="6.6" cy="17.6" rx="2.9" ry="2.3" opacity=".55"/><ellipse cx="16.6" cy="15.4" rx="2.9" ry="2.3" opacity=".55"/><path d="M3.5 3.5l17 17" stroke="#fff" stroke-width="2.4" stroke-linecap="round"/></svg>`,
   pause: `<svg viewBox="0 0 24 24" aria-hidden="true"><rect x="6" y="5" width="4" height="14" rx="1.2"/><rect x="14" y="5" width="4" height="14" rx="1.2"/></svg>`,
   mouse: `<svg viewBox="0 0 24 24" aria-hidden="true"><rect x="6" y="3" width="12" height="18" rx="6" fill="none" stroke="#fff" stroke-width="2"/><path d="M12 7v4" stroke="#fff" stroke-width="2" stroke-linecap="round"/></svg>`,
   finger: `<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M9 11V5.5a1.5 1.5 0 0 1 3 0V10l5 1.2c1 .3 1.6 1.2 1.5 2.2L18 18c-.2 1.7-1.6 3-3.3 3h-3.2c-1 0-1.9-.5-2.5-1.3L5.7 15.6a1.4 1.4 0 0 1 2.1-1.8L9 15z" fill="#fff"/></svg>`,
@@ -47,7 +49,7 @@ const ICON = {
 const swatch = (fill) => `<svg viewBox="0 0 48 48" aria-hidden="true"><path d="M28 4 12 27h10l-3 17 17-25H26z" fill="${fill}"/></svg>`;
 const PLATE_COLORS = { 2: "#4df3ff", 3: "#7cff7a", 5: "#ffcc33", 10: "#ff3fa4" };
 
-export function createUI(root, { onSound, onPause, onResume, onBuy, onFree, onBoost, onBoostCoins, onGift, onShop, onShopClose, onSkin, onPreview, onUnlock, onCash, onTry }) {
+export function createUI(root, { onSound, onMusic, onPause, onResume, onBuy, onFree, onBoost, onBoostCoins, onGift, onShop, onShopClose, onSkin, onPreview, onUnlock, onCash, onTry }) {
   root.innerHTML = `
     <div class="hud">
       <div class="hud-left"><div class="coins"><b>0</b><span class="coin">${ICON.coin}</span></div></div>
@@ -57,7 +59,7 @@ export function createUI(root, { onSound, onPause, onResume, onBuy, onFree, onBo
         <div class="strike-pips" style="display:flex;gap:0.15em;margin-top:0.2em"></div>
       </div>
       <div class="hud-right">
-        <div class="btns"><button class="icon-btn pause" type="button">${ICON.pause}</button><button class="icon-btn sound" type="button"></button></div>
+        <div class="btns"><button class="icon-btn pause" type="button">${ICON.pause}</button><button class="icon-btn music" type="button" hidden></button><button class="icon-btn sound" type="button"></button></div>
         <div class="ranks"><p class="ranks-title"></p><ol></ol></div>
       </div>
     </div>
@@ -96,6 +98,7 @@ export function createUI(root, { onSound, onPause, onResume, onBuy, onFree, onBo
 
   const $ = (sel) => root.querySelector(sel);
   const soundBtn = $(".sound");
+  const musicBtn = $(".music");
   const pauseBtn = $(".pause");
   const coinsEl = $(".coins b");
   const coinsPill = $(".coins");
@@ -135,6 +138,7 @@ export function createUI(root, { onSound, onPause, onResume, onBuy, onFree, onBo
     `<span class="meter-tick" style="position:absolute;left:${at * 100}%;top:-0.2em;bottom:-0.2em;width:0.14em;margin-left:-0.07em;border-radius:0.1em;background:${PLATE_COLORS[m]}"></span>`).join(""));
 
   soundBtn.addEventListener("click", () => onSound?.());
+  musicBtn.addEventListener("click", () => onMusic?.());
   pauseBtn.addEventListener("click", () => onPause?.());
   paused.addEventListener("click", () => onResume?.());
   boostBtn.addEventListener("click", () => onBoost?.());
@@ -453,6 +457,13 @@ export function createUI(root, { onSound, onPause, onResume, onBuy, onFree, onBo
       soundBtn.innerHTML = effectiveMuted ? ICON.soundOff : ICON.soundOn;
       soundBtn.title = platformMute ? t("muted_by_platform") : effectiveMuted ? t("sound_off") : t("sound_on");
       soundBtn.setAttribute("aria-label", soundBtn.title);
+    },
+    /** The music toggle; shown only when the game has music. */
+    setMusic({ musicMute, hasMusic }) {
+      musicBtn.hidden = !hasMusic;
+      musicBtn.innerHTML = musicMute ? ICON.musicOff : ICON.musicOn;
+      musicBtn.title = musicMute ? t("music_off") : t("music_on");
+      musicBtn.setAttribute("aria-label", musicBtn.title);
     },
     /** City intro overlay: wordmark, city + theme, and the pulsing "hold" hint (no PLAY button: the city is the button). */
     showHome(on, { title = "", mode = "", main = "", sub = "", icon = "mouse" } = {}) {

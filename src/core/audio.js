@@ -18,6 +18,10 @@
  * those files are fetched by preload() (or on unlock) and decoded once the AudioContext exists; until a file is
  * decoded - or if it fails to load - the ZzFX sound of the same name plays, so audio never waits on the network.
  * Claude cannot listen to these: a human auditions every sound.
+ *
+ * Music: an optional `music(sampleRate) -> Promise<AudioBuffer>` is rendered once after the first gesture and looped
+ * on its own gain under the master, so every mute above silences it too; the player's music toggle only fades that
+ * gain (sound effects stay).
  */
 
 import { buildSamples } from "./zzfx.js";
@@ -42,16 +46,22 @@ export class AudioService {
   #buffers = new Map(); #lastPlay = new Map(); #active = new Map();
   #listeners = new Set();
   #samples; #raw = new Map(); #mix = new Map();
+  #music; #musicMute = false; #musicGain = null; #musicReady = false; #musicLevel;
 
   /**
-   * @param {{ sounds?: object, samples?: Record<string, { url: string, gain?: number, pitchExp?: number }>, userMuted?: boolean }} [o]
+   * @param {{ sounds?: object, samples?: Record<string, { url: string, gain?: number, pitchExp?: number }>, userMuted?: boolean,
+   *   music?: (sampleRate:number) => Promise<AudioBuffer>, musicMuted?: boolean, musicLevel?: number }} [o]
    *   samples: gain = this file's level in the mix; pitchExp: play-time pitch p becomes p ** pitchExp for the file
    *   (< 1 narrows a pitch ladder that a sampled sound cannot follow as far as a synthesised one)
+   *   music: renders the loop; musicLevel: its gain under the master (the effects play at 0.9)
    */
-  constructor({ sounds = SFX, samples = {}, userMuted = false } = {}) {
+  constructor({ sounds = SFX, samples = {}, userMuted = false, music = null, musicMuted = false, musicLevel = 0.5 } = {}) {
     this.#defs = sounds;
     this.#samples = samples;
     this.#userMute = userMuted;
+    this.#music = music;
+    this.#musicMute = musicMuted;
+    this.#musicLevel = musicLevel;
   }
 
   /** Starts fetching the sample files (no AudioContext needed). Safe to call more than once. */
@@ -78,12 +88,13 @@ export class AudioService {
 
   get muted() { return this.#platformMute || this.#adMute || this.#hiddenMute || this.#userMute; }
   get userMuted() { return this.#userMute; }
+  get musicMuted() { return this.#musicMute; }
   get lockedByPlatform() { return this.#platformMute; }
   get state() {
     return {
       platformMute: this.#platformMute, adMute: this.#adMute, hiddenMute: this.#hiddenMute,
       userMute: this.#userMute, effectiveMuted: this.muted, context: this.#ctx?.state ?? "none",
-      samplesDecoded: this.#mix.size,
+      samplesDecoded: this.#mix.size, musicMute: this.#musicMute, musicReady: this.#musicReady, hasMusic: !!this.#music,
     };
   }
 
@@ -107,6 +118,14 @@ export class AudioService {
     return { userMute: this.#userMute, effectiveMuted: this.muted, lockedByPlatform: this.#platformMute };
   }
 
+  /** The music toggle: fades only the music; the effects and every other mute stay as they are. */
+  toggleMusic() {
+    this.#musicMute = !this.#musicMute;
+    this.#applyMusic(0.4);
+    this.#apply();
+    return { musicMute: this.#musicMute, effectiveMuted: this.muted, lockedByPlatform: this.#platformMute };
+  }
+
   /** Must run inside a user gesture handler. Safe to call repeatedly; also repairs a suspended/interrupted context. */
   unlock() {
     if (!this.#ctx) {
@@ -120,6 +139,7 @@ export class AudioService {
       this.#sfx.connect(this.#master);
       for (const [name, params] of Object.entries(this.#defs)) this.#build(name, params);
       this.#decodeSamples();
+      this.#startMusic();
       this.#apply();
     }
     if (this.#ctx.state !== "running") this.#ctx.resume().catch(() => {});
@@ -168,6 +188,35 @@ export class AudioService {
     const buf = this.#ctx.createBuffer(1, samples.length, rate);
     buf.getChannelData(0).set(samples);
     this.#buffers.set(name, buf);
+  }
+
+  /** Renders the loop off the gesture's frame, then starts it silent and fades it in. */
+  #startMusic() {
+    if (!this.#music) return;
+    const ctx = this.#ctx;
+    this.#musicGain = ctx.createGain();
+    this.#musicGain.gain.value = 0;
+    this.#musicGain.connect(this.#master);
+    setTimeout(() => {
+      Promise.resolve().then(() => this.#music(ctx.sampleRate)).then((buf) => {
+        if (!buf) return;
+        const src = ctx.createBufferSource();
+        src.buffer = buf;
+        src.loop = true;
+        src.connect(this.#musicGain);
+        src.start();
+        this.#musicReady = true;
+        this.#applyMusic(2.5);
+        this.#apply();
+      }).catch(() => { /* no music: the game plays on with its effects */ });
+    }, 400);
+  }
+
+  #applyMusic(fade) {
+    if (!this.#musicGain) return;
+    const now = this.#ctx.currentTime, v = this.#musicReady && !this.#musicMute ? this.#musicLevel : 0;
+    this.#musicGain.gain.cancelScheduledValues(now);
+    this.#musicGain.gain.setTargetAtTime(v, now, fade / 3);
   }
 
   #apply() {

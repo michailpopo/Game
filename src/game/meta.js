@@ -29,6 +29,7 @@ export const DEFAULT_SAVE = {
   bestChain: 0,
   plates: {},        // city -> best plate multiplier
   userMuted: false,
+  musicMuted: false,
   lastFreeUpgradeAt: 0,
   lastBoostAt: 0,    // Supercharged start: when it was last SHOWN (cadence) ...
   lastBoostRun: -99, // ... and on which run

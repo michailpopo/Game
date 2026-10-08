@@ -68,6 +68,8 @@ const STRINGS = {
     adblock_notice: "Unavailable with an ad blocker",
     sound_on: "Sound on",
     sound_off: "Sound off",
+    music_on: "Music on",
+    music_off: "Music off",
     muted_by_platform: "Muted by CrazyGames settings",
     start_boost: "+{n} strikes",
     boost_title: "SUPERCHARGED START",

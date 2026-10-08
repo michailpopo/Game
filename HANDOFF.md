@@ -43,7 +43,7 @@ with the `game-studio` skill (planner + specialist agents) and checked with the 
 | WP-30 | 3D core: city generator, charge/strike, hop/fork chain, lighting, % powered, plates, result, QA hooks | done, verified (build, sim-health, 13 browser scenarios 0 FAIL) |
 | WP-31 | Wire toy city + bolts + juice + ZzFX sounds into the real game (`src/game/view.js`, `city-mesh.js`, `look.js`, `sfx.js`, `src/fx/*`) | wired; harness `poly-budget`, `dead-air` PASS (2026-10-02). Visual items below NOT re-judged |
 | WP-32 | Shop, upgrades, 12 skins, all 7 offers, daily gift, midgame from city 4, completion %, save | wired; `shop`, `ad-ui`, `revive-offer`, `adblock`, `ads-basic-launch` PASS (2026-10-02). One real bug: save fallback (section 4, job 1) |
-| WP-13 | Launch package: covers x3, preview videos x2, store text, portal checklist | **done 2026-10-08**: `submission/covers/*` (committed), `submission/video/*` (gitignored, sent to the owner), `submission/storm-grid-build.zip` (gitignored, sent), `docs/STORE_METADATA.md` filled, `launch:check` PASS |
+| WP-13 | Launch package: covers x3, preview videos x2, store text, portal checklist | **done 2026-10-08**: `submission/covers/*`, `submission/video/*` and `submission/storm-grid-build.zip` (all committed, so the owner can download them from GitHub), `docs/STORE_METADATA.md` filled, `launch:check` PASS |
 | WP-QA | CrazyGames QA audit report `docs/CG_QA_AUDIT.md` (crazygames-qa skill format) | **launch gate 2026-10-08**: 42/45 mandatory PASS, 0 FAIL, 3 cannot verify (Edge, Chromebook, CG-app safe areas), 4 warnings; `npm run qa` exits 0 |
 
 State (2026-10-08): `npm run qa` exits 0 (static checks, build, bundle 0.93 MB / 20 files, 22 browser checks). Browser harness:

@@ -713,11 +713,17 @@ await scenario("shop", async () => {
   // Try a bolt (from run 4): a locked bolt tapped -> "Try it" (video) in the same row as the coin unlock,
   // same size; watching it equips the bolt for one city and marks it tried (never offered again).
   const { ctx: c4, page: p4, errors: e4 } = await openGame("runs=5&coins=100");
+  // Video offers need the SDK: on a starved software-GL host its init can pass the game's 8 s limit, and the game then
+  // rightly plays on without ads. Wait for it, and say so if it never came.
+  const sdk4 = await p4.waitForFunction(() => window.__GS_QA__.state.platform?.name === "crazygames", null, { timeout: RESULT_MS }).then(() => true).catch(() => false);
   await p4.click(".shop-btn");
   await p4.waitForSelector(".shop-modal:not([hidden]) .swatch.locked", { timeout: 5000 });
   await p4.click(".shop .swatch.locked");
-  const tryBtn = await p4.waitForSelector('.shop button[data-act="try"]', { timeout: 3000 }).catch(() => null);
-  if (!tryBtn) problems.push("no Try-it offer for a locked bolt at run 5");
+  const tryBtn = await p4.waitForSelector('.shop button[data-act="try"]', { timeout: 10000 }).catch(() => null);
+  if (!tryBtn) {
+    const st4 = await state(p4);
+    problems.push(`no Try-it offer for a locked bolt at run 5 (platform ${st4.platform?.name}${sdk4 ? "" : ", SDK init never finished"}, runs ${st4.runs}, tried ${st4.tried.length})`);
+  }
   else {
     const tryOffers = await auditOffers(p4);
     problems.push(...offerProblems(tryOffers, "shop-try"));

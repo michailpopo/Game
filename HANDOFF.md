@@ -125,6 +125,13 @@ below, a few at city height; 4 striped hot-air balloons; an airship circling beh
 Ideas from: The Aviator (codrops, low-poly sky scene), low-poly floating-island and cloud tutorials (WebSearch summaries; the
 pages themselves are blocked by the proxy). Tapering rock is edge-on to this camera - keep the near-vertical cliff band.
 
+**2026-10-08, owner (first fresh playtest): "the cars disappearing (by shrinking) and appearing looks cheap" - fixed.**
+`src/game/city-life.js`: each car now drives a random route through the grid of avenues and the ring road (crossings =
+lane lines from city-mesh.js), turning on a smooth 3 m curve, and never leaves the plate - no shrink, no pop. Narrow
+avenues stay one-way, wide ones and the ring road have a lane each way; one shared speed (6.5 m/s) so cars in one lane
+never pass through each other. Per-car random draws unchanged, so the scenery is identical. Probed cities 1 and 22:
+0 cars off the plate, constant scale, 0 overlapping pairs. Covers, videos and the zip re-made with this build.
+
 **2026-10-08, owner: "the cloud looks bad from that angle - not the cloud itself, where it is over the city, once the
 camera has turned" - done.** The held storm front (still never turning with the camera, as asked on 2026-10-07) now glides
 in 2.5 s from behind the city to over the city's centre once the run ends (`CityMesh.setCloudOver`, `view.js` #frame,

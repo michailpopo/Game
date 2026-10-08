@@ -125,8 +125,12 @@ below, a few at city height; 4 striped hot-air balloons; an airship circling beh
 Ideas from: The Aviator (codrops, low-poly sky scene), low-poly floating-island and cloud tutorials (WebSearch summaries; the
 pages themselves are blocked by the proxy). Tapering rock is edge-on to this camera - keep the near-vertical cliff band.
 
+**2026-10-08, owner: "music is good but remove it, no need for it" - removed.** src/game/music.js, the music button,
+the AudioService music path and `save.musicMuted` are gone (files restored to before the music commit 1aa1ac7; the
+music is in git history if it is ever wanted again). No music in the game.
+
 **2026-10-08, owner: "music is a bit too quiet, can't hear it at all; cars should not be able to be in each other" -
-done.** Music: brighter mix (pad low-pass 1900 Hz, bass with a saw octave overtone for small speakers, arpeggio and lead
+done (music later removed).** Music: brighter mix (pad low-pass 1900 Hz, bass with a saw octave overtone for small speakers, arpeggio and lead
 up), normalised to -16 dBFS RMS and played at 0.7 (`musicLevel` in main.js): ~6.4 dB louder in game. Cars: traffic rules
 in city-life.js - one car at a time per crossing (wait with the nose outside the crossing box, reserve, free once the
 tail is clear), brake for the car ahead in the same direction, no overlapping starts. New `check-city` check
@@ -248,7 +252,6 @@ The game is **upload-ready** (2026-10-08). Everything below is the owner's, exce
    (`submission/covers/`) and 2 videos (`submission/video/`, regenerate with `npm run launch:video`, ~35 min here).
    Settings: landscape + portrait, mobile yes, **Progress Save = Data Module ON**, multiplayer no. Basic Launch first.
 2. **In the portal preview:** play a few cities on desktop (also in **Edge**), on a phone and ideally a Chromebook;
-   **listen to the new music** (too loud / boring / wrong mood? the levels and notes are in src/game/music.js) and
    **audition every sound** (Claude cannot hear; other Kenney candidates are easy to swap in `tools/audio/build-sfx.mjs`);
    read the preview's SDK messages. These are the audit's 3 CANNOT VERIFY items.
 3. **Owner playtest of the new pacing** from a fresh save (clear the site data of the test page).

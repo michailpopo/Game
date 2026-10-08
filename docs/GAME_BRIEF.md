@@ -287,11 +287,6 @@ Saves from before (v3) are migrated to v4 with equal power (Voltage x2, Fork x3,
     this fantasy to copy.
 
 ## Audio direction
-**Music since 2026-10-08 (owner picked "write it in code"):** one 16-bar loop, `src/game/music.js` - 104 BPM, Am-F-C-G,
-pad + bass + soft drums from bar 1, a 16th arpeggio with echo from bar 5, a sparse A-minor-pentatonic lead from bar 9
-(~37 s, seamless). Rendered once after the first gesture (no file), played at 0.5 under the effects (0.9); every mute
-(CrazyGames setting, ads, hidden tab, sound toggle) silences it; its own music button (saved). The owner judges it.
-
 **Since 2026-10-07 (owner: "better sounds, free ones"):** recorded CC0 sounds from Kenney's packs (src/assets/sfx/,
 20 MP3s, ~150 KB, built and loudness-matched by tools/audio/build-sfx.mjs; the thunder is layered from a crack, a crunchy
 blast, a low boom and a generated rumble). The ZzFX sounds below remain the fallback while a file loads. The owner

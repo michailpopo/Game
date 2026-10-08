@@ -57,7 +57,6 @@ import {
 } from "./game/meta.js";
 import { boostDue, boostOffer, cashOffer, dailyGiftOffer, freeUpgradeOffer, reviveOffer, trySkinOffer } from "./game/offers.js";
 import { STORM_SAMPLES, STORM_SFX } from "./game/sfx.js";
-import { renderMusic } from "./game/music.js";
 import { themeOf } from "./game/look.js";
 import { GameView } from "./game/view.js";
 import { createUI } from "./ui/ui.js";
@@ -122,14 +121,14 @@ async function boot() {
   const pause = new PauseArbiter([Reason.BOOT]);
   const gameplay = createGameplayReporter(platform, pause);
   const save = new SaveService({ key: `${GAME.slug}.save`, version: GAME.saveVersion, defaults: DEFAULT_SAVE, migrations: MIGRATIONS }).init(platform);
-  const audio = new AudioService({ sounds: { ...SFX, ...STORM_SFX }, samples: STORM_SAMPLES, userMuted: save.data.userMuted, music: renderMusic, musicMuted: save.data.musicMuted, musicLevel: 0.7 }).bindPlatform(platform).installUnlockHandlers(window);
+  const audio = new AudioService({ sounds: { ...SFX, ...STORM_SFX }, samples: STORM_SAMPLES, userMuted: save.data.userMuted }).bindPlatform(platform).installUnlockHandlers(window);
   const input = new Input(canvas, { bindings: { action: ["Space", "Enter"], pause: ["KeyP"] } }).attach();
   const stage = createStage(canvas);
   const quality = new AdaptiveQuality(stage.renderer);
   const touchUI = () => inputMode === "touch" || matchMedia("(pointer: coarse)").matches || platform.systemInfo?.device?.type === "mobile";
 
   const ui = createUI(document.getElementById("ui"), {
-    onSound: toggleSound, onMusic: toggleMusic, onPause: () => (paused ? resumeRun() : pauseRun()), onResume: resumeRun,
+    onSound: toggleSound, onPause: () => (paused ? resumeRun() : pauseRun()), onResume: resumeRun,
     onBuy: buyUpgrade, onFree: freeUpgrade, onBoost: takeBoost, onBoostCoins: buyBoost, onGift: openGift,
     onShop: openShop, onShopClose: closeShop, onSkin: selectSkin, onPreview: previewSkin, onUnlock: unlockRandom,
     onCash: cashForShop, onTry: trySkin,
@@ -799,13 +798,7 @@ async function boot() {
     ui.setSound(audio.state);
     if (r.lockedByPlatform) ui.toast(t("muted_by_platform"));
   }
-  function toggleMusic() {
-    const r = audio.toggleMusic();
-    save.update((d) => { d.musicMuted = r.musicMute; });
-    ui.setMusic(audio.state);
-    if (r.lockedByPlatform) ui.toast(t("muted_by_platform"));
-  }
-  audio.onChange((s) => { ui.setSound(s); ui.setMusic(s); });
+  audio.onChange((s) => ui.setSound(s));
 
   // ---------------------------------------------------------------- pause wiring
   pause.onChange(({ reasons }) => {
@@ -913,7 +906,6 @@ async function boot() {
   view.snapCamera(sim);
   ui.setCoins(save.data.coins);
   ui.setSound(audio.state);
-  ui.setMusic(audio.state);
   loop.start();
   platform.reportCompletion(completionPercent(save.data.bestLevel));
   platform.loadingStop();

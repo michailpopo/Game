@@ -846,7 +846,11 @@ async function boot() {
         autopilot(sim, stepIn); step(sim, 1 / 60, stepIn);
         if (progress(sim) >= stopAt && sim.bolts.length >= 2) break;
       }
+      // A still needs its bolts to outlive their 0.6 s flash: hold the last strike and the newest hops on screen.
+      const strike = sim.events.findLast((e) => e.type === "strike");
+      const hops = sim.events.filter((e) => e.type === "hop" && e.t > sim.t - 0.6).slice(-12);
       loop.setSimPaused(true);
+      view.holdBolts(sim, strike, hops);
       loop.start();
       await wait(1200);
       window.__GS_COVER_READY__ = true;
@@ -855,8 +859,17 @@ async function boot() {
     sim.events.length = 0;
     view.snapCamera(sim);
     let frames = 0;
+    // ?capture_next=N: 2.2 s after the win, cut to city N (another theme) instead of orbiting a finished city.
+    const next = Number(qs.get("capture_next") || 0);
+    let wonFor = 0;
     window.__GS_CAPTURE__ = {
       frame(dt = 1 / 30) {
+        if (next && level !== next && sim.phase === "won" && (wonFor += dt) >= 2.2) {
+          loadLevel(next);
+          startRun(sim);
+          sim.events.length = 0;
+          view.snapCamera(sim);
+        }
         const steps = Math.max(1, Math.round(dt * 60));
         for (let i = 0; i < steps; i++) { autopilot(sim, stepIn); step(sim, 1 / 60, stepIn); }
         aim = stepIn.aim;

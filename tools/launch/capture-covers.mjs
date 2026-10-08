@@ -47,10 +47,10 @@ for (const [kind, w, h] of COVERS) {
   await ctx.route(/sdk\.crazygames\.com/, (r) => r.abort());
   const page = await ctx.newPage();
   await page.goto(`${base}?cover=${kind}&dpr=2${extra ? `&${extra}` : ""}`);
-  await page.waitForFunction(() => window.__GS_COVER_READY__ === true, null, { timeout: 30000 });
+  await page.waitForFunction(() => window.__GS_COVER_READY__ === true, null, { timeout: 120000, polling: 500 });
   const raw = resolve(outDir, `.${kind}@2x.png`);
   const final = resolve(outDir, `${kind}-${w}x${h}.png`);
-  await page.screenshot({ path: raw });
+  await page.screenshot({ path: raw, timeout: 180000 });
   if (hasFfmpeg) {
     const r = spawnSync("ffmpeg", ["-y", "-loglevel", "error", "-i", raw, "-vf", `scale=${w}:${h}:flags=lanczos`, final]);
     if (r.status !== 0) { console.error(r.stderr.toString()); process.exit(1); }

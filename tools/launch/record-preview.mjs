@@ -2,11 +2,12 @@
 /**
  * Record the two mandatory CrazyGames preview videos from the game's ?capture=1 mode.
  *
- *   npm run build && node tools/launch/record-preview.mjs --serve [--seconds 18] [--level 12] [--up 12,10,1,4,2]
+ *   npm run build && node tools/launch/record-preview.mjs --serve [--seconds 18] [--level 12] [--up 12,10,1,4,2] [--next 22]
  *
  * Storm Grid (2026-10-07): --up = upgrade levels Voltage,Fork,Strikes,Capacitor,Gold of the storm shown (a real
  * mid-game save, ~10 min of play); a clip only encodes when the autopilot clears the city with at least --min-share
- * powered (a preview that fails or scrapes by sells nothing).
+ * powered (a preview that fails or scrapes by sells nothing). --next: 2.2 s after the win the clip cuts to a second city
+ * (another theme) instead of orbiting the finished one for the rest of the clip.
  *
  * Spec (docs.crazygames.com/requirements/game-covers, read 2026-09-11):
  *   15-20 s (longer is cut to 20), <= 50 MB, landscape 1080p 16:9 AND portrait 1080p 2:3,
@@ -33,6 +34,7 @@ const fps = Number(opt("fps", 30));
 const level = Number(opt("level", 12));
 const up = opt("up", "12,10,1,4,2");                             // Voltage,Fork,Strikes,Capacitor,Gold: a mid-game storm
 const minShare = Number(opt("min-share", 0.8));                  // the city must end at least this powered
+const next = Number(opt("next", 22));                            // 2.2 s after the win, cut to this city (another theme); 0 = keep orbiting
 const outDir = resolve(root, opt("out", "submission/video"));
 const VIDEOS = [["landscape", 1920, 1080], ["portrait", 1080, 1620]];
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
@@ -62,11 +64,11 @@ for (const [kind, w, h] of VIDEOS) {
 
   // Opening frame: the cover composition at video resolution.
   await page.goto(`${base}?cover=${kind}&dpr=1&cover_level=${level}&capture_up=${up}`);
-  await page.waitForFunction(() => window.__GS_COVER_READY__ === true, null, { timeout: 30000 });
+  await page.waitForFunction(() => window.__GS_COVER_READY__ === true, null, { timeout: 120000, polling: 500 });
   await page.screenshot({ path: resolve(frames, "cover.png") });
 
-  await page.goto(`${base}?capture=1&dpr=1&capture_level=${level}&capture_up=${up}`);
-  await page.waitForFunction(() => window.__GS_CAPTURE__, null, { timeout: 30000 });
+  await page.goto(`${base}?capture=1&dpr=1&capture_level=${level}&capture_up=${up}&capture_next=${next}`);
+  await page.waitForFunction(() => window.__GS_CAPTURE__, null, { timeout: 120000, polling: 500 });
   const total = Math.round(seconds * fps);
   let last;
   let shareAtEnd = null;

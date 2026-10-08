@@ -324,6 +324,15 @@ export class CityMesh {
     this.cloudCenter.copy(this.cloudBase).applyAxisAngle(_up, delta);
   }
 
+  /** Run end: glide the held storm front (never turning it) from behind the city to over its centre at height y; t 0..1. */
+  setCloudOver(y, t) {
+    if (!this.cloudGroup) return;
+    _p.copy(this.cloudBase).applyAxisAngle(_up, this.cloudGroup.rotation.y);   // where the held front stands
+    const k = t * t * (3 - 2 * t);
+    this.cloudGroup.position.set(-_p.x * k, (y - _p.y) * k, -_p.z * k);
+    this.cloudCenter.copy(_p).add(this.cloudGroup.position);
+  }
+
   /** A strike just left the storm front: it flashes from inside. */
   flashCloud(time) { this.cloud?.flash(time); }
 
@@ -331,7 +340,7 @@ export class CityMesh {
   strikeOrigin(b, out) {
     const c = this.cloudCenter;
     out.x = c.x + (b.x - c.x) * 0.18;
-    out.y = this.cloudY - 5;
+    out.y = c.y - 5;
     out.z = c.z + (b.z - c.z) * 0.18;
     return out;
   }

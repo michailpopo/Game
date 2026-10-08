@@ -90,6 +90,7 @@ export class GameView {
     this.punch = 0;                    // FOV punch timer (s)
     this.orbitT = 0;                   // seconds since the run ended
     this.cloudHeld = false;            // the storm front stops turning with the camera once the run ends
+    this.cloudOver = 0;                // 0..1: the held storm front glides from behind the city to over its centre
     this.fit = { key: "", dist: 100, ty: 0, shift: 0, side: 0, fov: 45, pitch: 38 * RAD, yaw: YAW };
     this.floats = { n: 0, pending: 0, at: -9, x: 0, y: 0, z: 0 };
     this.forkShown = 1;
@@ -135,6 +136,7 @@ export class GameView {
     this.forkShown = 1;
     this.orbitT = 0;
     this.cloudHeld = false;
+    this.cloudOver = 0;
     this.floats.n = 0;
     this.floats.pending = 0;
     this.fit.key = "";
@@ -144,6 +146,24 @@ export class GameView {
 
   /** The equipped (or tried) bolt skin: its glow colour; the core stays white, the outline deep blue. */
   recolor(hex) { this.boltHex = hex || LOOK.boltGlow; this.boltColor.set(this.boltHex); }
+
+  /** Store covers only: redraw a strike and the latest hops as long-lived bolts, so a still frame shows the cascade. */
+  holdBolts(sim, strike, hops) {
+    const bs = sim.city.buildings, glow = this.boltHex, life = 600;
+    if (strike) {
+      const b = bs[strike.target];
+      this.cityMesh.strikeOrigin(b, _o3);
+      _a.set(b.x, b.tipY, b.z);
+      this.fx.bolt(_o3, _a, { color: glow, width: 2.6, forks: 2, forkLength: 0.25, arc: 0, jag: 0.09, life, intensity: 1.5, core: 3.2, beads: 3, fromHalo: false });
+      this.fx.glow(_a, { color: glow, size: 3, grow: 1, life, intensity: 2.4 });
+    }
+    for (const h of hops) {
+      const a = bs[h.from], b = bs[h.to];
+      _a.set(a.x, a.tipY, a.z); _b.set(b.x, b.tipY, b.z);
+      this.fx.bolt(_a, _b, { color: glow, width: 2.1 + Math.min(4, h.gen) * 0.12, forks: 1, forkLength: 0.3, arc: 1.4, jag: 0.12, life, intensity: 1.5, core: 3.2, beads: 2, fromHalo: false, haloSize: 2 });
+      this.fx.glow(_b, { color: glow, size: 2.6, grow: 1, life, intensity: 2.2 });
+    }
+  }
 
   toScreen(x, y, z, out = { x: 0, y: 0, visible: false }) {
     _v.set(x, y, z).project(this.stage.camera);
@@ -520,6 +540,14 @@ export class GameView {
     // the camera circles the city (and after "One more strike", until the next city).
     if (done) this.cloudHeld = true;
     if (!this.cloudHeld) this.cityMesh.setCloudYaw(this.yaw - fit.yaw);
+    else {
+      // Held, it glides over the city's centre at the height where it sits on screen in play, so it hangs over the city
+      // from every orbit angle; back behind the city for "One more strike".
+      this.cloudOver = MathUtils.clamp(this.cloudOver + (done ? dt : -dt) / 2.5, 0, 1);
+      const cm = this.cityMesh, s = Math.sin(fit.pitch), c = Math.cos(fit.pitch), D = fit.dist;
+      const f = Math.hypot(cm.cloudBase.x, cm.cloudBase.z), h0 = cm.cloudBase.y - fit.ty;
+      cm.setCloudOver(fit.ty + 1.12 * (D * (f * s + h0 * c)) / (c * D + f), this.cloudOver);
+    }
     if (done) {
       this.orbitT += dt;
       this.yaw += dt * (this.orbitT < 3 ? 20 : 4) * RAD;       // result orbit

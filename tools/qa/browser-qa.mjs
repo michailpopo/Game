@@ -36,6 +36,9 @@ const SHOTS = resolve(OUT, "shots");
 mkdirSync(SHOTS, { recursive: true });
 mkdirSync(resolve(OUT, "evidence"), { recursive: true });
 const MOCK = resolve(root, "dev/mock-crazygames-sdk.js");
+// Waits on sequences that run in game time (win/fail celebration, countdown ring): headless software WebGL runs the game
+// at ~10 fps with a clamped frame step, so ~2 s of game time can take 8 s or more of wall time.
+const RESULT_MS = 30000;
 const profile = JSON.parse(readFileSync(resolve(root, "project.json"), "utf8"));
 const budgets = profile.budgets || null;   // style profile budgets (skill: references/threejs/visual-style.md)
 
@@ -98,13 +101,16 @@ async function reachResult(page, kind = "win") {
   await startRun(page);
   await sleep(600);
   await page.evaluate((k) => (k === "win" ? window.__GS_QA__.forceWin() : window.__GS_QA__.forceFail()), kind);
-  await page.waitForSelector(".modal:not([hidden]) .dialog button", { timeout: 8000 });
+  // The result follows the win/fail celebration in game time; a software renderer at ~10 fps needs ~8 s for it.
+  await page.waitForSelector(".modal:not([hidden]) .dialog button", { timeout: RESULT_MS });
 }
 
 async function scenario(id, fn) {
   if (opt("only") && !opt("only").split(",").includes(id)) return;
   try { await fn(); }
   catch (e) { record({ id, status: "FAIL", requirements: [], summary: `scenario crashed: ${e.message.split("\n")[0]}` }); }
+  // A crash skips the scenario's ctx.close(): close what it left open, or its live WebGL page starves every later scenario.
+  finally { for (const c of browser.contexts()) await c.close().catch(() => {}); }
 }
 
 // ------------------------------------------------------------------ scenarios
@@ -257,7 +263,7 @@ await scenario("ads-basic-launch", async () => {
     note = await page.textContent(".dialog .note");
   }
   await page.click('button[data-id="claim"]');
-  await page.waitForFunction(() => window.__GS_QA__.state.phase === "ready" && !window.__GS_QA__.state.pause.length, null, { timeout: 10000 });
+  await page.waitForFunction(() => window.__GS_QA__.state.phase === "ready" && !window.__GS_QA__.state.pause.length, null, { timeout: RESULT_MS });
   await startRun(page);
   const s = await state(page);
   const ok = !grantedOnError && (offerHidden || !offer) && s.phase === "run";
@@ -331,7 +337,7 @@ await scenario("adblock", async () => {
   const note = await page.textContent(".dialog .note");
   await page.screenshot({ path: resolve(SHOTS, "adblock-result.png") });
   await page.click('button[data-id="claim"]');
-  await page.waitForFunction(() => window.__GS_QA__.state.phase === "ready", null, { timeout: 10000 });
+  await page.waitForFunction(() => window.__GS_QA__.state.phase === "ready", null, { timeout: RESULT_MS });
   await startRun(page);
   const s = await state(page);
   allErrors.push(...errors);
@@ -567,17 +573,17 @@ await scenario("ad-ui", async () => {
   const during2 = await auditOffers(page);
   const inPlay = [...during1, ...during2];
   await page.evaluate(() => window.__GS_QA__.forceWin());
-  await page.waitForSelector(".modal:not([hidden]) .dialog button", { timeout: 8000 });
+  await page.waitForSelector(".modal:not([hidden]) .dialog button", { timeout: RESULT_MS });
   moments.win = await auditOffers(page);   // same frame the dialog appeared: the decline must already be there
   await sleep(450);                         // screenshot after the entrance animation
   await page.screenshot({ path: resolve(SHOTS, "ad-ui-win.png") });
   await page.click('button[data-id="claim"]');
-  await page.waitForFunction(() => window.__GS_QA__.state.phase === "ready" && !window.__GS_QA__.state.pause.length, null, { timeout: 10000 });
+  await page.waitForFunction(() => window.__GS_QA__.state.phase === "ready" && !window.__GS_QA__.state.pause.length, null, { timeout: RESULT_MS });
   await startRun(page);
   await sleep(300);
   // The revive-type offer needs a near-miss: __GS_QA__.reviveAt (Storm Grid: 85-99% powered).
   await page.evaluate(() => window.__GS_QA__.forceFail(window.__GS_QA__.reviveAt ?? 0.5));
-  await page.waitForSelector('.modal:not([hidden]) button[data-id="revive"]', { timeout: 8000 });
+  await page.waitForSelector('.modal:not([hidden]) button[data-id="revive"]', { timeout: RESULT_MS });
   moments.fail = await auditOffers(page);
   await sleep(450);
   await page.screenshot({ path: resolve(SHOTS, "ad-ui-fail-revive.png") });
@@ -613,10 +619,10 @@ await scenario("revive-offer", async () => {
   };
   // The city result (Retry or Claim) -> the next city intro -> a new run.
   const throughResult = async (label) => {
-    const btn = await page.waitForSelector('.modal:not([hidden]) button[data-id="retry"], .modal:not([hidden]) button[data-id="claim"]', { timeout: 8000 }).catch(() => null);
+    const btn = await page.waitForSelector('.modal:not([hidden]) button[data-id="retry"], .modal:not([hidden]) button[data-id="claim"]', { timeout: RESULT_MS }).catch(() => null);
     if (!btn) { problems.push(`no city result after ${label}`); return; }
     await btn.click();
-    await page.waitForFunction(() => window.__GS_QA__.state.phase === "ready" && !window.__GS_QA__.state.pause.length, null, { timeout: 10000 })
+    await page.waitForFunction(() => window.__GS_QA__.state.phase === "ready" && !window.__GS_QA__.state.pause.length, null, { timeout: RESULT_MS })
       .catch(() => problems.push(`no next city intro after ${label}`));
     await startRun(page);
   };
@@ -628,13 +634,13 @@ await scenario("revive-offer", async () => {
   // 2. the countdown removes the offer at 0 and never requests an ad
   await sleep(300);
   await page.evaluate((a) => window.__GS_QA__.forceFail(a), reviveAt);
-  await page.waitForSelector('.modal:not([hidden]) button[data-id="revive"]', { timeout: 8000 });
+  await page.waitForSelector('.modal:not([hidden]) button[data-id="revive"]', { timeout: RESULT_MS });
   const ring1 = await page.textContent(".dialog .ring b");
   // The ring runs on frame time: poll for the drop (a fixed wall-clock sleep misses it on a loaded software renderer).
   await page.waitForFunction((r1) => Number(document.querySelector(".dialog .ring b")?.textContent) < r1, Number(ring1), { timeout: 4000, polling: 100 }).catch(() => {});
   const ring2 = await page.textContent(".dialog .ring b");
   if (!(Number(ring2) < Number(ring1))) problems.push(`countdown not running (${ring1} -> ${ring2})`);
-  await page.waitForSelector('.modal:not([hidden]) button[data-id="revive"]', { state: "detached", timeout: 12000 }).catch(() => problems.push("revive offer still there after the countdown"));
+  await page.waitForSelector('.modal:not([hidden]) button[data-id="revive"]', { state: "detached", timeout: RESULT_MS }).catch(() => problems.push("revive offer still there after the countdown"));
   let s = await state(page);
   if (s.adsLog.some((e) => e.type === "rewarded" && e.context === "fail-revive")) problems.push("an ad was requested when the countdown ran out");
   if (!s.adsLog.some((e) => e.type === "offer" && e.context === "fail-revive" && e.outcome === "expired")) problems.push("expiry not logged in the offer funnel");
@@ -644,9 +650,9 @@ await scenario("revive-offer", async () => {
   // 3. watch one revive, then the next near-miss of the session gets none (once per session)
   await sleep(300);
   await page.evaluate((a) => window.__GS_QA__.forceFail(a), reviveAt);
-  await page.waitForSelector('.modal:not([hidden]) button[data-id="revive"]', { timeout: 8000 });
+  await page.waitForSelector('.modal:not([hidden]) button[data-id="revive"]', { timeout: RESULT_MS });
   await page.click('button[data-id="revive"]');
-  await page.waitForFunction(() => window.__GS_QA__.state.phase === "run", null, { timeout: 8000 }).catch(() => problems.push("revive did not continue the run"));
+  await page.waitForFunction(() => window.__GS_QA__.state.phase === "run", null, { timeout: RESULT_MS }).catch(() => problems.push("revive did not continue the run"));
   await sleep(300);
   await page.evaluate((a) => window.__GS_QA__.forceFail(a), reviveAt);
   await noOfferThenNextRun("a second near-miss in the same session");

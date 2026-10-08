@@ -9,8 +9,9 @@
  *     into the loop point
  *   - arpeggio: 16th notes on the chord tones with a dotted-8th echo (bars 5-16)
  *   - lead: a sparse A-minor-pentatonic tune (bars 9-16)
- * Every note sits on a chord tone or the A minor pentatonic scale, so nothing clashes. Mixed to about -20 dBFS RMS,
- * well under the effects. The echo and release tails past bar 16 are folded back onto bar 1, so the loop has no seam.
+ * Every note sits on a chord tone or the A minor pentatonic scale, so nothing clashes. Mixed bright enough for laptop
+ * and phone speakers (the bass carries an octave overtone) and normalised to about -16 dBFS RMS; AudioService plays it
+ * a little under the effects. The echo and release tails past bar 16 are folded back onto bar 1, so the loop has no seam.
  * Claude cannot hear it: the owner judges it.
  */
 
@@ -83,7 +84,7 @@ export async function renderMusic(sampleRate = 44100, { layers = ["pad", "bass",
   };
 
   // ---------------------------------------------------------------- pad
-  const padFilter = ctx.createBiquadFilter(); padFilter.type = "lowpass"; padFilter.frequency.value = 1100; padFilter.Q.value = 0.5;
+  const padFilter = ctx.createBiquadFilter(); padFilter.type = "lowpass"; padFilter.frequency.value = 1900; padFilter.Q.value = 0.5;
   const padOut = ctx.createGain(); padOut.gain.value = 0.17;
   padFilter.connect(padOut); padOut.connect(bus); padOut.connect(room);
   for (let bar = 0; bar < BARS && on("pad"); bar++) {
@@ -100,16 +101,18 @@ export async function renderMusic(sampleRate = 44100, { layers = ["pad", "bass",
   }
 
   // ---------------------------------------------------------------- bass
-  const bassFilter = ctx.createBiquadFilter(); bassFilter.type = "lowpass"; bassFilter.frequency.value = 650;
+  const bassFilter = ctx.createBiquadFilter(); bassFilter.type = "lowpass"; bassFilter.frequency.value = 1200;
   const bassOut = ctx.createGain(); bassOut.gain.value = 0.2; bassFilter.connect(bassOut).connect(bus);
   for (let bar = 0; bar < BARS && on("bass"); bar++) {
     const ch = CHORDS[bar % 4];
     for (const [b, dur, up] of BASS) {
       const t = bar * BAR + b * BEAT;
       const o = ctx.createOscillator(); o.type = "triangle"; o.frequency.value = hz(ch.root + up);
+      const o8 = ctx.createOscillator(); o8.type = "sawtooth"; o8.frequency.value = hz(ch.root + up + 12);   // small speakers hear this
+      const g8 = ctx.createGain(); g8.gain.value = 0.22;
       const g = ctx.createGain(); env(g, t, t + dur * BEAT, { a: 0.008, d: 0.18, s: 0.65, r: 0.12 });
-      o.connect(g).connect(bassFilter);
-      o.start(t); o.stop(t + dur * BEAT + 0.3);
+      o.connect(g); o8.connect(g8).connect(g); g.connect(bassFilter);
+      for (const x of [o, o8]) { x.start(t); x.stop(t + dur * BEAT + 0.3); }
     }
   }
 
@@ -151,8 +154,8 @@ export async function renderMusic(sampleRate = 44100, { layers = ["pad", "bass",
   }
 
   // ---------------------------------------------------------------- arpeggio (bars 5-16)
-  const arpFilter = ctx.createBiquadFilter(); arpFilter.type = "lowpass"; arpFilter.frequency.value = 2400;
-  const arpOut = ctx.createGain(); arpOut.gain.value = 0.14;
+  const arpFilter = ctx.createBiquadFilter(); arpFilter.type = "lowpass"; arpFilter.frequency.value = 3400;
+  const arpOut = ctx.createGain(); arpOut.gain.value = 0.15;
   arpFilter.connect(arpOut); arpOut.connect(bus); arpOut.connect(echo);
   for (let bar = 4; bar < BARS && on("arp"); bar++) {
     const ch = CHORDS[bar % 4];
@@ -168,7 +171,7 @@ export async function renderMusic(sampleRate = 44100, { layers = ["pad", "bass",
 
   // ---------------------------------------------------------------- lead (bars 9-16)
   const leadFilter = ctx.createBiquadFilter(); leadFilter.type = "lowpass"; leadFilter.frequency.value = 3200;
-  const leadOut = ctx.createGain(); leadOut.gain.value = 0.12;
+  const leadOut = ctx.createGain(); leadOut.gain.value = 0.14;
   leadFilter.connect(leadOut); leadOut.connect(bus); leadOut.connect(echo); leadOut.connect(room);
   for (let i = 0; i < 8 && on("lead"); i++) {
     const bar = 8 + i;
@@ -187,7 +190,7 @@ export async function renderMusic(sampleRate = 44100, { layers = ["pad", "bass",
   }
 
   const out = await ctx.startRendering();
-  // fold the tail past bar 16 onto bar 1, then normalise: about -20 dBFS RMS, peaks under -1 dBFS
+  // fold the tail past bar 16 onto bar 1, then normalise: about -16 dBFS RMS, peaks under -1 dBFS
   const res = new AudioBuffer({ numberOfChannels: 2, length: len, sampleRate: rate });
   let sum = 0, peak = 0;
   const chans = [0, 1].map((c) => {
@@ -198,7 +201,7 @@ export async function renderMusic(sampleRate = 44100, { layers = ["pad", "bass",
     return d;
   });
   const rms = Math.sqrt(sum / (2 * len)) || 1;
-  const k = raw ? 1 : Math.min(0.1 / rms, 0.89 / (peak || 1));
+  const k = raw ? 1 : Math.min(0.158 / rms, 0.89 / (peak || 1));
   chans.forEach((d, c) => { for (let i = 0; i < len; i++) d[i] *= k; res.copyToChannel(d, c); });
   return res;
 }

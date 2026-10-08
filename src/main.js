@@ -122,7 +122,7 @@ async function boot() {
   const pause = new PauseArbiter([Reason.BOOT]);
   const gameplay = createGameplayReporter(platform, pause);
   const save = new SaveService({ key: `${GAME.slug}.save`, version: GAME.saveVersion, defaults: DEFAULT_SAVE, migrations: MIGRATIONS }).init(platform);
-  const audio = new AudioService({ sounds: { ...SFX, ...STORM_SFX }, samples: STORM_SAMPLES, userMuted: save.data.userMuted, music: renderMusic, musicMuted: save.data.musicMuted }).bindPlatform(platform).installUnlockHandlers(window);
+  const audio = new AudioService({ sounds: { ...SFX, ...STORM_SFX }, samples: STORM_SAMPLES, userMuted: save.data.userMuted, music: renderMusic, musicMuted: save.data.musicMuted, musicLevel: 0.7 }).bindPlatform(platform).installUnlockHandlers(window);
   const input = new Input(canvas, { bindings: { action: ["Space", "Enter"], pause: ["KeyP"] } }).attach();
   const stage = createStage(canvas);
   const quality = new AdaptiveQuality(stage.renderer);

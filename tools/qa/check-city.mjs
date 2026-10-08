@@ -201,6 +201,49 @@ record({
   summary: `${zf.cities} cities (one per theme), ${zf.layers} flat pieces: ${zf.bad} overlapping pairs closer than 0.04 m${zf.worst ? ` (worst ${zf.worst.dy.toFixed(3)} m, city ${zf.worst.city})` : ""}; snow caps outside their mountain ${zf.caps - zf.badCaps}/${zf.caps}`,
 });
 
+// ---------------------------------------------------------------- cars never drive into each other
+// Owner 2026-10-08: "cars should not be able to be in each other". City life's traffic (crossings one car at a time,
+// braking for the car ahead) is run for 2 minutes of view time per city; every pair of car bodies (3 x 1.62 m at scale 1,
+// as oriented rectangles) is tested every frame, and no car may stand still for more than 15 s (gridlock).
+function carBodies(mesh) {
+  const a = mesh.instanceMatrix.array, scale = Math.hypot(a[0], a[1], a[2]), L = 1.5 * scale, W = 0.81 * scale, out = [];
+  for (let i = 0; i < mesh.count; i++) { const e = a.subarray(i * 16, i * 16 + 16); out.push([e[12], e[14], e[8] / scale, e[10] / scale, L, W]); }
+  return out;
+}
+function bodiesOverlap(a, b) {
+  const corners = ([x, z, hx, hz, L, W]) => [[1, 1], [1, -1], [-1, 1], [-1, -1]].map(([u, v]) => [x + hx * L * u - hz * W * v, z + hz * L * u + hx * W * v]);
+  const ca = corners(a), cb = corners(b);
+  for (const [ax, az] of [[a[2], a[3]], [-a[3], a[2]], [b[2], b[3]], [-b[3], b[2]]]) {
+    const pa = ca.map(([x, z]) => x * ax + z * az), pb = cb.map(([x, z]) => x * ax + z * az);
+    if (Math.max(...pa) <= Math.min(...pb) || Math.max(...pb) <= Math.min(...pa)) return false;
+  }
+  return true;
+}
+function trafficOf(level, seconds = 120, dt = 1 / 30) {
+  const city = cities[level - 1], rng = createRng(`city-${level}:look:${level}`);
+  const life = createCityLife({ city, bs: city.buildings, rng, W: themeOf(city).world, base: 0.35, pitch: C.lotPitch, lanes: lanesOf(city), camDir });
+  const mesh = life.group.children.find((o) => o.name === "cars");
+  const r = { cars: mesh?.count ?? 0, overlaps: 0, longestStop: 0 };
+  if (!mesh) return r;
+  let prev = null; const still = new Float64Array(r.cars);
+  for (let t = 0; t < seconds; t += dt) {
+    life.update(t);
+    const cur = carBodies(mesh);
+    for (let i = 0; i < cur.length; i++) {
+      if (prev) { still[i] = Math.hypot(cur[i][0] - prev[i][0], cur[i][1] - prev[i][1]) < 1e-4 ? still[i] + dt : 0; r.longestStop = Math.max(r.longestStop, still[i]); }
+      for (let j = i + 1; j < cur.length; j++) if (Math.abs(cur[i][0] - cur[j][0]) < 5 && Math.abs(cur[i][1] - cur[j][1]) < 5 && bodiesOverlap(cur[i], cur[j])) r.overlaps++;
+    }
+    prev = cur;
+  }
+  return r;
+}
+{
+  const levels = [1, 5, 12, 22, 37, 55], runs = levels.map((n) => ({ n, ...trafficOf(n) }));
+  const overlaps = runs.reduce((s, r) => s + r.overlaps, 0), stop = Math.max(...runs.map((r) => r.longestStop));
+  record({ id: "cars-apart", status: overlaps === 0 && stop < 15 ? "PASS" : "FAIL",
+    summary: `cities ${levels.join(", ")}, 2 min of traffic each (${runs.map((r) => r.cars).join("/")} cars): ${overlaps} overlapping car-frames, longest stop ${stop.toFixed(1)} s (gridlock limit 15 s)` });
+}
+
 // Same city twice must be identical: the layout is seeded, trimming draws no randoms.
 const again = generateCity(30, "city-30", 0), first = cities[29];
 const same = again.buildings.length === first.buildings.length && again.buildings.every((b, i) => {
@@ -218,6 +261,8 @@ if (process.argv.includes("--selftest")) {
   const flatA = [{ x: 0, z: 0, w: 10, d: 10, top: 0.02, color: "#00ff00" }, { x: 2, z: 0, w: 4, d: 4, top: 0.04, color: "#ffffff" }];
   const zr = zFight(flatA);   // a path 2 cm above a lawn (must FAIL)
   record({ id: "selftest-z-fight", status: zr.bad > 0 ? "PASS" : "FAIL", summary: `a path 2 cm above a lawn (must FAIL): ${zr.bad > 0 ? "check reported failure" : "BAD: the check cannot detect this"}` });
+  const ghost = [[0, 0, 0, 1, 2, 1.1], [0.5, 3.2, 0, 1, 2, 1.1]];   // two cars 3.2 m apart nose to tail (must FAIL)
+  record({ id: "selftest-cars", status: bodiesOverlap(ghost[0], ghost[1]) ? "PASS" : "FAIL", summary: `two 4 m cars 3.2 m apart (must FAIL): ${bodiesOverlap(ghost[0], ghost[1]) ? "check reported an overlap" : "BAD: the check cannot detect this"}` });
   const wet = checkIslands(cities, 40);   // every tree moved 40 m: onto the water
   record({ id: "selftest-islands", status: wet.onWater > 0 ? "PASS" : "FAIL", summary: `trees moved onto the sea (must FAIL): ${wet.onWater} of ${wet.trees} on water -> ${wet.onWater > 0 ? "check reported failure" : "BAD: the check cannot detect this"}` });
 }

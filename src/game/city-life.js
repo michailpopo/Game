@@ -202,7 +202,9 @@ export function createCityLife({ city, bs, rng, W, base, pitch, lanes, camDir })
   // The avenues and the ring road (the first and last lane lines) cross in a grid of crossings; each car drives a
   // random route through it and turns on a smooth curve, so it never leaves the plate. Narrow avenues (the road between
   // two pads is avenue - 1.6 m) are one-way streets with the car in the middle, alternating direction; wide ones and the
-  // ring road have a lane each way. All cars share one speed, so cars in one lane never drive through each other.
+  // ring road have a lane each way. Traffic rules keep cars out of each other: one car at a time in a crossing (a car
+  // waits with its nose outside the crossing box, reserves the crossing, and frees it once its tail has cleared it),
+  // and a car brakes for a car ahead in its own direction.
   // The car count and its random draws are the same as for the old straight lanes, so the look stream after it is unchanged.
   const cars = [];
   const laneDirs = [];
@@ -221,7 +223,12 @@ export function createCityLife({ city, bs, rng, W, base, pitch, lanes, camDir })
     }
   }
   const X = lanes.lx, Z = lanes.lz, nx = X.length, nz = Z.length;
-  const CAR = { speed: 6.5, scale: Math.min(1.35, (road - 0.3) / 1.5), lane: 1.45, turn: 3 };
+  const CAR = { speed: 6.5, scale: Math.min(1.35, (road - 0.3) / 1.5), lane: 1.45, turn: 3, accel: 8, brake: 30 };
+  CAR.len = 3 * CAR.scale;                                     // the toy car is 3 x 1.62 m at scale 1
+  CAR.stop = CAR.lane + 0.81 * CAR.scale + CAR.len / 2 + 0.6;   // a waiting car's centre from the crossing's centre line
+  CAR.clear = CAR.len + 2;                                     // m past the curve before the crossing is free again
+  CAR.follow = CAR.len + 1.5;                                  // centre distance to a car ahead in the same direction
+  const owners = new Map();                                    // crossing "i,j" -> the car in it
   const wideX = (i) => twoWay || i === 0 || i === nx - 1, wideZ = (j) => twoWay || j === 0 || j === nz - 1;
   const oneWay = (k) => (k % 2 ? 1 : -1);
   // moves out of crossing (i, j) as [di, dj]: along x-line i (z changes) or z-line j (x changes), one-way rules kept
@@ -255,13 +262,32 @@ export function createCityLife({ city, bs, rng, W, base, pitch, lanes, camDir })
     const cv = curve(ti, tj, m, next);
     Object.assign(car, { ti, tj, m, next, cv, kind: "run", a: start, b: cv.p0, s: 0 });
     car.len = Math.max(1e-3, dist(start, cv.p0));
+    // where to wait: CAR.stop before the crossing, i.e. this far before the curve (which starts nearer for a far-lane turn)
+    const before = CAR.turn - ((cv.c[0] - X[ti]) * m[0] + (cv.c[1] - Z[tj]) * m[1]);
+    car.gate = Math.min(car.len, Math.max(0.5, CAR.stop - before));
   };
+  const freeCrossing = (car) => { if (car.freeAfter && owners.get(car.freeAfter) === car) owners.delete(car.freeAfter); car.freeAfter = null; };
   const advance = (car) => {
     if (car.kind === "run") {
+      freeCrossing(car);                                       // a stretch shorter than CAR.clear: free it now
       const { p0, c, p2 } = car.cv;
       car.kind = "turn"; car.s = 0;
       car.len = Math.max(1e-3, (2 * dist(p0, p2) + dist(p0, c) + dist(c, p2)) / 3);
-    } else enterEdge(car, car.ti, car.tj, car.next, car.cv.p2);
+    } else {
+      freeCrossing(car);
+      car.freeAfter = car.hold; car.hold = null;               // frees the crossing once the tail has cleared it
+      enterEdge(car, car.ti, car.tj, car.next, car.cv.p2);
+    }
+  };
+  const pose = (c, out) => {
+    const t = Math.min(1, c.s / c.len);
+    if (c.kind === "run") { out.x = c.a[0] + (c.b[0] - c.a[0]) * t; out.z = c.a[1] + (c.b[1] - c.a[1]) * t; out.dx = c.m[0]; out.dz = c.m[1]; return out; }
+    const { p0, c: q, p2 } = c.cv, u = 1 - t;
+    out.x = u * u * p0[0] + 2 * u * t * q[0] + t * t * p2[0];
+    out.z = u * u * p0[1] + 2 * u * t * q[1] + t * t * p2[1];
+    const dx = u * (q[0] - p0[0]) + t * (p2[0] - q[0]), dz = u * (q[1] - p0[1]) + t * (p2[1] - q[1]), l = Math.hypot(dx, dz) || 1;
+    out.dx = dx / l; out.dz = dz / l;
+    return out;
   };
   if (nx >= 2 && nz >= 2) {
     cars.forEach((car) => {
@@ -272,7 +298,17 @@ export function createCityLife({ city, bs, rng, W, base, pitch, lanes, camDir })
       const m = opts[Math.floor(car.rand() * opts.length)] ?? [1, 0];
       const o = laneOff(i, j, m);
       enterEdge(car, i, j, m, [X[i] + o[0] + m[0] * CAR.turn, Z[j] + o[1] + m[1] * CAR.turn]);
-      car.s = car.rand() * car.len;                            // spread along their first stretch
+      car.s = car.rand() * Math.max(0, car.len - car.gate - 1);   // spread along their first stretch, before its crossing
+      car.v = CAR.speed; car.hold = null; car.freeAfter = null; car.pos = pose(car, {});
+      // never start inside another car: try another stretch
+      for (let k = 0; k < 40 && cars.some((o) => o !== car && o.pos && Math.hypot(o.pos.x - car.pos.x, o.pos.z - car.pos.z) < CAR.follow + 1); k++) {
+        const ii = Math.floor(car.rand() * nx), jj = Math.floor(car.rand() * nz), mm = moves(ii, jj);
+        if (!mm.length) continue;
+        const m2 = mm[Math.floor(car.rand() * mm.length)], o2 = laneOff(ii, jj, m2);
+        enterEdge(car, ii, jj, m2, [X[ii] + o2[0] + m2[0] * CAR.turn, Z[jj] + o2[1] + m2[1] * CAR.turn]);
+        car.s = car.rand() * Math.max(0, car.len - car.gate - 1);
+        car.pos = pose(car, {});
+      }
     });
   } else cars.length = 0;
 
@@ -322,20 +358,29 @@ export function createCityLife({ city, bs, rng, W, base, pitch, lanes, camDir })
     if (carMesh) {
       const dt = Math.min(0.1, Math.max(0, time - lastT));
       lastT = time;
+      // 1. brake for a car ahead going the same way (crossing traffic is kept apart by the crossings)
+      for (const c of cars) {
+        const p = c.pos;
+        c.blocked = cars.some((o) => {
+          if (o === c) return false;
+          const ex = o.pos.x - p.x, ez = o.pos.z - p.z, ahead = ex * p.dx + ez * p.dz;
+          return ahead > 0 && ahead < CAR.follow && Math.abs(ex * p.dz - ez * p.dx) < CAR.len * 0.5 && o.pos.dx * p.dx + o.pos.dz * p.dz > 0.3;
+        });
+      }
+      // 2. move: wait at the gate until the crossing is free, then take it
       cars.forEach((c, i) => {
-        c.s += dt * CAR.speed;
-        for (let k = 0; c.s >= c.len && k < 8; k++) { c.s -= c.len; advance(c); }
-        const t = Math.min(1, c.s / c.len);
-        let x, z, dx, dz;
-        if (c.kind === "run") { x = c.a[0] + (c.b[0] - c.a[0]) * t; z = c.a[1] + (c.b[1] - c.a[1]) * t; dx = c.m[0]; dz = c.m[1]; }
-        else {
-          const { p0, c: q, p2 } = c.cv, u = 1 - t;
-          x = u * u * p0[0] + 2 * u * t * q[0] + t * t * p2[0];
-          z = u * u * p0[1] + 2 * u * t * q[1] + t * t * p2[1];
-          dx = u * (q[0] - p0[0]) + t * (p2[0] - q[0]);
-          dz = u * (q[1] - p0[1]) + t * (p2[1] - q[1]);
+        c.v = c.blocked ? Math.max(0, c.v - CAR.brake * dt) : Math.min(CAR.speed, c.v + CAR.accel * dt);
+        let ds = c.v * dt;
+        if (c.kind === "run" && !c.hold && c.s + ds >= c.len - c.gate) {
+          const key = `${c.ti},${c.tj}`, owner = owners.get(key);
+          if (!owner || owner === c) { owners.set(key, c); c.hold = key; }
+          else { ds = Math.max(0, c.len - c.gate - c.s); c.v = 0; }
         }
-        carMesh.setMatrixAt(i, _m.compose(_p.set(x, 0.1, z), _q.setFromAxisAngle(UP, Math.atan2(dx, dz)), _s.setScalar(CAR.scale)));
+        c.s += ds;
+        for (let k = 0; c.s >= c.len && k < 8; k++) { c.s -= c.len; advance(c); }
+        if (c.freeAfter && c.kind === "run" && c.s >= CAR.clear) freeCrossing(c);
+        const q = pose(c, c.pos);
+        carMesh.setMatrixAt(i, _m.compose(_p.set(q.x, 0.1, q.z), _q.setFromAxisAngle(UP, Math.atan2(q.dx, q.dz)), _s.setScalar(CAR.scale)));
       });
       carMesh.instanceMatrix.needsUpdate = true;
     }

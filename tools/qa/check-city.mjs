@@ -152,11 +152,14 @@ record({
 // ---------------------------------------------------------------- z-fighting
 /** Lanes like city-mesh.js builds them: avenue centre lines between district columns, plus the ring road outside. */
 function lanesOf(city) {
-  const bw = city.districts[0]?.w ?? 27, avenue = city.plan.avenue;
-  const lines = (cs) => { const out = []; for (let i = 0; i < cs.length - 1; i++) out.push((cs[i] + cs[i + 1]) / 2); if (cs.length) { out.unshift(cs[0] - bw / 2 - avenue / 2 - 1.5); out.push(cs[cs.length - 1] + bw / 2 + avenue / 2 + 1.5); } return out; };
-  const xs = [...new Set(city.districts.map((d) => Math.round(d.x * 10) / 10))].sort((a, b) => a - b);
-  const zs = [...new Set(city.districts.map((d) => Math.round(d.z * 10) / 10))].sort((a, b) => a - b);
-  return { lx: lines(xs), lz: lines(zs), span: Math.max(city.width, city.depth) / 2 + avenue, avenue };
+  const avenue = city.plan.avenue;
+  const lines = (cs) => {
+    const out = [];
+    for (let i = 0; i < cs.length - 1; i++) out.push((cs[i].c + cs[i].w / 2 + cs[i + 1].c - cs[i + 1].w / 2) / 2);
+    if (cs.length) { out.unshift(cs[0].c - cs[0].w / 2 - avenue / 2 - 1.5); out.push(cs.at(-1).c + cs.at(-1).w / 2 + avenue / 2 + 1.5); }
+    return out;
+  };
+  return { lx: lines(city.grid.xs), lz: lines(city.grid.zs), span: Math.max(city.width, city.depth) / 2 + avenue, avenue };
 }
 function zFight(layers) {
   let bad = 0, worst = null;

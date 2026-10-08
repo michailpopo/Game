@@ -63,9 +63,8 @@ export const STORM = {
     themeEvery: 5,              // cities per theme
     themes: 8,                  // Downtown, Harbour, Old Town, Hill Towers, Neon Bay, Snow Peak, Desert Spires, Sky Port
     rampCities: 70,             // the difficulty climbs to here, then holds (was 40: owner 2026-10-07, longer play)
-    lotsSmall: 3,               // district = 3x3 lots while N <= smallUpTo, else 4x4
-    lotsLarge: 4,
-    smallUpTo: 40,
+    districtMax: 4,             // the city is a square grid of G x G lots (G fit to N and the park share), cut into
+                                // districts at most this many lots wide (2-4, as even as possible)
     lotPitch: 9,                // m between lot centres
     jitter: 1.2,                // +- m per lot
     avenue: [4, 12],            // extra gap between districts (m), city 1 -> rampCities: the key difficulty knob

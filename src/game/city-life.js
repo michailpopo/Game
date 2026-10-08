@@ -107,9 +107,9 @@ export function createCityLife({ city, bs, rng, W, base, pitch, lanes, camDir })
   // Empty lots, nearest to the camera first: the capped park dressing goes where the player looks.
   const empty = [];
   for (const d of city.districts) {
-    const lots = Math.max(1, Math.round(d.w / pitch)), cell = d.w / lots;
-    for (let lzI = 0; lzI < lots; lzI++) for (let lxI = 0; lxI < lots; lxI++) {
-      const x = d.x - d.w / 2 + (lxI + 0.5) * cell, z = d.z - d.d / 2 + (lzI + 0.5) * cell;
+    const lotsX = Math.max(1, Math.round(d.w / pitch)), lotsZ = Math.max(1, Math.round(d.d / pitch)), cell = d.w / lotsX;
+    for (let lzI = 0; lzI < lotsZ; lzI++) for (let lxI = 0; lxI < lotsX; lxI++) {
+      const x = d.x - d.w / 2 + (lxI + 0.5) * cell, z = d.z - d.d / 2 + (lzI + 0.5) * (d.d / lotsZ);
       if (bs.some((b) => { const v = vis(b); return Math.abs(b.x - x) < cell / 2 + v.hw - 1 && Math.abs(b.z - z) < cell / 2 + v.hd - 1; })) continue;
       empty.push({ x, z, cell, front: x * camDir.x + z * camDir.z });
     }
@@ -165,9 +165,9 @@ export function createCityLife({ city, bs, rng, W, base, pitch, lanes, camDir })
   // A rim is the pad's border strip (pads are 0.8 m wider than the lots on each side). Free stretches = no building on it.
   const rims = [];
   for (const d of city.districts) {
-    const o = d.w / 2 + 0.42;
     for (const [nx, nz] of [[0, 1], [0, -1], [1, 0], [-1, 0]]) {
-      const alongX = nz !== 0, c = alongX ? d.z + nz * o : d.x + nx * o, lo = (alongX ? d.x : d.z) - d.w / 2, hi = lo + d.w;
+      const alongX = nz !== 0, len = alongX ? d.w : d.d;
+      const c = alongX ? d.z + nz * (d.d / 2 + 0.42) : d.x + nx * (d.w / 2 + 0.42), lo = (alongX ? d.x : d.z) - len / 2, hi = lo + len;
       const blocked = [];
       for (const b of bs) {
         const v = vis(b);

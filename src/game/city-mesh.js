@@ -241,12 +241,16 @@ export class CityMesh {
     this.group.add(field, plate, pads);
 
     // lane dashes along the avenues between districts (centre lines, crossings skipped)
-    const xs = [...new Set(city.districts.map((d) => Math.round(d.x * 10) / 10))].sort((a, b) => a - b);
-    const zs = [...new Set(city.districts.map((d) => Math.round(d.z * 10) / 10))].sort((a, b) => a - b);
-    const bw = city.districts[0]?.w ?? 27;
-    const lines = (cs) => { const out = []; for (let i = 0; i < cs.length - 1; i++) out.push((cs[i] + cs[i + 1]) / 2); if (cs.length) { out.unshift(cs[0] - bw / 2 - avenue / 2 - 1.5); out.push(cs[cs.length - 1] + bw / 2 + avenue / 2 + 1.5); } return out; };
+    // district columns / rows { c, w } (they can differ in width); an avenue runs midway between two of them
+    const xs = city.grid.xs, zs = city.grid.zs;
+    const lines = (cs) => {
+      const out = [];
+      for (let i = 0; i < cs.length - 1; i++) out.push((cs[i].c + cs[i].w / 2 + cs[i + 1].c - cs[i + 1].w / 2) / 2);
+      if (cs.length) { out.unshift(cs[0].c - cs[0].w / 2 - avenue / 2 - 1.5); out.push(cs.at(-1).c + cs.at(-1).w / 2 + avenue / 2 + 1.5); }
+      return out;
+    };
     const lx = lines(xs), lz = lines(zs), dashes = [];
-    const onRoad = (v, cs) => cs.every((c) => Math.abs(v - c) > bw / 2 + 1.2);
+    const onRoad = (v, cs) => cs.every((k) => Math.abs(v - k.c) > k.w / 2 + 1.2);
     const span = size / 2 + avenue;
     for (const x of lx) for (let v = -span; v < span; v += 4.2) if (onRoad(v, zs)) dashes.push([x, v, 0]);
     for (const z of lz) for (let v = -span; v < span; v += 4.2) if (onRoad(v, xs)) dashes.push([v, z, 1]);
@@ -305,8 +309,11 @@ export class CityMesh {
     let top = 0;
     for (const b of bs) top = Math.max(top, b.tipY);
     this.top = top;
-    this.cloudY = top + 16;
-    const yaw = 35 * Math.PI / 180, far = size * 0.5 + 14;
+    // Its offsets shrink with cities smaller than 58 m (the old 2x2-block city 1), so the camera, which frames the city
+    // closer, still sees the cloud at the top of the frame.
+    const near = Math.min(1, size / 58);
+    this.cloudY = top + 16 * near;
+    const yaw = 35 * Math.PI / 180, far = size * 0.5 + 14 * near;
     const cx = -Math.sin(yaw) * far, cz = -Math.cos(yaw) * far;
     this.cloudCenter = new Vector3(cx, this.cloudY, cz);
     this.cloud = this.#own(createStormCloud(rng, {

@@ -89,10 +89,13 @@ export function cityPlan(level) {
   let n = Math.min(c.maxBuildings, Math.round(c.buildings * c.growth ** (level - 1)));
   if (level > 1 && (level - 1) % c.themeEvery === 0) n = Math.round(n * c.themeRelief);
   const park = lerp(c.park[0], c.park[1], k);
-  const lots = n <= c.smallUpTo ? c.lotsSmall : c.lotsLarge;
-  const per = Math.max(1, Math.ceil(Math.sqrt(n / (lots * lots * (1 - park)))));
+  // The lot grid fits the buildings plus the planned parks (G x G lots, never fewer than N), so empty lots are the
+  // parks and not leftover rows: a grid of whole square districts left 30-57% of the lots empty in cities 5-16.
+  const grid = Math.max(Math.ceil(Math.sqrt(n)), Math.round(Math.sqrt(n / (1 - park))));
+  const per = Math.max(1, Math.ceil(grid / c.districtMax));
+  const sizes = Array.from({ length: per }, (_, i) => Math.floor(grid / per) + (i < grid % per ? 1 : 0));   // lots per district side
   return {
-    n, park, lots, per,
+    n, park, grid, per, sizes,
     avenue: lerp(c.avenue[0], c.avenue[1], k),
     heightMax: lerp(c.heightMax[0], c.heightMax[1], k),
     theme: Math.floor((level - 1) / c.themeEvery) % c.themes,
@@ -140,9 +143,10 @@ function clearFootprints(bs, c) {
 }
 
 /**
- * A seeded city: per x per districts of lots x lots lots, with avenues between districts. Exactly
- * N lots get a building: park rolls first, then the lots nearest the centre win (a compact skyline
- * with parks as holes; the outer lots stay empty). Every building has a rooftop antenna tip.
+ * A seeded city: a square grid of G x G lots cut into per x per districts (2-4 lots a side), with avenues between
+ * districts. Exactly N lots get a building: park rolls first, then the lots nearest the centre win (a compact skyline
+ * with parks as holes). Every building has a rooftop antenna tip. `grid` gives the district columns and rows
+ * ({ c: centre, w: width }) for the roads.
  * Gold rods come from a separate stream, so the layout never depends on the Gold rods level.
  */
 export function generateCity(level, seed, gold = 0) {
@@ -150,18 +154,19 @@ export function generateCity(level, seed, gold = 0) {
   const P = cityPlan(level);
   const rng = createRng(`${seed}:city:${level}`);
   const pitch = c.lotPitch;
-  const block = P.lots * pitch;
-  const stride = block + P.avenue;
-  const span = P.per * block + (P.per - 1) * P.avenue;
+  const span = P.grid * pitch + (P.per - 1) * P.avenue;
   const half = span / 2;
+  // district columns (and rows, the same): left edge and width
+  const cols = [];
+  for (let i = 0, at = -half; i < P.per; i++) { cols.push({ x0: at, w: P.sizes[i] * pitch }); at += P.sizes[i] * pitch + P.avenue; }
 
   const lots = [];
   for (let dj = 0; dj < P.per; dj++) {
     for (let di = 0; di < P.per; di++) {
-      for (let lz = 0; lz < P.lots; lz++) {
-        for (let lx = 0; lx < P.lots; lx++) {
-          const x = -half + di * stride + (lx + 0.5) * pitch + rng.range(-c.jitter, c.jitter);
-          const z = -half + dj * stride + (lz + 0.5) * pitch + rng.range(-c.jitter, c.jitter);
+      for (let lz = 0; lz < P.sizes[dj]; lz++) {
+        for (let lx = 0; lx < P.sizes[di]; lx++) {
+          const x = cols[di].x0 + (lx + 0.5) * pitch + rng.range(-c.jitter, c.jitter);
+          const z = cols[dj].x0 + (lz + 0.5) * pitch + rng.range(-c.jitter, c.jitter);
           const park = rng.chance(P.park);
           const key = Math.hypot(x, z) / Math.max(1, half) + rng.range(0, 0.35);
           lots.push({ i: lots.length, district: dj * P.per + di, x, z, park, key });
@@ -193,7 +198,7 @@ export function generateCity(level, seed, gold = 0) {
   const districts = [];
   for (const [raw, members] of [...byDistrict.entries()].sort((a, b) => a[0] - b[0])) {
     const di = raw % P.per, dj = Math.floor(raw / P.per);
-    const d = { id: districts.length, members, x: -half + di * stride + block / 2, z: -half + dj * stride + block / 2, w: block, d: block };
+    const d = { id: districts.length, members, x: cols[di].x0 + cols[di].w / 2, z: cols[dj].x0 + cols[dj].w / 2, w: cols[di].w, d: cols[dj].w };
     for (const m of members) buildings[m].district = d.id;
     districts.push(d);
   }
@@ -218,7 +223,8 @@ export function generateCity(level, seed, gold = 0) {
       placed++;
     }
   }
-  return { level, theme: P.theme, width: span, depth: span, plan: P, buildings, districts };
+  const lines = cols.map((k) => ({ c: k.x0 + k.w / 2, w: k.w }));
+  return { level, theme: P.theme, width: span, depth: span, plan: P, buildings, districts, grid: { xs: lines, zs: lines } };
 }
 
 /** Hop distance between two antenna tips: plain 3D (tall towers are hubs; a tall neighbour can be out of reach). */

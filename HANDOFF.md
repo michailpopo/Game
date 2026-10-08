@@ -296,7 +296,7 @@ The game is **upload-ready** (2026-10-08). Everything below is the owner's, exce
   economical: no extra iterations". Agents burned ~500k tokens each per package here.
 - Run the slow browser harness once per package with `--only <scenarios>`, not the full set every time.
 
-## 8. Browser QA (full run 2026-10-08, HEAD dfb2848, `PW_CHROMIUM_PATH=/opt/pw-browsers/chromium npm run qa`)
+## 8. Browser QA (full run 2026-10-08, HEAD 88449bb, `PW_CHROMIUM_PATH=/opt/pw-browsers/chromium npm run qa`)
 
 **Full run 2026-10-07 (`npm run qa`, exit 0):** all static checks, build (0.93 MB / 20 files), 22 browser checks: 0 FAIL,
 3 UNVERIFIED by design. PASS: boot (2.7 s, 0.25 MB), sdk-events, no-sdk, sdk-disabled, sdk-init-hang (11.1 s),
@@ -305,6 +305,13 @@ persistence (Data module on AND off: reload keeps city 2 / 470 coins), poly-budg
 58.0k / 45; 2 one-off shadow re-bake frames up to 64.7k), dead-air (3.3 events/s, longest silence 1.4 s), ad-ui,
 revive-offer, shop, console-errors. UNVERIFIED and looked at: viewports (800x450, 1920x1080, 390x844, 1080x1620 - all
 legible), ad-ui-style (`ad-ui-win.png`, `ad-ui-fail-revive.png` - equal buttons, video icon), performance (software GL).
+
+**Final full run after the playtest fixes (2026-10-08 evening, HEAD `88449bb`, exit 0):** 22 browser checks, 0 FAIL,
+3 UNVERIFIED by design; boot 3.8 s / 0.25 MB; poly-budget city 1 19.6k tris / 42 calls, city 55 57.4k / 45; dead-air 2.8
+events/s, longest silence 1.9 s; persistence on/off PASS; shop PASS; check-city `cars-apart` 0 overlaps. On the way:
+`mute-priority` failed 2 of 4 full runs (page 1 stayed open while page 2 booted - fixed: page 1 closes first) and the
+shop's Try-it check failed once (SDK init past the game's 8 s limit on this starved host - fixed: the check waits for the
+SDK). Bundle `index-BrCy_bh3.js` = the upload zip.
 
 **Final full run 2026-10-08 (`npm run qa`, HEAD `dfb2848`, exit 0):** 22 browser checks, 0 FAIL, 3 UNVERIFIED by design;
 city 55 56.6k tris / 45 calls, silence 2.4 s, revive ring 4 -> 3, persistence on/off PASS. Before it, the first run on

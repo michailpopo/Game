@@ -5,7 +5,8 @@ Updated: 2026-10-08 · Project folder: /home/user/Game (repo michailpopo/Game, b
 ## Where we are
 - **Phase:** 3 Build - Storm Grid (3D). Handoff to a new chat on 2026-09-28: read HANDOFF.md first.
 - **Current objective:** an original, dopamine-hitting game that looks premium, upload-ready this session.
-- **Latest (2026-10-08): upload-ready.** Launch-gate audit (`docs/CG_QA_AUDIT.md`): 42/45 mandatory PASS, 0 FAIL, 3 cannot verify (Edge, 4 GB Chromebook, CG-app safe areas), 3 warnings. `npm run qa` exits 0 on the final code (HEAD dfb2848, 22 browser checks). Launch package in `submission/`: 3 covers, 2 preview videos (18.6 s, silent), the upload zip; texts and portal settings in `docs/STORE_METADATA.md`. Fixed for it: W1 save fallback (B2), harness `persistence`/`ads-fill` (B3), frame peaks in big cities (<= 58k tris).
+- **Latest (2026-10-08 evening): upload-ready again after the owner's playtest fixes** (cars, layout, music removed, 70% covers); `npm run qa` exit 0 on HEAD 88449bb, the build in submission/storm-grid-build.zip.
+- **Earlier (2026-10-08): upload-ready.** Launch-gate audit (`docs/CG_QA_AUDIT.md`): 42/45 mandatory PASS, 0 FAIL, 3 cannot verify (Edge, 4 GB Chromebook, CG-app safe areas), 3 warnings. `npm run qa` exits 0 on the final code (HEAD dfb2848, 22 browser checks). Launch package in `submission/`: 3 covers, 2 preview videos (18.6 s, silent), the upload zip; texts and portal settings in `docs/STORE_METADATA.md`. Fixed for it: W1 save fallback (B2), harness `persistence`/`ads-fill` (B3), frame peaks in big cities (<= 58k tris).
 - **Also 2026-10-08 (playtest feedback 4):** background music removed again (owner: "good, but no need for it").
 - **Also 2026-10-08 (playtest feedback 3):** music ~6.4 dB louder and brighter (later removed); cars obey traffic rules (one car per crossing, keep distance) - check-city `cars-apart` proves 0 overlaps.
 - **Also 2026-10-08 (music):** background music written in code (src/game/music.js) - removed again the same day at the owner's wish.
@@ -70,6 +71,7 @@ npm run qa           # all automated checks + COMPLIANCE_REPORT.md
 |---|---|---|---|
 | B1 | P2 | Template demo: save not flushed on tab hide | fixed in WP-10 (main.js marks the save dirty on hide) |
 | B2 | P2 | Data module off (Progress Save not ticked in the portal): progress is written to localStorage but never read back, the game boots from defaults (`src/core/save.js`; audit W1; reproduced) | fixed 2026-10-07 (`save.js` re-picks localStorage; `persistence` proves it) |
+| B5 | P3 (test tool) | `mute-priority` kept page 1 open while page 2 booted (2 of 4 full runs failed); shop Try-it raced the SDK init on a starved host | fixed 2026-10-08 (`e23b213`, `88449bb`); full run exit 0 |
 | B4 | P3 (test tool) | Harness timing on a slower host: result dialog ~8 s vs an 8 s limit, a crashed scenario's page starved the rest (16 cascading FAILs); `revive-offer` slept 1.3 s against a frame-time countdown | fixed 2026-10-08 (`dfb2848`: crashed pages closed, 30 s game-time waits, countdown polled; full run exit 0) |
 | B3 | P3 (test tool) | `browser-qa` `persistence` leaks two WebGL pages and starves later scenarios; `ads-fill` uses fixed sleeps. The game is correct in both (audit "Test-tool findings") | fixed 2026-10-07 (one page at a time; event-ordered ads-fill) |
 

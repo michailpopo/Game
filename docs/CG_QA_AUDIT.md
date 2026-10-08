@@ -1,6 +1,6 @@
 # CrazyGames Compliance Report - Storm Grid
 
-Audit date: **2026-10-08** (launch gate) · Build: repo HEAD `dfb2848` (bundle `index-BuQj-bDC.js`) · Method: `crazygames-qa` skill, audit mode
+Audit date: **2026-10-08** (launch gate, re-run after the playtest fixes) · Build: repo HEAD `88449bb` (bundle `index-BrCy_bh3.js`, the one in `submission/storm-grid-build.zip`) · Method: `crazygames-qa` skill, audit mode
 Docs read: docs.crazygames.com/requirements (register 2026.09.11; technical page re-read 2026-10-07, see W5)
 
 This is a record of what was checked, how and when. It is **not** an approval: only CrazyGames approves a game.
@@ -20,15 +20,16 @@ so frame rates mean nothing here; draw calls, triangles, layout and event order 
 - **Cannot verify: 3** - Edge, a 4 GB Chromebook, safe areas inside the CrazyGames app (need hardware / the portal).
 - **Warnings: 3** (W2, W5, W6). W1 (save lost with the Data module off), W3 (stale name docs) and W4 (harness scenarios
   failing) from 2026-10-02 and W7 (a timing-sensitive harness check, found 2026-10-08) are **fixed**.
-- `npm run qa` **exits 0** on the final code (2026-10-08, HEAD `dfb2848`): static checks, build, bundle and 22 browser
-  checks, 0 FAIL, 3 UNVERIFIED by design (viewports, ad-ui-style, performance - all three looked at, see below). The same
-  suite also exited 0 on 2026-10-07 (HEAD `1cdf795`, before the end-orbit cloud change).
+- `npm run qa` **exits 0** on the final code (2026-10-08, HEAD `88449bb`): static checks (incl. the new `cars-apart`),
+  build, bundle and 22 browser checks, 0 FAIL, 3 UNVERIFIED by design (viewports, ad-ui-style, performance - looked at,
+  see below). Since the first launch-gate run the owner's playtest changed: no shrinking cars (routes + traffic rules),
+  a tighter city layout (no big empty corners), music tried and removed, covers at 70% powered.
 
 ---
 
 ### ✅ PASS - Technical (12 of 15 mandatory)
 
-- **Total size ≤ 250 MB / file count ≤ 1500**: 0.94 MB, 20 files (`check-bundle`); upload zip 378 KB.
+- **Total size ≤ 250 MB / file count ≤ 1500**: 0.94 MB, 20 files (`check-bundle`); upload zip 379 KB.
 - **Initial download ≤ 50 MB, and ≤ 20 MB for the mobile homepage**: 0.25 MB transferred up to the first `gameplayStart`
   (`browser-qa boot`). The 20 sound files (≈150 KB) load after the first input; the real SDK script is not counted (mock).
 - **Relative paths only**: `check-bundle relative-paths` PASS; the only absolute URL is the required SDK `<script>`.
@@ -46,7 +47,7 @@ so frame rates mean nothing here; draw calls, triangles, layout and event order 
 - **Data module (progress save)**: `persistence` PASS both ways - Data module on: reload keeps city 2 / 470 coins via
   `crazygames-data`; Data module disabled: reload keeps city 2 / 470 coins via `localStorage` (this is the W1 fix; the
   same check FAILED on the old code, so it would catch a regression).
-- Also PASS: `no-sdk`, `sdk-disabled`, `sdk-init-hang` (playable after 12 s when init never resolves), `console-errors`.
+- Also PASS: `no-sdk`, `sdk-disabled`, `sdk-init-hang` (playable after 12.7 s when init never resolves), `console-errors`.
 - N/A: sitelock (none), User module / accounts (none), user-consent notice (no analytics, no `fetch`/XHR beyond the
   game's own sound files, no personal data).
 
@@ -87,19 +88,19 @@ so frame rates mean nothing here; draw calls, triangles, layout and event order 
 ### ✅ PASS - Game covers and preview video (4 of 4 mandatory, were FAIL)
 
 - **Covers** `submission/covers/landscape-1920x1080.png`, `portrait-800x1200.png`, `square-800x800.png`
-  (`npm run launch:covers`, 2026-10-07): the real game rendered at 2x and downscaled, city 12 half-powered with the
+  (`npm run launch:covers`, 2026-10-08): the real game rendered at 2x and downscaled, city 12 70% powered with the
   forked bolts held on screen, the title as the only text, no borders, no logos, sharp. Looked at all three: same
   composition and style, readable at thumbnail size. `launch:check` PASS (exact sizes).
 - **Preview videos** `submission/video/landscape-1920x1080.mp4`, `portrait-1080x1620.mp4` (`npm run launch:video`):
-  the cover as the first 0.6 s, then deterministic real gameplay (city 12 cleared at 98%, then a cut to city 22, the neon
-  bay island); no sound stream, no cursor (headless), no promo text, no black frames, not sped up. `launch:check` PASS
+  the cover as the first 0.6 s (the same 70% composition as the store covers), then deterministic real gameplay (city
+  12 cleared at 98%, then a cut to city 22, the neon bay island); no sound stream, no cursor (headless), no promo text, no black frames, not sped up. `launch:check` PASS
   (resolution, 15-20 s, ≤ 50 MB, silent).
 - `docs/STORE_METADATA.md` filled: title, short and full description, controls, portal settings, upload steps.
 
 ### 📋 CANNOT VERIFY (3 mandatory)
 
 - **Works on Chrome and Edge**: tested only in headless Chromium 141. → open the portal preview once in Edge.
-- **Smooth on a 4 GB RAM Chromebook**: evidence only - ≤ 45 draw calls and ≤ 56.6k triangles per frame in a 300-building
+- **Smooth on a 4 GB RAM Chromebook**: evidence only - ≤ 45 draw calls and ≤ 57.4k triangles per frame in a 300-building
   city (budget 60 / 60k; a one-off 65k frame when the static shadow map re-bakes after a quality change), pixel ratio
   capped, adaptive quality. `performance` stays UNVERIFIED by design (software renderer). → test on a Chromebook or the preview.
 - **Safe areas inside the CrazyGames app**: `env(safe-area-inset-*)` applied; only visible in the app. → check there.
@@ -129,7 +130,10 @@ so frame rates mean nothing here; draw calls, triangles, layout and event order 
 - **W7** harness timing (2026-10-08): after the container moved to a slower host, the result dialog took 7.9-8.3 s of
   wall time against an 8 s limit (the build before the cloud change failed the same way - not a game regression), and
   the crashed scenario's live WebGL page starved the rest (16 cascading FAILs). Now a crashed scenario's pages are always
-  closed, game-time waits allow 30 s (`RESULT_MS`), and `revive-offer` polls for the countdown drop.
+  closed, game-time waits allow 30 s (`RESULT_MS`), and `revive-offer` polls for the countdown drop. Later the same day
+  `mute-priority` (kept page 1 open while page 2 booted: failed 2 of 4 full runs) closes page 1 first, and the shop's
+  Try-it check waits for the SDK (on a starved host its init can pass the game's 8 s limit; the game then rightly plays
+  without ads). Final full run: 0 FAIL.
 
 ### Quality guidelines (advisory)
 

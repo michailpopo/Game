@@ -125,6 +125,14 @@ below, a few at city height; 4 striped hot-air balloons; an airship circling beh
 Ideas from: The Aviator (codrops, low-poly sky scene), low-poly floating-island and cloud tutorials (WebSearch summaries; the
 pages themselves are blocked by the proxy). Tapering rock is edge-on to this camera - keep the near-vertical cliff band.
 
+**2026-10-08, owner: "music is a bit too quiet, can't hear it at all; cars should not be able to be in each other" -
+done.** Music: brighter mix (pad low-pass 1900 Hz, bass with a saw octave overtone for small speakers, arpeggio and lead
+up), normalised to -16 dBFS RMS and played at 0.7 (`musicLevel` in main.js): ~6.4 dB louder in game. Cars: traffic rules
+in city-life.js - one car at a time per crossing (wait with the nose outside the crossing box, reserve, free once the
+tail is clear), brake for the car ahead in the same direction, no overlapping starts. New `check-city` check
+`cars-apart` (2 min of traffic in 6 cities, oriented 4 x 2.2 m bodies, every frame; gridlock limit 15 s) + selftest:
+0 overlaps, longest stop 5.9 s. The earlier probe had counted only centres < 1.6 m apart and missed the overlaps.
+
 **2026-10-08, owner: "maybe background music would be cool" -> picked "write it in code" - done (owner must listen).**
 `src/game/music.js` composes and renders one 16-bar loop (104 BPM, Am-F-C-G: pad, bass, soft kick/hats/claps, 16th
 arpeggio with a dotted-8th echo from bar 5, sparse pentatonic lead from bar 9) with an OfflineAudioContext 0.4 s after

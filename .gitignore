@@ -4,3 +4,4 @@ node_modules/
 /qa/
 /submission/video/
 /assets-src/
+/submission/*.zip

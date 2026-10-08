@@ -630,7 +630,8 @@ await scenario("revive-offer", async () => {
   await page.evaluate((a) => window.__GS_QA__.forceFail(a), reviveAt);
   await page.waitForSelector('.modal:not([hidden]) button[data-id="revive"]', { timeout: 8000 });
   const ring1 = await page.textContent(".dialog .ring b");
-  await sleep(1300);
+  // The ring runs on frame time: poll for the drop (a fixed wall-clock sleep misses it on a loaded software renderer).
+  await page.waitForFunction((r1) => Number(document.querySelector(".dialog .ring b")?.textContent) < r1, Number(ring1), { timeout: 4000, polling: 100 }).catch(() => {});
   const ring2 = await page.textContent(".dialog .ring b");
   if (!(Number(ring2) < Number(ring1))) problems.push(`countdown not running (${ring1} -> ${ring2})`);
   await page.waitForSelector('.modal:not([hidden]) button[data-id="revive"]', { state: "detached", timeout: 12000 }).catch(() => problems.push("revive offer still there after the countdown"));

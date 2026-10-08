@@ -1,12 +1,13 @@
 # Project status - Storm Grid
 
-Updated: 2026-10-07 · Project folder: /home/user/Game (repo michailpopo/Game, branch claude/amazing-carson-87o6sf)
+Updated: 2026-10-08 · Project folder: /home/user/Game (repo michailpopo/Game, branch claude/amazing-carson-87o6sf)
 
 ## Where we are
 - **Phase:** 3 Build - Storm Grid (3D). Handoff to a new chat on 2026-09-28: read HANDOFF.md first.
 - **Current objective:** an original, dopamine-hitting game that looks premium, upload-ready this session.
-- **Latest:** CrazyGames QA audit done 2026-10-02 (`docs/CG_QA_AUDIT.md`): 38/45 mandatory PASS, 4 FAIL (covers + preview videos not made yet), 3 cannot verify (Edge, 4 GB Chromebook, CG-app safe areas), 6 warnings. No code requirement fails.
-- **Also 2026-10-07 (evening):** recorded CC0 sounds (Kenney) replace the synth sounds (ZzFX stays as fallback; owner must audition); progression rebalanced: upgrades max after ~1.6-2 h instead of 6-7 min, 79 upgrade levels, rising clear threshold, difficulty ramp to city 70, endless slow progress after (tools/qa/economy-sim.mjs). Known: frame tris peak 63-67k during cascades in 300-building cities (pre-existing).
+- **Latest (2026-10-08): upload-ready.** Launch-gate audit (`docs/CG_QA_AUDIT.md`): 42/45 mandatory PASS, 0 FAIL, 3 cannot verify (Edge, 4 GB Chromebook, CG-app safe areas), 4 warnings. `npm run qa` exits 0 (22 browser checks). Launch package in `submission/`: 3 covers, 2 preview videos (18.6 s, silent), the upload zip; texts and portal settings in `docs/STORE_METADATA.md`. Fixed for it: W1 save fallback (B2), harness `persistence`/`ads-fill` (B3), frame peaks in big cities (<= 58k tris).
+- **Also 2026-10-08:** at the end of a run the storm cloud (still never turning with the camera) glides over the city's centre, so it hangs over the city from every orbit angle (owner: "where it is over the city looks bad once the camera has turned"). Checked on landscape + portrait stills.
+- **Also 2026-10-07 (evening):** recorded CC0 sounds (Kenney) replace the synth sounds (ZzFX stays as fallback; owner must audition); progression rebalanced: upgrades max after ~1.6-2 h instead of 6-7 min, 79 upgrade levels, rising clear threshold, difficulty ramp to city 70, endless slow progress after (tools/qa/economy-sim.mjs).
 - **Also 2026-10-07 (later still):** the cloud stays fixed in the world while the camera circles the finished city (owner's request; camera unchanged); the cloud mesh is closed all round for that. Browser-verified (win + fail).
 - **Also 2026-10-07 (later):** the cloud kept smooth but built from far fewer, bigger lobes (owner: "smooth, just not so many circles"); a faceted low-poly try was rejected by the owner. Waiting for the owner to look.
 - **Also 2026-10-07:** the storm cloud's form reworked (owner: "just the form of the cloud"): one smooth cumulus (metaball field + surface nets) instead of 25 instanced spheres; colours, flicker, flash, size and position unchanged. It is the one hero geometry (<= 4,670 tris of 5,000); frames <= 55.7k tris, <= 44 calls. Waiting for the owner to look.
@@ -17,8 +18,8 @@ Updated: 2026-10-07 · Project folder: /home/user/Game (repo michailpopo/Game, b
 - **Also 2026-10-04 (later):** the city's island is now a square that follows the city, islets are round and irregular (`src/game/islands.js`), owner's request.
 - **Also 2026-10-04:** water themes (Harbour, Neon Bay) stand on islands with beaches and islet trees instead of trees on open water (`planIslands` in `city-mesh.js`, guard in `tools/qa/check-city.mjs`). Waiting for the owner to look.
 - **Also 2026-10-02:** buildings that touched or intersected (from city 3) now keep >= 1.0 m of air between roof caps (`clearFootprints` in `sim.js`, guard `tools/qa/check-city.mjs`). Waiting for the owner to look.
-- **Next action (one concrete step):** fix the save fallback in `src/core/save.js` (audit W1) and the two harness scenarios `persistence` / `ads-fill` (test-tool problems, not game bugs), so `npm run qa` exits 0; then the owner judges the 3 visual items, plays, auditions the sounds; then the launch package (HANDOFF.md section 4).
-- **Waiting on the user:** nothing until the next playtest build; then: play it and audition the sounds.
+- **Next action (one concrete step):** the owner uploads (HANDOFF.md section 4): zip + texts + covers + videos, Progress Save ON; then plays the portal preview in Edge and on a phone and auditions every sound.
+- **Waiting on the user:** the upload and the portal preview; then CrazyGames' QA feedback.
 
 ## Gates
 | Gate | Status | Date | Evidence |
@@ -30,8 +31,8 @@ Updated: 2026-10-07 · Project folder: /home/user/Game (repo michailpopo/Game, b
 | 5 Content & polish | NOT STARTED | | |
 | 6 Platform integration | NOT STARTED | | |
 | 7 Performance | NOT STARTED | | |
-| 8 QA & compliance | IN PROGRESS | 2026-10-02 | `docs/CG_QA_AUDIT.md` (audit mode, Full Launch); `npm run qa:fast` green; browser harness traced, 2 scenarios still fail on a correct game |
-| 9 Launch package | NOT STARTED | | |
+| 8 QA & compliance | READY FOR REVIEW | 2026-10-08 | `docs/CG_QA_AUDIT.md` launch gate: 42/45 PASS, 0 FAIL, 3 cannot verify (need hardware/portal); `npm run qa` exits 0 |
+| 9 Launch package | READY FOR REVIEW | 2026-10-08 | `submission/` covers x3 + videos x2 (`launch:check` PASS) + zip; `docs/STORE_METADATA.md`; the owner uploads |
 | 10 Post-launch review | NOT STARTED | | |
 Statuses: NOT STARTED · IN PROGRESS · BLOCKED · READY FOR REVIEW · PASS · FAIL
 
@@ -47,24 +48,25 @@ npm run qa           # all automated checks + COMPLIANCE_REPORT.md
 ## Latest measurements
 | Metric | Value | Date | How |
 |---|---|---|---|
-| Bytes to first gameplayStart | 0.22 MB (Storm Grid) | 2026-10-02 | browser-qa boot |
-| Total dist size / files | 0.76 MB / 6 files | 2026-10-02 | check-bundle |
+| Bytes to first gameplayStart | 0.25 MB | 2026-10-07 | browser-qa boot |
+| Total dist size / files | 0.93 MB / 20 files | 2026-10-07 | check-bundle |
 | p95 frame time @4x CPU throttle | | | browser-qa performance |
-| Draw calls / triangles in play | max 32 calls / 10,541 tris (budget 60 / 60,000) | 2026-10-02 | browser-qa poly-budget (software GL) |
-| Compliance verdict | audit: 38/45 mandatory PASS, 4 FAIL (covers/videos), 3 cannot verify; `COMPLIANCE_REPORT.md` still lists browser items UNVERIFIED (regenerate with a clean full `npm run qa`) | 2026-10-02 | CG_QA_AUDIT.md |
-| Docs freshness | CHANGED: cg-technical, cg-sitelock; rules re-read, no effect on this game (audit W5); register not bumped | 2026-10-02 | check-docs-freshness.mjs |
+| Draw calls / triangles in play | city 1: 43 calls / 23.1k tris; city 55: 45 calls / 58.0k tris (budget 60 / 60,000; one-off shadow re-bake frame 64.7k) | 2026-10-07 | browser-qa poly-budget (software GL) |
+| Compliance verdict | launch gate: 42/45 mandatory PASS, 0 FAIL, 3 cannot verify; `npm run qa` exit 0 | 2026-10-08 | CG_QA_AUDIT.md, COMPLIANCE_REPORT.md |
+| Docs freshness | CHANGED: cg-technical, cg-sitelock; technical page body identical to the 10-02 copy, no effect (audit W5); register not bumped | 2026-10-07 | check-docs-freshness.mjs |
 
 ## Top 3 problems (reorder after every playtest)
-1. Visual items from HANDOFF.md section 3 (bolt brightness, candy colours, shop over the toy city) not re-judged; 2026-10-02 frames show candy-coloured lit buildings and the toy city behind the shop, the owner decides.
-2. No owner playtest of Storm Grid yet; sounds not auditioned.
-3. Economy numbers are model numbers (Monte Carlo) until a human playtest.
+1. No owner playtest of the new pacing and no audition of the recorded sounds yet (Claude cannot hear).
+2. Not run on Edge, a Chromebook or inside the CrazyGames app (audit CANNOT VERIFY); the portal preview is the first chance.
+3. Economy numbers are simulated players (`tools/qa/economy-sim.mjs`) until real players.
 
 ## Known bugs
 | Id | Severity (P0-P3) | Description | Status |
 |---|---|---|---|
 | B1 | P2 | Template demo: save not flushed on tab hide | fixed in WP-10 (main.js marks the save dirty on hide) |
-| B2 | P2 | Data module off (Progress Save not ticked in the portal): progress is written to localStorage but never read back, the game boots from defaults (`src/core/save.js`; audit W1; reproduced) | open, 3-line fix in HANDOFF.md section 4 |
-| B3 | P3 (test tool) | `browser-qa` `persistence` leaks two WebGL pages and starves later scenarios; `ads-fill` uses fixed sleeps. The game is correct in both (audit "Test-tool findings") | open, fix in the harness |
+| B2 | P2 | Data module off (Progress Save not ticked in the portal): progress is written to localStorage but never read back, the game boots from defaults (`src/core/save.js`; audit W1; reproduced) | fixed 2026-10-07 (`save.js` re-picks localStorage; `persistence` proves it) |
+| B4 | P3 (test tool) | `revive-offer` can read the countdown 4 -> 4 on a loaded software renderer (1.3 s wall-clock sleep vs a frame-time countdown); passes alone and in the full run | open, low (audit W7) |
+| B3 | P3 (test tool) | `browser-qa` `persistence` leaks two WebGL pages and starves later scenarios; `ads-fill` uses fixed sleeps. The game is correct in both (audit "Test-tool findings") | fixed 2026-10-07 (one page at a time; event-ordered ads-fill) |
 
 ## Decisions log
 | Date | Decision | Why | Alternatives rejected |
@@ -80,6 +82,8 @@ npm run qa           # all automated checks + COMPLIANCE_REPORT.md
 | 2026-09-26 | Concept T1 Volt City, fully 3D; renamed Storm Grid | owner's picks ("It must be 3d game"; Volt City collides with a Volt Casino game) | T2 Shatterfall, T3 Magnet Heap; keeping the casino-colliding name |
 | 2026-09-26 | Look kit WP-20 done: Neutral tone mapping (ACES/AgX washed colours out), bloom only on high/ultra tiers | side-by-side captures in qa/wp20/ | ACES, AgX |
 | 2026-09-27 | Keep the UI; restyle the city from hit-game references, keep it simple | owner: "good in general, the ui looks great but the city is still looking too ai generated, grab some visual inspo from games with a lot of likes that are made in html5, do not overcomplicate" | neon-cyberpunk city |
+| 2026-10-08 | Held storm cloud glides over the city centre at run end (no turning) | owner: the fixed cloud hung beside the city once the camera had turned; a cloud over the centre looks the same from every orbit angle and still never spins with the camera | turning the cloud with the camera again (rejected by the owner on 10-07), leaving it behind the city |
+| 2026-10-08 | Covers hold the last strike and hops on screen; preview cuts to a 2nd city after the win | a still without lightning does not show the game; 10 s of orbiting a finished city is dead air in an 18 s clip | screenshots of a random frame; a longer orbit |
 | 2026-10-07 | Recorded CC0 sounds (Kenney) with ZzFX fallback | owner: "better sounds, find free ones"; Kenney is CC0 and the only sound site the container can reach; a fallback keeps audio instant while files load | Freesound (needs a login), Pixabay/Mixkit (custom licenses, blocked), more ZzFX tuning (the owner wants real sounds) |
 | 2026-10-07 | Longer progression: 79 finer upgrade levels, two-phase prices, rising clear threshold 60->70%, ramp to city 70, coins +4%/city | owner maxed everything in minutes; measured: maxed at 6-7 min, wall at city ~37 by min 15; now maxed at ~1.6-2 h and endless slow progress | raising max power (8 strikes, 10 rods: every city cleared forever, coins explode), a flat 0.8 pass mark (hard wall at city ~68), uncapped upgrades |
 | 2026-10-07 | Storm cloud as one metaball surface (surface nets), the project's one hero geometry (<= 5,000 tris) | owner: work on the cloud's form until it looks good; separate spheres read as dark pillows with seams and faceted outlines; one blended surface gives round lobes, soft crevices and a clean silhouette; hero budget is in project.json already (no budget raised) | more/finer instanced spheres (still seams), three.js MarchingCubes (cube grid wastes resolution on a wide, flat cloud), rays from one centre or a tube of slices (spikes on the stepped shape), a cap lobe on top (mushroom look) |

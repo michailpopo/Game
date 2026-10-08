@@ -219,7 +219,7 @@ The game is **upload-ready** (2026-10-08). Everything below is the owner's, exce
 3. **Owner playtest of the new pacing** from a fresh save (clear the site data of the test page).
 4. **After CrazyGames' QA feedback:** paste it to Claude; fix in FIX mode of the `crazygames-qa` skill, re-run `npm run qa`,
    rebuild the zip. If the reviewer objects to the offers on the city intro screen (audit W2), move them behind one
-   "Boost" button. If `revive-offer` flakes again (audit W7), make it poll for the countdown drop.
+   "Boost" button.
 
 ## 5. Environment gotchas (cloud container)
 
@@ -258,7 +258,7 @@ The game is **upload-ready** (2026-10-08). Everything below is the owner's, exce
   economical: no extra iterations". Agents burned ~500k tokens each per package here.
 - Run the slow browser harness once per package with `--only <scenarios>`, not the full set every time.
 
-## 8. Browser QA (full run 2026-10-07, HEAD 1cdf795, `PW_CHROMIUM_PATH=/opt/pw-browsers/chromium npm run qa`)
+## 8. Browser QA (full run 2026-10-08, HEAD dfb2848, `PW_CHROMIUM_PATH=/opt/pw-browsers/chromium npm run qa`)
 
 **Full run 2026-10-07 (`npm run qa`, exit 0):** all static checks, build (0.93 MB / 20 files), 22 browser checks: 0 FAIL,
 3 UNVERIFIED by design. PASS: boot (2.7 s, 0.25 MB), sdk-events, no-sdk, sdk-disabled, sdk-init-hang (11.1 s),
@@ -268,10 +268,11 @@ persistence (Data module on AND off: reload keeps city 2 / 470 coins), poly-budg
 revive-offer, shop, console-errors. UNVERIFIED and looked at: viewports (800x450, 1920x1080, 390x844, 1080x1620 - all
 legible), ad-ui-style (`ad-ui-win.png`, `ad-ui-fail-revive.png` - equal buttons, video icon), performance (software GL).
 
-**After the end-orbit cloud change (2026-10-08, `7575ef5`):** `npm run qa:fast` green; `--only boot,poly-budget,
-revive-offer,dead-air,console-errors`: 4 PASS (boot 3.7 s, city 55 56.6k tris / 45 calls, silence 2.7 s of 3 s) and
-`revive-offer` FAIL "countdown not running (4 -> 4)" right after poly-budget; `--only revive-offer` alone: PASS (4 -> 3).
-Timing of a 1.3 s wall-clock sleep against a frame-time countdown on a loaded software renderer (audit W7).
+**Final full run 2026-10-08 (`npm run qa`, HEAD `dfb2848`, exit 0):** 22 browser checks, 0 FAIL, 3 UNVERIFIED by design;
+city 55 56.6k tris / 45 calls, silence 2.4 s, revive ring 4 -> 3, persistence on/off PASS. Before it, the first run on
+this (slower) host failed 16 scenarios: the result dialog took ~8 s against an 8 s limit in `sdk-events` (the build before
+the cloud change failed the same way), and the crashed page starved the rest. Harness fixed (`dfb2848`): crashed pages are
+closed, game-time waits allow 30 s (`RESULT_MS`), `revive-offer` polls the countdown.
 Launch: `npm run launch:check` PASS for 3 covers + 2 videos (see `docs/CG_QA_AUDIT.md`).
 
 Smoke re-run 2026-10-07 after sounds + progression (`--only boot,poly-budget,dead-air,console-errors,mute-priority`):

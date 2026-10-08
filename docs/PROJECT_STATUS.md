@@ -5,7 +5,7 @@ Updated: 2026-10-08 · Project folder: /home/user/Game (repo michailpopo/Game, b
 ## Where we are
 - **Phase:** 3 Build - Storm Grid (3D). Handoff to a new chat on 2026-09-28: read HANDOFF.md first.
 - **Current objective:** an original, dopamine-hitting game that looks premium, upload-ready this session.
-- **Latest (2026-10-08): upload-ready.** Launch-gate audit (`docs/CG_QA_AUDIT.md`): 42/45 mandatory PASS, 0 FAIL, 3 cannot verify (Edge, 4 GB Chromebook, CG-app safe areas), 4 warnings. `npm run qa` exits 0 (22 browser checks). Launch package in `submission/`: 3 covers, 2 preview videos (18.6 s, silent), the upload zip; texts and portal settings in `docs/STORE_METADATA.md`. Fixed for it: W1 save fallback (B2), harness `persistence`/`ads-fill` (B3), frame peaks in big cities (<= 58k tris).
+- **Latest (2026-10-08): upload-ready.** Launch-gate audit (`docs/CG_QA_AUDIT.md`): 42/45 mandatory PASS, 0 FAIL, 3 cannot verify (Edge, 4 GB Chromebook, CG-app safe areas), 3 warnings. `npm run qa` exits 0 on the final code (HEAD dfb2848, 22 browser checks). Launch package in `submission/`: 3 covers, 2 preview videos (18.6 s, silent), the upload zip; texts and portal settings in `docs/STORE_METADATA.md`. Fixed for it: W1 save fallback (B2), harness `persistence`/`ads-fill` (B3), frame peaks in big cities (<= 58k tris).
 - **Also 2026-10-08:** at the end of a run the storm cloud (still never turning with the camera) glides over the city's centre, so it hangs over the city from every orbit angle (owner: "where it is over the city looks bad once the camera has turned"). Checked on landscape + portrait stills.
 - **Also 2026-10-07 (evening):** recorded CC0 sounds (Kenney) replace the synth sounds (ZzFX stays as fallback; owner must audition); progression rebalanced: upgrades max after ~1.6-2 h instead of 6-7 min, 79 upgrade levels, rising clear threshold, difficulty ramp to city 70, endless slow progress after (tools/qa/economy-sim.mjs).
 - **Also 2026-10-07 (later still):** the cloud stays fixed in the world while the camera circles the finished city (owner's request; camera unchanged); the cloud mesh is closed all round for that. Browser-verified (win + fail).
@@ -49,9 +49,9 @@ npm run qa           # all automated checks + COMPLIANCE_REPORT.md
 | Metric | Value | Date | How |
 |---|---|---|---|
 | Bytes to first gameplayStart | 0.25 MB | 2026-10-07 | browser-qa boot |
-| Total dist size / files | 0.93 MB / 20 files | 2026-10-07 | check-bundle |
+| Total dist size / files | 0.94 MB / 20 files (upload zip 378 KB) | 2026-10-08 | check-bundle |
 | p95 frame time @4x CPU throttle | | | browser-qa performance |
-| Draw calls / triangles in play | city 1: 43 calls / 23.1k tris; city 55: 45 calls / 58.0k tris (budget 60 / 60,000; one-off shadow re-bake frame 64.7k) | 2026-10-07 | browser-qa poly-budget (software GL) |
+| Draw calls / triangles in play | city 1: 43 calls / 21.5k tris; city 55: 45 calls / 56.6k tris (budget 60 / 60,000; one-off shadow re-bake frame 64.7k) | 2026-10-08 | browser-qa poly-budget (software GL) |
 | Compliance verdict | launch gate: 42/45 mandatory PASS, 0 FAIL, 3 cannot verify; `npm run qa` exit 0 | 2026-10-08 | CG_QA_AUDIT.md, COMPLIANCE_REPORT.md |
 | Docs freshness | CHANGED: cg-technical, cg-sitelock; technical page body identical to the 10-02 copy, no effect (audit W5); register not bumped | 2026-10-07 | check-docs-freshness.mjs |
 
@@ -65,7 +65,7 @@ npm run qa           # all automated checks + COMPLIANCE_REPORT.md
 |---|---|---|---|
 | B1 | P2 | Template demo: save not flushed on tab hide | fixed in WP-10 (main.js marks the save dirty on hide) |
 | B2 | P2 | Data module off (Progress Save not ticked in the portal): progress is written to localStorage but never read back, the game boots from defaults (`src/core/save.js`; audit W1; reproduced) | fixed 2026-10-07 (`save.js` re-picks localStorage; `persistence` proves it) |
-| B4 | P3 (test tool) | `revive-offer` can read the countdown 4 -> 4 on a loaded software renderer (1.3 s wall-clock sleep vs a frame-time countdown); passes alone and in the full run | open, low (audit W7) |
+| B4 | P3 (test tool) | Harness timing on a slower host: result dialog ~8 s vs an 8 s limit, a crashed scenario's page starved the rest (16 cascading FAILs); `revive-offer` slept 1.3 s against a frame-time countdown | fixed 2026-10-08 (`dfb2848`: crashed pages closed, 30 s game-time waits, countdown polled; full run exit 0) |
 | B3 | P3 (test tool) | `browser-qa` `persistence` leaks two WebGL pages and starves later scenarios; `ads-fill` uses fixed sleeps. The game is correct in both (audit "Test-tool findings") | fixed 2026-10-07 (one page at a time; event-ordered ads-fill) |
 
 ## Decisions log

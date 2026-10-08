@@ -1,6 +1,6 @@
 # CrazyGames Compliance Report - Storm Grid
 
-Audit date: **2026-10-08** (launch gate) · Build: repo HEAD `7575ef5` + docs · Method: `crazygames-qa` skill, audit mode
+Audit date: **2026-10-08** (launch gate) · Build: repo HEAD `dfb2848` (bundle `index-BuQj-bDC.js`) · Method: `crazygames-qa` skill, audit mode
 Docs read: docs.crazygames.com/requirements (register 2026.09.11; technical page re-read 2026-10-07, see W5)
 
 This is a record of what was checked, how and when. It is **not** an approval: only CrazyGames approves a game.
@@ -18,18 +18,17 @@ so frame rates mean nothing here; draw calls, triangles, layout and event order 
 - **Failed: 0.** The four FAILs of 2026-10-02 (covers and preview videos missing) are fixed: all five files exist and pass
   `npm run launch:check`, and were looked at by eye.
 - **Cannot verify: 3** - Edge, a 4 GB Chromebook, safe areas inside the CrazyGames app (need hardware / the portal).
-- **Warnings: 4** (W2, W5, W6, W7). W1 (save lost with the Data module off), W3 (stale name docs) and W4 (two harness
-  scenarios failing) from 2026-10-02 are **fixed**.
-- `npm run qa` **exits 0** (2026-10-07, HEAD `1cdf795`): static checks, build, bundle and 22 browser checks, 0 FAIL,
-  3 UNVERIFIED by design (viewports, ad-ui-style, performance - all three looked at, see below).
-- After the last code change (`7575ef5`, end-orbit cloud, cover/capture modes): `npm run qa:fast` green; browser
-  `boot`, `poly-budget`, `dead-air`, `console-errors` PASS; `revive-offer` PASS when run alone (see W7).
+- **Warnings: 3** (W2, W5, W6). W1 (save lost with the Data module off), W3 (stale name docs) and W4 (harness scenarios
+  failing) from 2026-10-02 and W7 (a timing-sensitive harness check, found 2026-10-08) are **fixed**.
+- `npm run qa` **exits 0** on the final code (2026-10-08, HEAD `dfb2848`): static checks, build, bundle and 22 browser
+  checks, 0 FAIL, 3 UNVERIFIED by design (viewports, ad-ui-style, performance - all three looked at, see below). The same
+  suite also exited 0 on 2026-10-07 (HEAD `1cdf795`, before the end-orbit cloud change).
 
 ---
 
 ### ✅ PASS - Technical (12 of 15 mandatory)
 
-- **Total size ≤ 250 MB / file count ≤ 1500**: 0.93 MB, 20 files (`check-bundle`).
+- **Total size ≤ 250 MB / file count ≤ 1500**: 0.94 MB, 20 files (`check-bundle`); upload zip 378 KB.
 - **Initial download ≤ 50 MB, and ≤ 20 MB for the mobile homepage**: 0.25 MB transferred up to the first `gameplayStart`
   (`browser-qa boot`). The 20 sound files (≈150 KB) load after the first input; the real SDK script is not counted (mock).
 - **Relative paths only**: `check-bundle relative-paths` PASS; the only absolute URL is the required SDK `<script>`.
@@ -47,7 +46,7 @@ so frame rates mean nothing here; draw calls, triangles, layout and event order 
 - **Data module (progress save)**: `persistence` PASS both ways - Data module on: reload keeps city 2 / 470 coins via
   `crazygames-data`; Data module disabled: reload keeps city 2 / 470 coins via `localStorage` (this is the W1 fix; the
   same check FAILED on the old code, so it would catch a regression).
-- Also PASS: `no-sdk`, `sdk-disabled`, `sdk-init-hang` (playable after 11 s when init never resolves), `console-errors`.
+- Also PASS: `no-sdk`, `sdk-disabled`, `sdk-init-hang` (playable after 12 s when init never resolves), `console-errors`.
 - N/A: sitelock (none), User module / accounts (none), user-consent notice (no analytics, no `fetch`/XHR beyond the
   game's own sound files, no personal data).
 
@@ -100,7 +99,7 @@ so frame rates mean nothing here; draw calls, triangles, layout and event order 
 ### 📋 CANNOT VERIFY (3 mandatory)
 
 - **Works on Chrome and Edge**: tested only in headless Chromium 141. → open the portal preview once in Edge.
-- **Smooth on a 4 GB RAM Chromebook**: evidence only - ≤ 45 draw calls and ≤ 58k triangles per frame in a 300-building
+- **Smooth on a 4 GB RAM Chromebook**: evidence only - ≤ 45 draw calls and ≤ 56.6k triangles per frame in a 300-building
   city (budget 60 / 60k; a one-off 65k frame when the static shadow map re-bakes after a quality change), pixel ratio
   capped, adaptive quality. `performance` stays UNVERIFIED by design (software renderer). → test on a Chromebook or the preview.
 - **Safe areas inside the CrazyGames app**: `env(safe-area-inset-*)` applied; only visible in the app. → check there.
@@ -120,11 +119,6 @@ so frame rates mean nothing here; draw calls, triangles, layout and event order 
   still matches. The register in the skill folder was not bumped.
 - **W6 - Flashing effects (advisory).** FULL POWER sweeps a white flash; every strike flashes. Fine for PEGI 12; worth a
   look at frequency/area for photosensitive players.
-- **W7 - `revive-offer` is timing-sensitive under load (test tool, not the game).** It reads the countdown ring, sleeps
-  1.3 s of wall time and expects the number to drop; the ring runs on frame time, so on a heavily loaded software
-  renderer it can read 4 -> 4. It PASSED in the full run (2026-10-07) and alone after the last change (2026-10-08), and
-  FAILED once when run right after `poly-budget`. → if it recurs, poll for the drop for up to 4 s instead of one sleep.
-
 ### Fixed since 2026-10-02
 
 - **W1** save fallback (`src/core/save.js`): with the Data module unavailable the service now re-picks `localStorage`
@@ -132,6 +126,10 @@ so frame rates mean nothing here; draw calls, triangles, layout and event order 
 - **W3** names: `ORIGINALITY.md`, `ASSET_MANIFEST.md`, `STORE_METADATA.md` say Storm Grid; name re-checked 2026-10-07.
 - **W4** harness: `persistence` closes page 1 before page 2 and asserts the Data-module-off reload; `ads-fill` is
   event-ordered; `npm run qa` exits 0.
+- **W7** harness timing (2026-10-08): after the container moved to a slower host, the result dialog took 7.9-8.3 s of
+  wall time against an 8 s limit (the build before the cloud change failed the same way - not a game regression), and
+  the crashed scenario's live WebGL page starved the rest (16 cascading FAILs). Now a crashed scenario's pages are always
+  closed, game-time waits allow 30 s (`RESULT_MS`), and `revive-offer` polls for the countdown drop.
 
 ### Quality guidelines (advisory)
 

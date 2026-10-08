@@ -356,15 +356,16 @@ await scenario("mute-priority", async () => {
   await page.click(".icon-btn.sound");
   const gain = await page.evaluate(() => window.__GS_AUDIO_GAIN__);
   const s1 = await state(page);
-  const { ctx: ctx2, page: p2 } = await openGame("");
+  allErrors.push(...errors);
+  await ctx.close();   // one live page at a time: two software-GL pages starve each other (page 2 then misses its 30 s boot)
+  const { ctx: ctx2, page: p2, errors: errors2 } = await openGame("");
   await startRun(p2);
   await p2.evaluate(() => window.__CG_MOCK_SET__({ muteAudio: true }));
   await sleep(100);
   const gain2 = await p2.evaluate(() => window.__GS_AUDIO_GAIN__);
-  allErrors.push(...errors);
+  allErrors.push(...errors2);
   record({ id: "mute-priority", requirements: ["CG-SDK-004"], status: gain === 0 && gain2 === 0 ? "PASS" : "FAIL",
     summary: `?muteAudio=true + in-game toggles: gain=${gain}; muteAudio flipped mid-game: gain=${gain2}`, evidence: { audio: s1.audio } });
-  await ctx.close();
   await ctx2.close();
 });
 

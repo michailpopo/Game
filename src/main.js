@@ -840,8 +840,8 @@ async function boot() {
       title.className = "cover-title stroke";
       title.textContent = t("title");
       uiRoot.appendChild(title);
-      // Half the city powered, then freeze mid-cascade (a forked bolt in the air).
-      const stopAt = Number(qs.get("cover_share") || 0.5);
+      // 70% of the city powered (the lit colours fill the frame), then freeze mid-cascade (a forked bolt in the air).
+      const stopAt = Number(qs.get("cover_share") || 0.7);
       for (let i = 0; i < 60 * 40 && sim.phase === "run"; i++) {
         autopilot(sim, stepIn); step(sim, 1 / 60, stepIn);
         if (progress(sim) >= stopAt && sim.bolts.length >= 2) break;

@@ -125,6 +125,16 @@ below, a few at city height; 4 striped hot-air balloons; an airship circling beh
 Ideas from: The Aviator (codrops, low-poly sky scene), low-poly floating-island and cloud tutorials (WebSearch summaries; the
 pages themselves are blocked by the proxy). Tapering rock is edge-on to this camera - keep the near-vertical cliff band.
 
+**2026-10-08, owner: "maybe background music would be cool" -> picked "write it in code" - done (owner must listen).**
+`src/game/music.js` composes and renders one 16-bar loop (104 BPM, Am-F-C-G: pad, bass, soft kick/hats/claps, 16th
+arpeggio with a dotted-8th echo from bar 5, sparse pentatonic lead from bar 9) with an OfflineAudioContext 0.4 s after
+the first gesture; tails fold onto bar 1 (no seam); ~-20 dBFS RMS. `AudioService` plays it on its own gain under the
+master (all mutes apply), at 0.5 under the effects, and fades it in; a music button sits next to the sound button
+(`save.musicMuted`). Measured in headless Chromium (scratchpad probe-music.mjs): 36.9 s, peaks -6 dBFS, bar RMS builds
+-21 -> -19.5 dB; stems pad -21.5 / bass -19.2 / drums -23.9 / arp -26.4 / lead -20.9 dB. Render took 8 s alone and 19 s
+in game on this software-GL container (expect ~1-3 s on real hardware; the game plays on meanwhile). Only kenney.nl is
+reachable here and it has no music loops - recorded music would have to come from the owner.
+
 **2026-10-08, owner: "sometimes a square is empty, looks not that great" -> picked "tighter layout" - done.** The city was
 a grid of whole square districts (3x3 or 4x4 lots) with the district count rounded up, so cities 5-16 left 41-57% of
 their lots empty as big park corners (planned parks: 11-13%). Now `cityPlan` fits a square grid of G x G lots to N and
@@ -230,6 +240,7 @@ The game is **upload-ready** (2026-10-08). Everything below is the owner's, exce
    (`submission/covers/`) and 2 videos (`submission/video/`, regenerate with `npm run launch:video`, ~35 min here).
    Settings: landscape + portrait, mobile yes, **Progress Save = Data Module ON**, multiplayer no. Basic Launch first.
 2. **In the portal preview:** play a few cities on desktop (also in **Edge**), on a phone and ideally a Chromebook;
+   **listen to the new music** (too loud / boring / wrong mood? the levels and notes are in src/game/music.js) and
    **audition every sound** (Claude cannot hear; other Kenney candidates are easy to swap in `tools/audio/build-sfx.mjs`);
    read the preview's SDK messages. These are the audit's 3 CANNOT VERIFY items.
 3. **Owner playtest of the new pacing** from a fresh save (clear the site data of the test page).

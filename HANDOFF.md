@@ -125,6 +125,15 @@ below, a few at city height; 4 striped hot-air balloons; an airship circling beh
 Ideas from: The Aviator (codrops, low-poly sky scene), low-poly floating-island and cloud tutorials (WebSearch summaries; the
 pages themselves are blocked by the proxy). Tapering rock is edge-on to this camera - keep the near-vertical cliff band.
 
+**2026-10-08, owner: "sometimes a square is empty, looks not that great" -> picked "tighter layout" - done.** The city was
+a grid of whole square districts (3x3 or 4x4 lots) with the district count rounded up, so cities 5-16 left 41-57% of
+their lots empty as big park corners (planned parks: 11-13%). Now `cityPlan` fits a square grid of G x G lots to N and
+the park share and cuts it into districts 2-4 lots wide (`city.grid` gives columns/rows; avenues run midway between
+district edges in city-mesh.js and check-city.mjs; city-life handles 3x4 districts). Empty share now: city 1 4%, 5 3%,
+12 16%, 22 9%, 30-40 17%, 55+ 25% (unchanged layout). The storm cloud's offsets scale for cities under 58 m so small
+cities frame it as before. Pacing barely moved (economy-sim: all upgrades at 102/126 min, was 98/119). Cities are
+still procedural and seeded per city number (same city N for every player, endless). GAME_BRIEF "City generation" updated.
+
 **2026-10-08, owner (first fresh playtest): "the cars disappearing (by shrinking) and appearing looks cheap" - fixed.**
 `src/game/city-life.js`: each car now drives a random route through the grid of avenues and the ring road (crossings =
 lane lines from city-mesh.js), turning on a smooth 3 m curve, and never leaves the plate - no shrink, no pop. Narrow

@@ -85,22 +85,24 @@ The fill is linear, 0 -> 100% in **1.2 s**. The first city ever: 1.6 s, with a b
 
 ## City generation (3D, procedural, seeded per city)
 
-| City | Buildings | Districts | Avenue extra gap | Park chance | Tallest | Theme |
+| City | Buildings | Lots and districts | Avenue extra gap | Park chance | Tallest | Theme |
 |---|---|---|---|---|---|---|
-| 1 | 24 | 2x2 | 4.0 m | 10% | 24 m | Downtown |
-| 5 | 35 | 3x3 | 4.8 m | 11.5% | 28 m | Downtown |
-| 10 | 57 | 3x3 | 5.8 m | 13.5% | 32 m | Harbour |
-| 20 | 147 | 4x4 | 7.9 m | 17% | 41 m | Hill Towers |
-| 40 | 300 | 5x5 | 12 m | 25% | 60 m | Sky Port |
+| 1 | 24 | 5x5 lots in 2x2 (3+2) | 4.0 m | 10% | 24 m | Downtown |
+| 5 | 35 | 6x6 lots in 2x2 (3+3) | 4.5 m | 10.9% | 26 m | Downtown |
+| 10 | 57 | 8x8 lots in 2x2 (4+4) | 5.0 m | 12% | 29 m | Harbour |
+| 20 | 147 | 13x13 lots in 4x4 (4+3+3+3) | 6.2 m | 14.1% | 34 m | Hill Towers |
+| 40 | 300 | 19x19 lots in 5x5 (4+4+4+4+3) | 8.5 m | 18.5% | 44 m | Sky Port |
 
-Formulas:
-- **Buildings:** `N = min(300, round(24 x 1.10^(city-1)))`.
-- **Districts:** blocks of 3x3 lots (N <= 40) or 4x4 lots; the district count is `ceil(sqrt(N / (lots² x (1 - park))))`
-  per side.
-- **Lots:** 9 m apart with +-1.2 m jitter. **Avenues** between districts add `4 + 8 x (city-1)/39` m (4 -> 12 m). This
-  is the key difficulty knob: wide avenues stop bolts, so strikes must be placed per district.
+Formulas (`STORM.city` in src/config.js, `cityPlan` in src/game/sim.js):
+- **Buildings:** `N = min(300, round(24 x 1.10^(city-1)))` (the first city of each theme x0.85).
+- **Lots:** a square grid of `G x G` lots, `G = max(ceil(sqrt N), round(sqrt(N / (1 - park))))`, so the empty lots are
+  the planned parks (2026-10-08; before, whole square districts rounded up left 41-57% of cities 5-16 empty). Lots are
+  9 m apart with +-1.2 m jitter; the N lots nearest the centre that did not roll "park" get the buildings.
+- **Districts:** the lot columns split into `ceil(G / 4)` districts per side, 2-4 lots wide, as even as possible
+  (districts can be 3x4). **Avenues** between districts add `4 + 8 x (city-1)/69` m (4 -> 12 m at city 70). This is
+  the key difficulty knob: wide avenues stop bolts, so strikes must be placed per district.
 - **Parks** (empty lots, trees): `10% -> 25%`.
-- **Heights:** uniform 12 m to `24 + 36 x (city-1)/39` m. **Antenna tip** = roof + 3 m.
+- **Heights:** uniform 12 m to `24 + 36 x (city-1)/69` m. **Antenna tip** = roof + 3 m.
 - **Themes (8 x 5 cities):** Downtown, Harbour, Old Town, Hill Towers, Neon Bay, Snow Peak, Desert Spires, Sky Port.
   Each has its own window colour and skyline silhouettes; the rules stay the same.
 

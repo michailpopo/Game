@@ -50,6 +50,21 @@ const FIRST_FLOATS = 5;                          // single "+N" floats per strik
 const MERGE_SEC = 0.2;
 const lerp = (a, b, k) => a + (b - a) * k;
 const RAD = Math.PI / 180;
+// Store-cover hero shot (coverShot): camera height / look height / distance as multiples of the hero tower's height,
+// lens, and how far the tower sits right of centre (x its height).
+const COVER_SHOT = {
+  landscape: { camH: 0.28, lookH: 0.8, dist: 1.6, fov: 40, side: 0.4 },
+  portrait: { camH: 0.25, lookH: 0.95, dist: 2, fov: 50, side: 0 },
+  square: { camH: 0.25, lookH: 1.02, dist: 1.8, fov: 45, side: 0 },
+};
+// ...under a stormy night sky: deep indigo, a magenta glow low on the left, a blue one behind the strike.
+const COVER_SKY = {
+  top: "#150a3e", bottom: "#3a1a6e", horizon: "#ff4fb8", horizonAt: 0.72, horizonWidth: 0.12,
+  glow: "#5a6aff", glowAt: [0.72, 0.72], glowSize: 0.3, glow2: "#ff3fc8", glow2At: [0.12, 0.6], glow2Size: 0.45,
+  vignette: 0.6, stars: 0.35, fog: "#3a2a6e", fogNear: 120, fogFar: 420,
+  hemiSky: "#8f9cf0", hemiGround: "#3a2a5a", hemi: 0.85, key: "#ffd6c0", keyIntensity: 1.6, rim: "#6fe8ff", rimIntensity: 1.6,
+  env: ["#3a50b0", "#f0a890", "#3a3050"], envPanels: ["#ffffff", "#ffd0a0", "#a0b8ff"], envPanelIntensity: 0.5, envIntensity: 0.5,
+};
 const FRAMING = {
   // yaw: landscape 35 deg (the brief); portrait turns the square city closer to face-on (15 deg), so its
   // silhouette is narrower and the width-limited framing can bring it closer.
@@ -111,6 +126,7 @@ export class GameView {
     stage.scene.add(this.marker);
   }
 
+  /** Marketing stills only: { pos, look, fov? } replaces the play camera. */
   setCameraOverride(o) { this.cameraOverride = o; }
 
   /**
@@ -147,21 +163,49 @@ export class GameView {
   /** The equipped (or tried) bolt skin: its glow colour; the core stays white, the outline deep blue. */
   recolor(hex) { this.boltHex = hex || LOOK.boltGlow; this.boltColor.set(this.boltHex); }
 
-  /** Store covers only: redraw a strike and the latest hops as long-lived bolts, so a still frame shows the cascade. */
-  holdBolts(sim, strike, hops) {
-    const bs = sim.city.buildings, glow = this.boltHex, life = 600;
-    if (strike) {
-      const b = bs[strike.target];
-      this.cityMesh.strikeOrigin(b, _o3);
-      _a.set(b.x, b.tipY, b.z);
-      this.fx.bolt(_o3, _a, { color: glow, width: 2.6, forks: 2, forkLength: 0.25, arc: 0, jag: 0.09, life, intensity: 1.5, core: 3.2, beads: 3, fromHalo: false });
-      this.fx.glow(_a, { color: glow, size: 3, grow: 1, life, intensity: 2.4 });
-    }
-    for (const h of hops) {
-      const a = bs[h.from], b = bs[h.to];
-      _a.set(a.x, a.tipY, a.z); _b.set(b.x, b.tipY, b.z);
-      this.fx.bolt(_a, _b, { color: glow, width: 2.1 + Math.min(4, h.gen) * 0.12, forks: 1, forkLength: 0.3, arc: 1.4, jag: 0.12, life, intensity: 1.5, core: 3.2, beads: 2, fromHalo: false, haloSize: 2 });
-      this.fx.glow(_b, { color: glow, size: 2.6, grow: 1, life, intensity: 2.2 });
+  /**
+   * Store covers only (?cover=): the hero shot. Every tower is lit (the win state) with its hit flash settled, the
+   * storm front (and Sky Port's balloons) hidden under a darker stormy sky, and a low camera looks up at the tallest tower in the city's front
+   * rows while a strike out of the sky hits it and arcs jump to its neighbours. Landscape puts the tower right of
+   * centre (the logo stands left); portrait and square centre it under the logo.
+   */
+  coverShot(sim, kind) {
+    const bs = sim.city.buildings, cm = this.cityMesh, size = Math.max(sim.city.width, sim.city.depth);
+    sim.t += 3;
+    for (let i = 0; i < bs.length; i++) if (!(sim.litAt[i] >= 0) || sim.t - sim.litAt[i] < 1.5) sim.litAt[i] = sim.t - 3;
+    const F = COVER_SHOT[kind] ?? COVER_SHOT.landscape;
+    const yaw = 35 * RAD, dx = Math.sin(yaw), dz = Math.cos(yaw), rx = Math.cos(yaw), rz = -Math.sin(yaw);
+    let hero = 0, best = -Infinity;
+    bs.forEach((b, i) => {
+      const f = b.x * dx + b.z * dz, l = b.x * rx + b.z * rz;
+      const score = b.tipY + f * 0.2 - (f < size * 0.3 || Math.abs(l) > size * 0.25 ? 1e6 : 0);
+      if (score > best) { best = score; hero = i; }
+    });
+    const H = bs[hero], tip = H.tipY, D = tip * F.dist, side = tip * F.side;
+    this.setCameraOverride({
+      pos: [H.x + dx * D, tip * F.camH, H.z + dz * D],
+      look: [H.x - rx * side, tip * F.lookH, H.z - rz * side],
+      fov: F.fov,
+    });
+    cm.cloudGroup.visible = false;
+    this.stage.scene.traverse((o) => { if (o.name === "sky-balloons" || o.name === "sky-airship") o.visible = false; });   // stray blobs at the frame edge
+    this.look.setBackdrop(COVER_SKY);
+    const bloom = this.look.bloomPass;
+    if (bloom) Object.assign(bloom, { strength: 0.45, radius: 0.3, threshold: 2 });
+    // the strike out of the sky, a little behind and right of the tower, then arcs to its four nearest neighbours
+    const glow = this.boltHex, life = 1e6;
+    this.fx.clear();
+    _o3.set(H.x - dx * tip * 0.11 + rx * tip * 0.09, tip * 2.55, H.z - dz * tip * 0.11 + rz * tip * 0.09);
+    _a.set(H.x, tip, H.z);
+    this.fx.bolt(_o3, _a, { color: glow, width: 6, forks: 4, forkLength: 0.3, arc: 0, jag: 0.1, life, intensity: 2, core: 4, beads: 3, fromHalo: false });
+    this.fx.glow(_a, { color: glow, size: 4, grow: 1, life, intensity: 2.2 });
+    const near = bs.map((b, i) => [i, Math.hypot(b.x - H.x, b.z - H.z)]).filter(([i, d]) => i !== hero && d > 3)
+      .sort((p, q) => p[1] - q[1]).slice(0, 4);
+    for (const [i] of near) {
+      const b = bs[i];
+      _b.set(b.x, b.tipY, b.z);
+      this.fx.bolt(_a, _b, { color: glow, width: 3, forks: 1, forkLength: 0.3, arc: 1.6, jag: 0.12, life, intensity: 1.6, core: 3.4, beads: 2, fromHalo: false, haloSize: 2 });
+      this.fx.glow(_b, { color: glow, size: 2, grow: 1, life, intensity: 2 });
     }
   }
 
@@ -527,7 +571,7 @@ export class GameView {
     const fit = this.#fitCity(sim, portrait, aspect);
     // FOV punch on impact.
     this.punch = Math.max(0, this.punch - dt);
-    const fov = fit.fov - 4 * (this.punch / 0.12);
+    const fov = (this.cameraOverride?.fov ?? fit.fov) - 4 * (this.punch / 0.12);   // covers may set their own lens
     if (Math.abs(cam.fov - fov) > 1e-3) { cam.fov = fov; cam.updateProjectionMatrix(); }
     if (this.cameraOverride) {
       const o = this.cameraOverride;

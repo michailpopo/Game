@@ -125,14 +125,16 @@ below, a few at city height; 4 striped hot-air balloons; an airship circling beh
 Ideas from: The Aviator (codrops, low-poly sky scene), low-poly floating-island and cloud tutorials (WebSearch summaries; the
 pages themselves are blocked by the proxy). Tapering rock is edge-on to this camera - keep the near-vertical cliff band.
 
-**2026-10-09, owner: "the covers look bad", "make the title big, in the middle, a lightning through it, professional",
-then "looks bad, why yellow anyway" - new covers.** Cover mode (`?cover=`, marketing only) now uses a hero camera (low
-and close: landscape pitch 15 / 1.08x city size, square 16 / 1.3x, portrait 17 / 1.4x at yaw 45 so the cloud is in frame;
-`?cover_pitch/dist/ty/yaw` tune it) on city 17 at 85% powered (`quality=medium`: no bloom wash). The title is
-`src/ui/cover-logo.js`: one SVG, "STORM / GRID" stacked and centred (-4 deg), white-to-ice-blue face, navy outline + 3D
-drop, cyan glow, and a jagged tapered lightning strike (seeded, 2 forks) from the cloud behind the letters through the gap
-between the words (in front it hid the R). `?cover_style=chrome|neon` gives the alternatives (owner saw chrome as an
-option). The game's own frozen strike is no longer held on covers (it competed with the logo bolt; hops still are).
+**2026-10-09, owner on the covers (3 rounds): "look bad", "title big in the middle with a lightning through it",
+"why yellow", then "all of them look very bad - make a crazy professional eye-catchy one".** Rebuilt after studying the
+portal's top covers (Slice Master, Cubes 2048, Smash Karts, bloxd: ONE big hero subject, a clean background, a bold
+two-tone logo in free space - never a busy overview with the title stamped on it). Cover mode is now a hero shot
+(`view.coverShot`, marketing only): city 37 (Sky Port: violet/green/red towers) 90% played, then every tower lit (the
+win state) with hit flashes settled; storm cloud, balloons and airship hidden; a stormy night sky (`COVER_SKY`: indigo,
+magenta glow low left); a low camera looking up at the tallest front-row tower (`COVER_SHOT` per format, own lens via
+`setCameraOverride({ fov })`); a strike out of the sky hits it and arcs jump to 4 neighbours; bloom (quality=high).
+Logo `src/ui/cover-logo.js`: STORM white / GRID electric cyan, navy outline, solid 3D extrusion, top shine; landscape
+left of the tower, portrait/square on top. Bolt shapes are random per capture - look before you keep a render.
 The preview videos still open on the OLD cover look (re-record with `npm run launch:video` if wanted, ~35 min).
 
 **2026-10-09, owner (portal upload): "Archive files are not supported" - the upload is now the folder
@@ -264,7 +266,7 @@ The game is **upload-ready** (2026-10-08). Everything below is the owner's, exce
 1. **The owner uploads** in the CrazyGames Developer Portal (Claude never logs in or submits): new HTML5 game, upload
    the CONTENTS of `submission/storm-grid-build/` (= `dist/`: index.html, assets/, LICENSES/) by drag and drop - **no
    zip: the portal rejects archives ("Archive files are not supported, please drag and drop the files directly", owner 2026-10-09)**; after a rebuild copy `dist/` there again (`npm run build`), paste the texts from `docs/STORE_METADATA.md`, upload the 3 covers
-   (`submission/covers/`, new title look of 2026-10-09) and 2 videos (`submission/video/`, regenerate with
+   (`submission/covers/`, hero-shot covers of 2026-10-09) and 2 videos (`submission/video/`, regenerate with
    `npm run launch:video`, ~35 min here; they still open on the old cover look - optional re-record).
    Settings: landscape + portrait, mobile yes, **Progress Save = Data Module ON**, multiplayer no. Basic Launch first.
 2. **In the portal preview:** play a few cities on desktop (also in **Edge**), on a phone and ideally a Chromebook;
@@ -322,9 +324,9 @@ persistence (Data module on AND off: reload keeps city 2 / 470 coins), poly-budg
 revive-offer, shop, console-errors. UNVERIFIED and looked at: viewports (800x450, 1920x1080, 390x844, 1080x1620 - all
 legible), ad-ui-style (`ad-ui-win.png`, `ad-ui-fail-revive.png` - equal buttons, video icon), performance (software GL).
 
-**2026-10-09 (new covers, marketing code only):** `npm run qa:fast` green; `browser-qa --only boot,viewports,ad-ui`
-0 FAIL (boot 2.7 s / 0.25 MB, console clean); `npm run launch:check` PASS (exact cover sizes, videos unchanged); looked at
-all 3 covers. Upload folder = this build (`index-DPyozyf4.js` / `index-CAerl8uB.css`).
+**2026-10-09 (hero-shot covers, marketing code only + `?fov` on the cover camera):** `npm run qa:fast` green;
+`browser-qa --only boot,viewports,poly-budget,ad-ui` 0 FAIL (boot 2.7 s / 0.25 MB; city 1 19.6k tris / 42 calls, city 55
+57.4k / 45 - play unchanged; console clean); `npm run launch:check` PASS; all 3 covers looked at. Upload folder = this build.
 
 **Final full run after the playtest fixes (2026-10-08 evening, HEAD `88449bb`, exit 0):** 22 browser checks, 0 FAIL,
 3 UNVERIFIED by design; boot 3.8 s / 0.25 MB; poly-budget city 1 19.6k tris / 42 calls, city 55 57.4k / 45; dead-air 2.8

@@ -88,10 +88,10 @@ so frame rates mean nothing here; draw calls, triangles, layout and event order 
 ### ✅ PASS - Game covers and preview video (4 of 4 mandatory, were FAIL)
 
 - **Covers** `submission/covers/landscape-1920x1080.png`, `portrait-800x1200.png`, `square-800x800.png`
-  (`npm run launch:covers`, re-made 2026-10-09 on the owner's feedback): the real game rendered at 2x and downscaled,
-  a low hero shot of city 17 85% powered under the storm cloud, the title as the only text (a big centred SVG logo with
-  a lightning strike behind it), no borders, no logos, sharp. Looked at all three: same composition and style, readable
-  at thumbnail size. `launch:check` PASS (exact sizes).
+  (`npm run launch:covers`, re-made 2026-10-09 on the owner's feedback): the real game rendered at 2x and downscaled -
+  a low hero shot of city 37 fully lit under a night storm sky, one tower struck with arcs to its neighbours; the title
+  (a two-tone SVG logo in free sky) is the only text, no borders, no logos, sharp. Looked at all three: same composition
+  and style, readable at thumbnail size. `launch:check` PASS (exact sizes).
 - **Preview videos** `submission/video/landscape-1920x1080.mp4`, `portrait-1080x1620.mp4` (`npm run launch:video`):
   the cover as the first 0.6 s (the 2026-10-08 cover look; the covers were re-made since - re-record to match), then deterministic real gameplay (city
   12 cleared at 98%, then a cut to city 22, the neon bay island); no sound stream, no cursor (headless), no promo text, no black frames, not sped up. `launch:check` PASS

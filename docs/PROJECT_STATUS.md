@@ -5,7 +5,7 @@ Updated: 2026-10-08 · Project folder: /home/user/Game (repo michailpopo/Game, b
 ## Where we are
 - **Phase:** 3 Build - Storm Grid (3D). Handoff to a new chat on 2026-09-28: read HANDOFF.md first.
 - **Current objective:** an original, dopamine-hitting game that looks premium, upload-ready this session.
-- **Latest (2026-10-08 evening): upload-ready again after the owner's playtest fixes** (cars, layout, music removed, 70% covers); `npm run qa` exit 0 on HEAD 88449bb, the build in submission/storm-grid-build.zip.
+- **Latest (2026-10-08 evening): upload-ready again after the owner's playtest fixes** (cars, layout, music removed, 70% covers); `npm run qa` exit 0 on HEAD 88449bb, the build in submission/storm-grid-build/ (uploaded as files: the portal rejects zips).
 - **Earlier (2026-10-08): upload-ready.** Launch-gate audit (`docs/CG_QA_AUDIT.md`): 42/45 mandatory PASS, 0 FAIL, 3 cannot verify (Edge, 4 GB Chromebook, CG-app safe areas), 3 warnings. `npm run qa` exits 0 on the final code (HEAD dfb2848, 22 browser checks). Launch package in `submission/`: 3 covers, 2 preview videos (18.6 s, silent), the upload zip; texts and portal settings in `docs/STORE_METADATA.md`. Fixed for it: W1 save fallback (B2), harness `persistence`/`ads-fill` (B3), frame peaks in big cities (<= 58k tris).
 - **Also 2026-10-08 (playtest feedback 4):** background music removed again (owner: "good, but no need for it").
 - **Also 2026-10-08 (playtest feedback 3):** music ~6.4 dB louder and brighter (later removed); cars obey traffic rules (one car per crossing, keep distance) - check-city `cars-apart` proves 0 overlaps.
@@ -24,7 +24,7 @@ Updated: 2026-10-08 · Project folder: /home/user/Game (repo michailpopo/Game, b
 - **Also 2026-10-04 (later):** the city's island is now a square that follows the city, islets are round and irregular (`src/game/islands.js`), owner's request.
 - **Also 2026-10-04:** water themes (Harbour, Neon Bay) stand on islands with beaches and islet trees instead of trees on open water (`planIslands` in `city-mesh.js`, guard in `tools/qa/check-city.mjs`). Waiting for the owner to look.
 - **Also 2026-10-02:** buildings that touched or intersected (from city 3) now keep >= 1.0 m of air between roof caps (`clearFootprints` in `sim.js`, guard `tools/qa/check-city.mjs`). Waiting for the owner to look.
-- **Next action (one concrete step):** the owner uploads (HANDOFF.md section 4): zip + texts + covers + videos, Progress Save ON; then plays the portal preview in Edge and on a phone and auditions every sound.
+- **Next action (one concrete step):** the owner uploads (HANDOFF.md section 4): the files in submission/storm-grid-build/ by drag and drop (no zip) + texts + covers + videos, Progress Save ON; then plays the portal preview in Edge and on a phone and auditions every sound.
 - **Waiting on the user:** the upload and the portal preview; then CrazyGames' QA feedback.
 
 ## Gates
@@ -38,7 +38,7 @@ Updated: 2026-10-08 · Project folder: /home/user/Game (repo michailpopo/Game, b
 | 6 Platform integration | NOT STARTED | | |
 | 7 Performance | NOT STARTED | | |
 | 8 QA & compliance | READY FOR REVIEW | 2026-10-08 | `docs/CG_QA_AUDIT.md` launch gate: 42/45 PASS, 0 FAIL, 3 cannot verify (need hardware/portal); `npm run qa` exits 0 |
-| 9 Launch package | READY FOR REVIEW | 2026-10-08 | `submission/` covers x3 + videos x2 (`launch:check` PASS) + zip; `docs/STORE_METADATA.md`; the owner uploads |
+| 9 Launch package | READY FOR REVIEW | 2026-10-08 | `submission/` covers x3 + videos x2 (`launch:check` PASS) + the build folder storm-grid-build/; `docs/STORE_METADATA.md`; the owner uploads |
 | 10 Post-launch review | NOT STARTED | | |
 Statuses: NOT STARTED · IN PROGRESS · BLOCKED · READY FOR REVIEW · PASS · FAIL
 
@@ -55,7 +55,7 @@ npm run qa           # all automated checks + COMPLIANCE_REPORT.md
 | Metric | Value | Date | How |
 |---|---|---|---|
 | Bytes to first gameplayStart | 0.25 MB | 2026-10-07 | browser-qa boot |
-| Total dist size / files | 0.94 MB / 20 files (upload zip 378 KB) | 2026-10-08 | check-bundle |
+| Total dist size / files | 0.94 MB / 20 files | 2026-10-08 | check-bundle |
 | p95 frame time @4x CPU throttle | | | browser-qa performance |
 | Draw calls / triangles in play | city 1: 43 calls / 21.5k tris; city 55: 45 calls / 56.6k tris (budget 60 / 60,000; one-off shadow re-bake frame 64.7k) | 2026-10-08 | browser-qa poly-budget (software GL) |
 | Compliance verdict | launch gate: 42/45 mandatory PASS, 0 FAIL, 3 cannot verify; `npm run qa` exit 0 | 2026-10-08 | CG_QA_AUDIT.md, COMPLIANCE_REPORT.md |

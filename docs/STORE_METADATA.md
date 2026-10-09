@@ -54,12 +54,15 @@ snowy peaks, desert spires, a neon bay, and a city floating above the clouds.
 ## Assets
 - Covers: `submission/covers/landscape-1920x1080.png`, `portrait-800x1200.png`, `square-800x800.png`
 - Preview videos (no sound, 15-20 s): `submission/video/landscape-1920x1080.mp4`, `portrait-1080x1620.mp4`
-- Build: `submission/storm-grid-build.zip` = the contents of `dist/` (index.html at the zip root, relative paths only)
+- Build: the folder `submission/storm-grid-build/` = the contents of `dist/` (index.html, assets/, LICENSES/; relative
+  paths only). **No zip:** the portal rejects archives ("Archive files are not supported, please drag and drop the files directly", owner 2026-10-09).
 
 ## Upload steps (the owner does these; Claude never logs in)
 1. Log in at developer.crazygames.com (your own account; never share the password).
 2. Create a new game, choose **HTML5**.
-3. Upload `submission/storm-grid-build.zip` (or the contents of `dist/`; `index.html` must sit at the top level).
+3. Open the folder `submission/storm-grid-build/`, select **everything inside it** (`index.html`, `assets`, `LICENSES`)
+   and drag it into the upload zone. Do not upload a zip - the portal rejects archives. `index.html` must sit at the top
+   level, so drag the folder's contents, not the folder itself.
 4. Open the **preview** and play a few cities on desktop and on your phone. Check the SDK messages the preview shows.
    Listen to the sounds (Claude cannot hear them). Tell Claude anything that looks or sounds wrong.
 5. Paste title, short and full description and controls from this file.

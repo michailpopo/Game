@@ -1,6 +1,6 @@
 # CrazyGames Compliance Report - Storm Grid
 
-Audit date: **2026-10-08** (launch gate, re-run after the playtest fixes) · Build: repo HEAD `88449bb` (bundle `index-BrCy_bh3.js`, the one in `submission/storm-grid-build.zip`) · Method: `crazygames-qa` skill, audit mode
+Audit date: **2026-10-08** (launch gate, re-run after the playtest fixes) · Build: repo HEAD `88449bb` (bundle `index-BrCy_bh3.js`, the one in `submission/storm-grid-build/`) · Method: `crazygames-qa` skill, audit mode
 Docs read: docs.crazygames.com/requirements (register 2026.09.11; technical page re-read 2026-10-07, see W5)
 
 This is a record of what was checked, how and when. It is **not** an approval: only CrazyGames approves a game.
@@ -29,7 +29,7 @@ so frame rates mean nothing here; draw calls, triangles, layout and event order 
 
 ### ✅ PASS - Technical (12 of 15 mandatory)
 
-- **Total size ≤ 250 MB / file count ≤ 1500**: 0.94 MB, 20 files (`check-bundle`); upload zip 379 KB.
+- **Total size ≤ 250 MB / file count ≤ 1500**: 0.94 MB, 20 files (`check-bundle`); uploaded as these files (the portal accepts no archives).
 - **Initial download ≤ 50 MB, and ≤ 20 MB for the mobile homepage**: 0.25 MB transferred up to the first `gameplayStart`
   (`browser-qa boot`). The 20 sound files (≈150 KB) load after the first input; the real SDK script is not counted (mock).
 - **Relative paths only**: `check-bundle relative-paths` PASS; the only absolute URL is the required SDK `<script>`.
@@ -146,7 +146,8 @@ so frame rates mean nothing here; draw calls, triangles, layout and event order 
 
 ## Next actions (the owner; Claude never logs in or uploads)
 
-1. Upload `submission/storm-grid-build.zip` (or the contents of `dist/`) as a new HTML5 game; paste texts from
+1. Drag the contents of `submission/storm-grid-build/` (index.html, assets, LICENSES - no zip, the portal rejects
+   archives) into a new HTML5 game; paste texts from
    `docs/STORE_METADATA.md`; upload the 3 covers and 2 videos.
 2. Settings: landscape + portrait, mobile yes, **Progress Save = Data Module ON**, multiplayer no.
 3. In the portal preview: play a few cities on desktop (also in **Edge**) and on a phone, **listen to every sound**,

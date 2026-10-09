@@ -43,7 +43,7 @@ with the `game-studio` skill (planner + specialist agents) and checked with the 
 | WP-30 | 3D core: city generator, charge/strike, hop/fork chain, lighting, % powered, plates, result, QA hooks | done, verified (build, sim-health, 13 browser scenarios 0 FAIL) |
 | WP-31 | Wire toy city + bolts + juice + ZzFX sounds into the real game (`src/game/view.js`, `city-mesh.js`, `look.js`, `sfx.js`, `src/fx/*`) | wired; harness `poly-budget`, `dead-air` PASS (2026-10-02). Visual items below NOT re-judged |
 | WP-32 | Shop, upgrades, 12 skins, all 7 offers, daily gift, midgame from city 4, completion %, save | wired; `shop`, `ad-ui`, `revive-offer`, `adblock`, `ads-basic-launch` PASS (2026-10-02). One real bug: save fallback (section 4, job 1) |
-| WP-13 | Launch package: covers x3, preview videos x2, store text, portal checklist | **done 2026-10-08**: `submission/covers/*`, `submission/video/*` and `submission/storm-grid-build.zip` (all committed, so the owner can download them from GitHub), `docs/STORE_METADATA.md` filled, `launch:check` PASS |
+| WP-13 | Launch package: covers x3, preview videos x2, store text, portal checklist | **done 2026-10-08**: `submission/covers/*`, `submission/video/*` and `submission/storm-grid-build/` (unzipped: the portal takes no archives) (all committed, so the owner can download them from GitHub), `docs/STORE_METADATA.md` filled, `launch:check` PASS |
 | WP-QA | CrazyGames QA audit report `docs/CG_QA_AUDIT.md` (crazygames-qa skill format) | **launch gate 2026-10-08**: 42/45 mandatory PASS, 0 FAIL, 3 cannot verify (Edge, Chromebook, CG-app safe areas), 4 warnings; `npm run qa` exits 0 |
 
 State (2026-10-08): `npm run qa` exits 0 (static checks, build, bundle 0.93 MB / 20 files, 22 browser checks). Browser harness:
@@ -247,8 +247,8 @@ What I saw in the last screenshots (fix first; not re-judged on 2026-10-02):
 The game is **upload-ready** (2026-10-08). Everything below is the owner's, except item 4.
 
 1. **The owner uploads** in the CrazyGames Developer Portal (Claude never logs in or submits): new HTML5 game, upload
-   `submission/storm-grid-build.zip` (= the contents of `dist/`, `index.html` at the root; rebuild with `npm run build`
-   and zip `dist/` if the files are not at hand), paste the texts from `docs/STORE_METADATA.md`, upload the 3 covers
+   the CONTENTS of `submission/storm-grid-build/` (= `dist/`: index.html, assets/, LICENSES/) by drag and drop - **no
+   zip: the portal rejects archives ("Archive files are not supported, please drag and drop the files directly", owner 2026-10-09)**; after a rebuild copy `dist/` there again (`npm run build`), paste the texts from `docs/STORE_METADATA.md`, upload the 3 covers
    (`submission/covers/`) and 2 videos (`submission/video/`, regenerate with `npm run launch:video`, ~35 min here).
    Settings: landscape + portrait, mobile yes, **Progress Save = Data Module ON**, multiplayer no. Basic Launch first.
 2. **In the portal preview:** play a few cities on desktop (also in **Edge**), on a phone and ideally a Chromebook;
@@ -256,7 +256,7 @@ The game is **upload-ready** (2026-10-08). Everything below is the owner's, exce
    read the preview's SDK messages. These are the audit's 3 CANNOT VERIFY items.
 3. **Owner playtest of the new pacing** from a fresh save (clear the site data of the test page).
 4. **After CrazyGames' QA feedback:** paste it to Claude; fix in FIX mode of the `crazygames-qa` skill, re-run `npm run qa`,
-   rebuild the zip. If the reviewer objects to the offers on the city intro screen (audit W2), move them behind one
+   copy the new `dist/` into `submission/storm-grid-build/`. If the reviewer objects to the offers on the city intro screen (audit W2), move them behind one
    "Boost" button.
 
 ## 5. Environment gotchas (cloud container)
@@ -311,7 +311,7 @@ legible), ad-ui-style (`ad-ui-win.png`, `ad-ui-fail-revive.png` - equal buttons,
 events/s, longest silence 1.9 s; persistence on/off PASS; shop PASS; check-city `cars-apart` 0 overlaps. On the way:
 `mute-priority` failed 2 of 4 full runs (page 1 stayed open while page 2 booted - fixed: page 1 closes first) and the
 shop's Try-it check failed once (SDK init past the game's 8 s limit on this starved host - fixed: the check waits for the
-SDK). Bundle `index-BrCy_bh3.js` = the upload zip.
+SDK). Bundle `index-BrCy_bh3.js` = `submission/storm-grid-build/` (the upload; the portal takes no zip).
 
 **Final full run 2026-10-08 (`npm run qa`, HEAD `dfb2848`, exit 0):** 22 browser checks, 0 FAIL, 3 UNVERIFIED by design;
 city 55 56.6k tris / 45 calls, silence 2.4 s, revive ring 4 -> 3, persistence on/off PASS. Before it, the first run on

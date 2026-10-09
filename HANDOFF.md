@@ -125,6 +125,11 @@ below, a few at city height; 4 striped hot-air balloons; an airship circling beh
 Ideas from: The Aviator (codrops, low-poly sky scene), low-poly floating-island and cloud tutorials (WebSearch summaries; the
 pages themselves are blocked by the proxy). Tapering rock is edge-on to this camera - keep the near-vertical cliff band.
 
+**2026-10-09, owner (portal upload): "Archive files are not supported" - the upload is now the folder
+`submission/storm-grid-build/` (drag its contents). And "a scrollbar flashes under the result dialog" - fixed in
+styles.css (.dialog: overflow-x hidden, no scrollbar drawn; the plate pop-in overflowed it). The upload folder holds
+that build (index-CY-MOuzM.js / index-DYrDceop.css); qa:fast + the dialog/ad browser scenarios PASS.
+
 **2026-10-08, owner: "music is good but remove it, no need for it" - removed.** src/game/music.js, the music button,
 the AudioService music path and `save.musicMuted` are gone (files restored to before the music commit 1aa1ac7; the
 music is in git history if it is ever wanted again). No music in the game.
@@ -311,7 +316,7 @@ legible), ad-ui-style (`ad-ui-win.png`, `ad-ui-fail-revive.png` - equal buttons,
 events/s, longest silence 1.9 s; persistence on/off PASS; shop PASS; check-city `cars-apart` 0 overlaps. On the way:
 `mute-priority` failed 2 of 4 full runs (page 1 stayed open while page 2 booted - fixed: page 1 closes first) and the
 shop's Try-it check failed once (SDK init past the game's 8 s limit on this starved host - fixed: the check waits for the
-SDK). Bundle `index-BrCy_bh3.js` = `submission/storm-grid-build/` (the upload; the portal takes no zip).
+SDK). Bundle `index-BrCy_bh3.js`; the upload folder now holds the scrollbar fix of 2026-10-09 (`index-CY-MOuzM.js`).
 
 **Final full run 2026-10-08 (`npm run qa`, HEAD `dfb2848`, exit 0):** 22 browser checks, 0 FAIL, 3 UNVERIFIED by design;
 city 55 56.6k tris / 45 calls, silence 2.4 s, revive ring 4 -> 3, persistence on/off PASS. Before it, the first run on

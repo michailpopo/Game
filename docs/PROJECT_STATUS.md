@@ -5,7 +5,8 @@ Updated: 2026-10-08 · Project folder: /home/user/Game (repo michailpopo/Game, b
 ## Where we are
 - **Phase:** 3 Build - Storm Grid (3D). Handoff to a new chat on 2026-09-28: read HANDOFF.md first.
 - **Current objective:** an original, dopamine-hitting game that looks premium, upload-ready this session.
-- **Latest (2026-10-08 evening): upload-ready again after the owner's playtest fixes** (cars, layout, music removed, 70% covers); `npm run qa` exit 0 on HEAD 88449bb, the build in submission/storm-grid-build/ (uploaded as files: the portal rejects zips).
+- **2026-10-09:** the portal takes files, not a zip -> upload the contents of submission/storm-grid-build/; result-dialog scrollbar flash fixed (CSS only).
+- **2026-10-08 evening: upload-ready again after the owner's playtest fixes** (cars, layout, music removed, 70% covers); `npm run qa` exit 0 on HEAD 88449bb, the build in submission/storm-grid-build/ (uploaded as files: the portal rejects zips).
 - **Earlier (2026-10-08): upload-ready.** Launch-gate audit (`docs/CG_QA_AUDIT.md`): 42/45 mandatory PASS, 0 FAIL, 3 cannot verify (Edge, 4 GB Chromebook, CG-app safe areas), 3 warnings. `npm run qa` exits 0 on the final code (HEAD dfb2848, 22 browser checks). Launch package in `submission/`: 3 covers, 2 preview videos (18.6 s, silent), the upload zip; texts and portal settings in `docs/STORE_METADATA.md`. Fixed for it: W1 save fallback (B2), harness `persistence`/`ads-fill` (B3), frame peaks in big cities (<= 58k tris).
 - **Also 2026-10-08 (playtest feedback 4):** background music removed again (owner: "good, but no need for it").
 - **Also 2026-10-08 (playtest feedback 3):** music ~6.4 dB louder and brighter (later removed); cars obey traffic rules (one car per crossing, keep distance) - check-city `cars-apart` proves 0 overlaps.

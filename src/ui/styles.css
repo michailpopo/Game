@@ -337,15 +337,12 @@
 #ui.marketing .boost-touch, #ui.marketing .stick { display: none !important; }
 /* Covers: the title is the ONLY text allowed (docs /requirements/game-covers). */
 #ui.cover .hud, #ui.cover .bubbles, #ui.cover .floats, #ui.cover .feed { display: none; }
-#ui .cover-title {
-  position: absolute; left: 50%; top: 7%; transform: translateX(-50%) rotate(-4deg);
-  font-size: min(13vw, 17vh); line-height: 1; white-space: nowrap; color: #fff;
+#ui .cover-logo {
+  position: absolute; left: 50%; top: 50%; transform: translate(-50%, -50%) rotate(-4deg); width: min(70vw, 118vh);
+  overflow: visible; pointer-events: none; filter: drop-shadow(0 1.2vmin 2vmin rgba(20, 6, 50, 0.55));
 }
-#ui .cover-title.stroke {
-  text-shadow: 0 0.06em 0 #5a2fa0, 0.045em 0 0 #5a2fa0, -0.045em 0 0 #5a2fa0, 0 -0.04em 0 #5a2fa0,
-    0.04em 0.05em 0 #5a2fa0, -0.04em 0.05em 0 #5a2fa0, 0 0.12em 0.06em rgba(40, 10, 80, 0.45);
-}
-@media (max-aspect-ratio: 1/1) { #ui .cover-title { top: 5%; font-size: 15vw; } }
+@media (max-aspect-ratio: 1/1) { #ui .cover-logo { width: 90vw; } }
+#ui .cover-logo text { font-family: var(--font); text-anchor: middle; letter-spacing: 4px; }
 
 /* =====================================================================================================
    WP-20 premium kit - generic classes (number pops, combo labels, big meter, punch). Any game can use

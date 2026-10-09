@@ -40,7 +40,7 @@ if (!base) { console.error("pass --serve or --url"); process.exit(2); }
 const hasFfmpeg = spawnSync("ffmpeg", ["-version"]).status === 0;
 const browser = await chromium.launch({ executablePath: process.env.PW_CHROMIUM_PATH || undefined, args: ["--use-angle=d3d11", "--enable-gpu", "--ignore-gpu-blocklist", "--enable-unsafe-swiftshader"] });
 // Storm Grid: --level (city) and --up V,F,S,C,G (the upgrade levels of the storm shown: a real mid-game save)
-const extra = [`cover_level=${opt("level", "12")}`, `capture_up=${opt("up", "12,10,1,4,2")}`, `cover_share=${opt("share", "0.7")}`].filter(Boolean).join("&");
+const extra = [`cover_level=${opt("level", "17")}`, `capture_up=${opt("up", "12,10,1,4,2")}`, `cover_share=${opt("share", "0.85")}`, `quality=${opt("quality", "medium")}`].filter(Boolean).join("&");
 
 for (const [kind, w, h] of COVERS) {
   const ctx = await browser.newContext({ viewport: { width: w, height: h }, deviceScaleFactor: 2, locale: "en-US" });

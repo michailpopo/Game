@@ -57,6 +57,7 @@ import {
 } from "./game/meta.js";
 import { boostDue, boostOffer, cashOffer, dailyGiftOffer, freeUpgradeOffer, reviveOffer, trySkinOffer } from "./game/offers.js";
 import { STORM_SAMPLES, STORM_SFX } from "./game/sfx.js";
+import { coverLogo } from "./ui/cover-logo.js";
 import { themeOf } from "./game/look.js";
 import { GameView } from "./game/view.js";
 import { createUI } from "./ui/ui.js";
@@ -836,21 +837,26 @@ async function boot() {
     ui.showRoundHud(!kind);
     if (kind) {
       uiRoot.classList.add("cover");
-      const title = document.createElement("div");
-      title.className = "cover-title stroke";
-      title.textContent = t("title");
-      uiRoot.appendChild(title);
-      // 70% of the city powered (the lit colours fill the frame), then freeze mid-cascade (a forked bolt in the air).
+      uiRoot.appendChild(coverLogo(t("title"), qs.get("cover_style") || undefined));
+      // ?cover_share of the city powered (the lit colours fill the frame; the store covers use 0.85), then freeze mid-cascade.
       const stopAt = Number(qs.get("cover_share") || 0.7);
       for (let i = 0; i < 60 * 40 && sim.phase === "run"; i++) {
         autopilot(sim, stepIn); step(sim, 1 / 60, stepIn);
         if (progress(sim) >= stopAt && sim.bolts.length >= 2) break;
       }
-      // A still needs its bolts to outlive their 0.6 s flash: hold the last strike and the newest hops on screen.
-      const strike = sim.events.findLast((e) => e.type === "strike");
+      // A still needs its bolts to outlive their 0.6 s flash: hold the newest hops on screen. The strike from the cloud
+      // is the logo's own bolt, so the game's frozen strike would only compete with it.
       const hops = sim.events.filter((e) => e.type === "hop" && e.t > sim.t - 0.6).slice(-12);
       loop.setSimPaused(true);
-      view.holdBolts(sim, strike, hops);
+      view.holdBolts(sim, null, hops);
+      // Hero framing (store covers only): lower and closer than play, so the sky and the storm cloud sit behind the
+      // title and the lit towers fill the frame. ?cover_pitch / cover_dist (x city size) / cover_ty (x tallest tip) /
+      // cover_yaw tune it. The narrow portrait turns to 45 deg so the storm front's bulk sits in the frame.
+      const H = { landscape: [15, 1.08, 35], square: [16, 1.3, 35], portrait: [17, 1.4, 45] }[kind] ?? [15, 1.08, 35];
+      const cp = Number(qs.get("cover_pitch") || H[0]) * Math.PI / 180, cy = Number(qs.get("cover_yaw") || H[2]) * Math.PI / 180;
+      const cd = Math.max(sim.city.width, sim.city.depth) * Number(qs.get("cover_dist") || H[1]);
+      const cty = view.cityMesh.top * Number(qs.get("cover_ty") || 0.55);
+      view.setCameraOverride({ pos: [Math.sin(cy) * Math.cos(cp) * cd, cty + Math.sin(cp) * cd, Math.cos(cy) * Math.cos(cp) * cd], look: [0, cty, 0] });
       loop.start();
       await wait(1200);
       window.__GS_COVER_READY__ = true;

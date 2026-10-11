@@ -125,6 +125,14 @@ below, a few at city height; 4 striped hot-air balloons; an airship circling beh
 Ideas from: The Aviator (codrops, low-poly sky scene), low-poly floating-island and cloud tutorials (WebSearch summaries; the
 pages themselves are blocked by the proxy). Tapering rock is edge-on to this camera - keep the near-vertical cliff band.
 
+**2026-10-11, owner: the store covers are now the owner's own Nano Banana Pro versions** (made on the owner's PC from
+the engine hero-shot covers with the polish prompts given in chat: same towers, strike and logo; adds red roof lights,
+small roof tanks, a starry galaxy sky and haze). Claude only fitted them to the exact sizes (landscape 1376x768 ->
+lanczos to 1935x1080, centre crop 1920x1080; portrait 896x1200 -> crop x=32, 800 wide; square 1024 -> 800) and checked
+them at 1:1. The engine versions are in git history (commit "Store covers rebuilt as a hero shot") and
+`npm run launch:covers` re-renders them. If the owner has the originals at higher resolution, fit those instead
+(the landscape here is upscaled 1.4x from a chat-compressed JPEG - fine at 1:1, but the original is sharper).
+
 **2026-10-09, owner on the covers (3 rounds): "look bad", "title big in the middle with a lightning through it",
 "why yellow", then "all of them look very bad - make a crazy professional eye-catchy one".** Rebuilt after studying the
 portal's top covers (Slice Master, Cubes 2048, Smash Karts, bloxd: ONE big hero subject, a clean background, a bold
@@ -269,7 +277,7 @@ The game is **upload-ready** (2026-10-08). Everything below is the owner's, exce
 1. **The owner uploads** in the CrazyGames Developer Portal (Claude never logs in or submits): new HTML5 game, upload
    the CONTENTS of `submission/storm-grid-build/` (= `dist/`: index.html, assets/, LICENSES/) by drag and drop - **no
    zip: the portal rejects archives ("Archive files are not supported, please drag and drop the files directly", owner 2026-10-09)**; after a rebuild copy `dist/` there again (`npm run build`), paste the texts from `docs/STORE_METADATA.md`, upload the 3 covers
-   (`submission/covers/`, hero-shot covers of 2026-10-09) and 2 videos (`submission/video/`, regenerate with
+   (`submission/covers/`, the owner's Nano Banana Pro covers of 2026-10-11) and 2 videos (`submission/video/`, regenerate with
    `npm run launch:video`, ~35 min here; they still open on the old cover look - optional re-record).
    Settings: landscape + portrait, mobile yes, **Progress Save = Data Module ON**, multiplayer no. Basic Launch first.
 2. **In the portal preview:** play a few cities on desktop (also in **Edge**), on a phone and ideally a Chromebook;
@@ -280,7 +288,7 @@ The game is **upload-ready** (2026-10-08). Everything below is the owner's, exce
    copy the new `dist/` into `submission/storm-grid-build/`. If the reviewer objects to the offers on the city intro screen (audit W2), move them behind one
    "Boost" button.
 
-5. **Optional cover polish with Nano Banana Pro (owner's wish 2026-10-11)** - only in a session on the owner's PC: the
+5. **Done 2026-10-11 by the owner himself (kept for a re-run):** cover polish with Nano Banana Pro - only on the owner's PC: the
    owner's MCP lives at `C:\Users\vogtm\OneDrive\Desktop\nano-banana-oauth-mcp` (local, OAuth) and a cloud session
    cannot reach it. Image-to-image, one call per cover, the current cover as the reference (never text-only: the cover
    must show the real game). Prompt (swap the ratio per file - 16:9 / 2:3 / 1:1):

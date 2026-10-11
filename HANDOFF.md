@@ -136,6 +136,9 @@ magenta glow low left); a low camera looking up at the tallest front-row tower (
 Logo `src/ui/cover-logo.js`: STORM white / GRID electric cyan, navy outline, solid 3D extrusion, top shine; landscape
 left of the tower, portrait/square on top. Bolt shapes are random per capture - look before you keep a render.
 The preview videos still open on the OLD cover look (re-record with `npm run launch:video` if wanted, ~35 min).
+2026-10-11, owner: "if you need to better those, generate them with Nano Banana Pro through the MCP" - tried: the
+Higgsfield account is on the free plan and out of credits (no job ran, nothing spent), and this MCP connection has no
+media upload tool, so it could only work from text (no in-game render as reference). Covers stay engine-rendered.
 
 **2026-10-09, owner (portal upload): "Archive files are not supported" - the upload is now the folder
 `submission/storm-grid-build/` (drag its contents). And "a scrollbar flashes under the result dialog" - fixed in

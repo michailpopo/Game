@@ -280,6 +280,18 @@ The game is **upload-ready** (2026-10-08). Everything below is the owner's, exce
    copy the new `dist/` into `submission/storm-grid-build/`. If the reviewer objects to the offers on the city intro screen (audit W2), move them behind one
    "Boost" button.
 
+5. **Optional cover polish with Nano Banana Pro (owner's wish 2026-10-11)** - only in a session on the owner's PC: the
+   owner's MCP lives at `C:\Users\vogtm\OneDrive\Desktop\nano-banana-oauth-mcp` (local, OAuth) and a cloud session
+   cannot reach it. Image-to-image, one call per cover, the current cover as the reference (never text-only: the cover
+   must show the real game). Prompt (swap the ratio per file - 16:9 / 2:3 / 1:1):
+   "Polish this game store cover into premium key art. Keep exactly: the composition and camera angle, every low-poly toy
+   building (shapes, flat colours, cream window bands, roof rods), the violet tower being struck, the lightning and arcs,
+   the night-sky colours and the STORM GRID logo (same letters, colours and position). Improve only light and finish:
+   richer glow and bloom around the lightning and impact point, cyan rim light on the tower edges facing the strike,
+   light haze between building rows, deeper contrast, crisp edges. No new objects, text, people or logos."
+   Then check the logo letters are intact, scale to exactly 1920x1080 / 800x1200 / 800x800 (ffmpeg lanczos), replace
+   `submission/covers/*`, run `npm run launch:check`, look at all three next to the engine versions, keep the better.
+
 ## 5. Environment gotchas (cloud container)
 
 - Browser harness: always `PW_CHROMIUM_PATH=/opt/pw-browsers/chromium` (template pins Playwright 1.63; the container has

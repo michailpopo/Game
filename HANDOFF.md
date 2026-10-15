@@ -125,6 +125,20 @@ below, a few at city height; 4 striped hot-air balloons; an airship circling beh
 Ideas from: The Aviator (codrops, low-poly sky scene), low-poly floating-island and cloud tutorials (WebSearch summaries; the
 pages themselves are blocked by the proxy). Tapering rock is edge-on to this camera - keep the near-vertical cliff band.
 
+**2026-10-13, the owner is filling in the CrazyGames portal form (upload in progress).** Answers given in chat for the
+"Basic Launch requirements" block (also in `docs/STORE_METADATA.md`): Gameplay requirements Yes, all CrazyGames domains
+Yes (no sitelock, relative paths), Browser checks Yes once played in Chrome AND Edge, Mobile Yes once played via the
+portal QR on a phone, no external ads Yes, no external login Yes, **Terms/Privacy mention = N/A** (the game has no such
+text and collects nothing itself; the owner had "Yes" selected - told to switch). "No detected SDK functionalities" is
+expected before playing: the SDK v3 script is in index.html and loadingStart/Stop + gameplayStart fire on play - if it
+stays empty after a full round in the preview, investigate. Description / Controls fields: pasted from
+`docs/STORE_METADATA.md` (claims re-checked: 12 bolt skins, plates x2/x3/x5/x10); store links and marketing URL empty.
+**Open (owner, 2026-10-13): "in the current version the thunder looks weird".** Checked git: no commit since 2026-10-07
+changed how bolts are drawn; the only play-visible lightning change is 7575ef5 (2026-10-08: after a city ends the storm
+cloud glides over the city centre, so post-win strikes / "One more strike" come from above). Likely suspect if it is
+the portal preview: AdaptiveQuality dropping to a tier without bloom on a slow device (flatter, thinner bolts).
+Asked the owner for a screenshot + where he plays (portal preview / test link, PC / phone) - not answered yet.
+
 **2026-10-11, owner: the store covers are now the owner's own Nano Banana Pro versions** (made on the owner's PC from
 the engine hero-shot covers with the polish prompts given in chat: same towers, strike and logo; adds red roof lights,
 small roof tanks, a starry galaxy sky and haze). Claude only fitted them to the exact sizes (landscape 1376x768 ->
@@ -272,7 +286,8 @@ What I saw in the last screenshots (fix first; not re-judged on 2026-10-02):
 
 ## 4. What is left (in this order)
 
-The game is **upload-ready** (2026-10-08). Everything below is the owner's, except item 4.
+The game is **upload-ready** (2026-10-08). Everything below is the owner's, except items 4 and 6.
+As of 2026-10-13 the owner is in the portal form (build, texts and covers being uploaded).
 
 1. **The owner uploads** in the CrazyGames Developer Portal (Claude never logs in or submits): new HTML5 game, upload
    the CONTENTS of `submission/storm-grid-build/` (= `dist/`: index.html, assets/, LICENSES/) by drag and drop - **no
@@ -299,6 +314,10 @@ The game is **upload-ready** (2026-10-08). Everything below is the owner's, exce
    light haze between building rows, deeper contrast, crisp edges. No new objects, text, people or logos."
    Then check the logo letters are intact, scale to exactly 1920x1080 / 800x1200 / 800x800 (ffmpeg lanczos), replace
    `submission/covers/*`, run `npm run launch:check`, look at all three next to the engine versions, keep the better.
+
+6. **"The thunder looks weird" (owner, 2026-10-13, open):** get his screenshot and where he plays, then compare with the
+   bolts before 2026-10-08 (`git show 7575ef5^:src/game/view.js`) and with `?quality=high` vs medium/low. Do not change
+   the bolts before he says what is wrong.
 
 ## 5. Environment gotchas (cloud container)
 
@@ -346,6 +365,9 @@ persistence (Data module on AND off: reload keeps city 2 / 470 coins), poly-budg
 58.0k / 45; 2 one-off shadow re-bake frames up to 64.7k), dead-air (3.3 events/s, longest silence 1.4 s), ad-ui,
 revive-offer, shop, console-errors. UNVERIFIED and looked at: viewports (800x450, 1920x1080, 390x844, 1080x1620 - all
 legible), ad-ui-style (`ad-ui-win.png`, `ad-ui-fail-revive.png` - equal buttons, video icon), performance (software GL).
+
+**2026-10-11 / 2026-10-13:** no code changed. Owner covers fitted, `npm run launch:check` PASS (3 covers, 2 videos);
+the upload folder still equals `dist/` (index-ik-PNXEx.js, 20 files, `diff -rq` clean).
 
 **2026-10-09 (hero-shot covers, marketing code only + `?fov` on the cover camera):** `npm run qa:fast` green;
 `browser-qa --only boot,viewports,poly-budget,ad-ui` 0 FAIL (boot 2.7 s / 0.25 MB; city 1 19.6k tris / 42 calls, city 55

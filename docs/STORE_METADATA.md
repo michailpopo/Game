@@ -51,6 +51,23 @@ snowy peaks, desert spires, a neon bay, and a city floating above the clouds.
 | Category / tags (suggestion) | Casual / Arcade; tags: lightning, 3D, one button, upgrade, city | the owner picks from the portal's lists |
 | PEGI / audience | 13+ (no violence against people, no gambling, no chat) | CrazyGames audience |
 
+## Basic Launch requirements block (portal form, answers 2026-10-13)
+| Question | Answer |
+|---|---|
+| Initial download size <50MB | automatic (~1 MB) |
+| Complies to Gameplay requirements | Yes |
+| Runs on all CrazyGames domains | Yes (no sitelock, relative paths) |
+| Browser checks | Yes - after playing the preview in Chrome and Edge |
+| Device checks: Mobile | Yes - after playing via the portal's QR code on a phone |
+| No external ads | Yes |
+| Does not offer external login options | Yes |
+| In-game mention of Terms & Conditions / Privacy Policy | N/A (no such text; the game collects nothing itself) |
+
+"Detected SDK functionalities" lists nothing until the preview has been played (start a city, finish it, restart the
+preview).
+
+Other fields: Google Play / iOS / Steam links empty (web only); Marketing creatives URL empty (optional).
+
 ## Assets
 - Covers: `submission/covers/landscape-1920x1080.png`, `portrait-800x1200.png`, `square-800x800.png`
 - Preview videos (no sound, 15-20 s): `submission/video/landscape-1920x1080.mp4`, `portrait-1080x1620.mp4`

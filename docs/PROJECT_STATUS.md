@@ -1,10 +1,11 @@
 # Project status - Storm Grid
 
-Updated: 2026-10-11 · Project folder: /home/user/Game (repo michailpopo/Game, branch claude/amazing-carson-87o6sf)
+Updated: 2026-10-15 · Project folder: /home/user/Game (repo michailpopo/Game, branch claude/amazing-carson-87o6sf)
 
 ## Where we are
 - **Phase:** 3 Build - Storm Grid (3D). Handoff to a new chat on 2026-09-28: read HANDOFF.md first.
 - **Current objective:** an original, dopamine-hitting game that looks premium, upload-ready this session.
+- **2026-10-13:** the owner is filling in the portal form; Basic Launch answers + store texts given (STORE_METADATA.md). Open: owner says "the thunder looks weird" - no bolt code changed since 2026-10-07; waiting for his screenshot (HANDOFF section 4 item 6).
 - **2026-10-11:** the store covers are the owner's Nano Banana Pro polish of the engine hero shots (fitted to 1920x1080 / 800x1200 / 800x800, `launch:check` PASS, looked at 1:1). Upload folder unchanged (index-ik-PNXEx.js). Next: the owner uploads.
 - **2026-10-09 (later):** store covers rebuilt as a hero shot on the owner's feedback ("all look very bad"): one violet Sky Port tower struck from a night sky, arcs to its neighbours, the city fully lit, a bold white/cyan logo in free sky (modelled on the portal's top covers). `qa:fast`, browser boot/viewports/poly-budget/ad-ui and `launch:check` PASS; upload folder rebuilt. Videos still open on the old cover look (optional re-record).
 - **2026-10-09:** the portal takes files, not a zip -> upload the contents of submission/storm-grid-build/; result-dialog scrollbar flash fixed (CSS only).

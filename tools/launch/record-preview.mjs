@@ -46,7 +46,7 @@ if (args.includes("--serve")) {
 }
 if (!base) { console.error("pass --serve or --url"); process.exit(2); }
 
-const browser = await chromium.launch({ executablePath: process.env.PW_CHROMIUM_PATH || undefined, args: ["--use-angle=d3d11", "--enable-gpu", "--ignore-gpu-blocklist", "--enable-unsafe-swiftshader"] });
+const browser = await chromium.launch({ executablePath: process.env.PW_CHROMIUM_PATH || undefined, args: process.platform === "win32" ? ["--use-angle=d3d11", "--enable-gpu", "--ignore-gpu-blocklist", "--enable-unsafe-swiftshader"] : ["--use-gl=angle", "--use-angle=swiftshader", "--enable-unsafe-swiftshader", "--ignore-gpu-blocklist"] });
 
 for (const [kind, w, h] of VIDEOS) {
   const frames = resolve(root, `qa/.frames-${kind}`);

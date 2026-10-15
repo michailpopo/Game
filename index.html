@@ -17,10 +17,12 @@
       }
       #app { position: fixed; inset: 0; overflow: hidden; }
       #game { position: absolute; inset: 0; width: 100%; height: 100%; display: block; outline: none; }
-      #boot { position: absolute; inset: 0; display: grid; place-items: center; background: #0a0e2a; z-index: 50; transition: opacity .35s; }
+      #boot { position: absolute; inset: 0; display: grid; place-content: center; justify-items: center; gap: 22px; background: radial-gradient(120% 90% at 50% 100%, #2a1660 0%, #0a0e2a 60%); z-index: 50; transition: opacity .35s; }
       #boot.done { opacity: 0; pointer-events: none; }
-      #boot i { display: block; width: min(40vw, 260px); height: 10px; border-radius: 6px; background: #ffffff55; overflow: hidden; }
-      #boot i::after { content: ""; display: block; height: 100%; width: 40%; border-radius: 6px; background: #fff; animation: boot 1s ease-in-out infinite; }
+      #boot b { font: 400 clamp(34px, 9vmin, 84px)/1 "Lilita One", "Arial Black", system-ui, sans-serif; color: #fff; transform: rotate(-3deg);
+        text-shadow: 0 0.07em 0 #1a1240, 0.05em 0 0 #1a1240, -0.05em 0 0 #1a1240, 0 -0.05em 0 #1a1240, 0 0 0.5em rgba(77, 243, 255, 0.55); }
+      #boot i { display: block; width: min(40vw, 260px); height: 10px; border-radius: 6px; background: #ffffff33; overflow: hidden; }
+      #boot i::after { content: ""; display: block; height: 100%; width: 40%; border-radius: 6px; background: linear-gradient(90deg, #4df3ff, #fff); animation: boot 1s ease-in-out infinite; }
       @keyframes boot { 0% { transform: translateX(-100%); } 100% { transform: translateX(260%); } }
     </style>
   </head>
@@ -28,7 +30,7 @@
     <div id="app">
       <canvas id="game" tabindex="-1"></canvas>
       <div id="ui"></div>
-      <div id="boot"><i></i></div>
+      <div id="boot"><b>Storm Grid</b><i></i></div>
     </div>
     <script type="module" src="/src/main.js"></script>
   </body>

@@ -5,7 +5,7 @@
  * deltaSlide, pitchJump, pitchJumpTime, repeatTime, noise, modulation, bitCrush, delay, sustainVolume,
  * decay, tremolo, filter.
  *
- * Levels: peaks (thunder, fanfare) 0.9-1.0; events (ding, district, gold, powerSweep) 0.6-0.8; per-hop and
+ * Levels (measured by tools/qa/audio-levels.mjs, 2026-10: every sound peaks under -0.5 dBFS): peaks (thunder 0.6, fanfare 0.9); events (ding, district, gold, powerSweep) 0.6-0.8; per-hop and
  * UI ticks (crackle, fork, click, coinTick) 0.35-0.6 - repeated sounds sit lowest so the ladder never masks the
  * peaks. Mute priority and the SDK's audio rules stay with the AudioService (src/core/audio.js).
  *
@@ -18,7 +18,7 @@ export const STORM_SFX = {
   hum: [0.3, 0, 110, 0.02, 0.08, 0.06, 2, 1, 0, 0, 0, 0, 0, 0, 3, 0, 0, 0.8, 0, 0.1, 900],           // re-triggered while charging, pitch 1 -> 2
   ding: [0.7, 0, 1568, 0, 0.04, 0.4, 0, 2, 0, 0, 784, 0.03, 0, 0, 0, 0, 0.05, 0.5, 0.06],             // entering the SUPERCHARGE band
   buzz: [0.5, 0, 140, 0, 0.12, 0.08, 2, 1, 0, 0, 0, 0, 0.04, 0.2, 0, 0.3, 0, 0.7, 0, 0.3],             // overcharge warning (fizzle ahead)
-  thunder: [1, 0.1, 60, 0.005, 0.12, 0.7, 4, 1, -0.4, 0, 0, 0, 0, 0.9, 0, 0.2, 0, 0.7, 0.1, 0, 800], // the strike boom (with the hit-stop)
+  thunder: [0.6, 0.1, 60, 0.005, 0.12, 0.7, 4, 1, -0.4, 0, 0, 0, 0, 0.9, 0, 0.2, 0, 0.7, 0.1, 0, 800], // the strike boom (with the hit-stop)
   crackle: [0.5, 0.05, 660, 0, 0.015, 0.06, 2, 1.6, -8, 0, 0, 0, 0, 0.35, 0, 0.1, 0, 0.5, 0.01],     // per hop, pentatonic ladder
   fork: [0.6, 0.05, 880, 0, 0.02, 0.06, 2, 1.4, -6, 0, 0, 0, 0.05, 0.3, 0, 0.1, 0, 0.5],              // double zap
   gold: [0.7, 0, 1318, 0, 0.02, 0.5, 0, 2.2, 0, 0, 659, 0.05, 0, 0, 0, 0, 0.06, 0.4, 0.1],            // gold rod ping

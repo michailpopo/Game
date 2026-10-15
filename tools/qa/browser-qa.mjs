@@ -62,7 +62,12 @@ if (flag("serve")) {
 }
 if (!baseUrl) { console.error("pass --serve or --url <game url>"); process.exit(2); }
 
-const browser = await chromium.launch({ executablePath: process.env.PW_CHROMIUM_PATH || undefined, headless: !flag("headed"), args: ["--use-angle=d3d11", "--enable-gpu", "--ignore-gpu-blocklist", "--enable-unsafe-swiftshader"] });
+// GPU flags per OS: d3d11 is Windows-only; on Linux containers without a GPU, ANGLE's SwiftShader is the
+// fastest software path (the d3d11 flags there fell back to a slower path and timed out boots, 2026-10).
+const GPU_ARGS = process.platform === "win32"
+  ? ["--use-angle=d3d11", "--enable-gpu", "--ignore-gpu-blocklist", "--enable-unsafe-swiftshader"]
+  : ["--use-gl=angle", "--use-angle=swiftshader", "--enable-unsafe-swiftshader", "--ignore-gpu-blocklist"];
+const browser = await chromium.launch({ executablePath: process.env.PW_CHROMIUM_PATH || undefined, headless: !flag("headed"), args: GPU_ARGS });
 
 async function openGame(query = "", { viewport = { width: 1280, height: 720 }, blockSdk = false, touch = false, context = null } = {}) {
   const ctx = context || await browser.newContext({ viewport, deviceScaleFactor: 1, hasTouch: touch, isMobile: touch });
@@ -98,7 +103,7 @@ async function reachResult(page, kind = "win") {
   await startRun(page);
   await sleep(600);
   await page.evaluate((k) => (k === "win" ? window.__GS_QA__.forceWin() : window.__GS_QA__.forceFail()), kind);
-  await page.waitForSelector(".modal:not([hidden]) .dialog button", { timeout: 8000 });
+  await page.waitForSelector(".modal:not([hidden]) .dialog button", { timeout: 20000 });   // software GL: slow frames
 }
 
 async function scenario(id, fn) {
@@ -271,16 +276,18 @@ await scenario("ads-basic-launch", async () => {
 
 await scenario("ads-fill", async () => {
   // Adapter (Storm Grid): the very first city result has no video offer (GAME_BRIEF "Claim x3 ... from run 2").
-  const { ctx, page, errors } = await openGame("runs=2&mockAdDelay=900&mockAdLength=900");
+  // Long fill and ad (4 s each): on a software-rendered machine one page.evaluate round trip can take ~1 s, so
+  // short windows sampled "requested" after the ad had already started (a false FAIL at the 2026-09-28 handoff).
+  const { ctx, page, errors } = await openGame("runs=2&mockAdDelay=4000&mockAdLength=4000&quality=low");
   await reachResult(page, "win");
   const before = (await state(page)).coins;
   await page.click('button[data-id="claim_x"]');
-  await sleep(350);   // requested, not started yet
+  await sleep(500);   // requested, not started yet
   const during = await state(page);
   const overlay = await page.isVisible(".ad-block");
-  await sleep(900);    // started
+  await sleep(5000);   // started (4 s) and still playing (until 8 s)
   const playing = await state(page);
-  await sleep(1500);
+  await sleep(5000);
   const after = await state(page);
   const problems = [];
   if (!overlay) problems.push("no blocking overlay while the ad was requested");
@@ -530,7 +537,7 @@ await scenario("ad-ui", async () => {
   const during2 = await auditOffers(page);
   const inPlay = [...during1, ...during2];
   await page.evaluate(() => window.__GS_QA__.forceWin());
-  await page.waitForSelector(".modal:not([hidden]) .dialog button", { timeout: 8000 });
+  await page.waitForSelector(".modal:not([hidden]) .dialog button", { timeout: 20000 });   // software GL: slow frames
   moments.win = await auditOffers(page);   // same frame the dialog appeared: the decline must already be there
   await sleep(450);                         // screenshot after the entrance animation
   await page.screenshot({ path: resolve(SHOTS, "ad-ui-win.png") });

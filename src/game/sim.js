@@ -39,7 +39,7 @@
  *     runStart                                  the first press of a city
  *     chargeStart                               a new charge began
  *     band      { band: "super" | "over" }      the charge entered the SUPERCHARGE band / went past 100%
- *     strike    { n, target, band, energy, bolts, charge, x, y, z, t }   band: weak|charged|super|hot|fizzle
+ *     strike    { n, target, band, energy, bolts, charge, assisted, x, y, z, t }   band: weak|charged|super|hot|fizzle
  *     hop       { bolt, from, to, gen, depth, chain, t }                  a bolt leapt tip to tip
  *     light     { b, value, gen, depth, gold, bolt, x, y, z, t }          a building lit ("+N" = value)
  *     fork      { bolt, child, at, gen, bolts, forced, t }                one bolt became two (bolts = in the air)
@@ -70,7 +70,7 @@ export function deriveParams(level = 1, up = {}) {
   const bandLo = Math.max(0.05, Math.min(first ? first.bandLo : 1, st.band[0] - st.capacitorStep * cap));
   return {
     e0: ch.e0 + ch.e0PerVoltage * volt,
-    range: ch.range + ch.rangePerVoltage * volt,
+    range: Math.max(first?.range ?? 0, ch.range + ch.rangePerVoltage * volt),
     fork: Math.min(1, ch.fork + ch.forkPerLevel * fork),
     fillSec: first ? first.fillSec : st.fillSec,
     bandLo,
@@ -204,10 +204,12 @@ function neighbours(city, range) {
 // ------------------------------------------------------------------ state
 
 /**
- * @param {{ level?:number, seed?:string, up?:object, extraStrikes?:number, params?:object }} [o]
+ * @param {{ level?:number, seed?:string, up?:object, extraStrikes?:number, params?:object, assist?:boolean }} [o]
  *        up = upgrade levels { voltage, fork, strikes, capacitor, gold } (meta.js); params overrides tests
+ *        assist = onboarding: the city's first strike is a SUPERCHARGE whatever the charge (city 1 until it is
+ *        first cleared - a first-time player's first release always lands big)
  */
-export function createSim({ level = 1, seed = "storm", up = {}, extraStrikes = 0, params = null } = {}) {
+export function createSim({ level = 1, seed = "storm", up = {}, extraStrikes = 0, params = null, assist = false } = {}) {
   const p = { ...deriveParams(level, up), ...(params || {}) };
   const city = generateCity(level, seed, p.gold);
   const n = city.buildings.length;
@@ -229,7 +231,7 @@ export function createSim({ level = 1, seed = "storm", up = {}, extraStrikes = 0
     strikesLeft: strikes,
     strikesMax: strikes,
     strikeCount: 0,
-    nextFull: false,                   // "one more strike": the next release is a SUPERCHARGE whatever the charge
+    nextFull: !!assist,                // "one more strike" / onboarding: the next release is a SUPERCHARGE whatever the charge
     holding: false,
     holdT: 0,                          // sim time of the press that started this charge
     needRelease: false,                // after an auto-FIZZLE the button must be let go first
@@ -367,8 +369,9 @@ function release(s, input, time, fizzle) {
   const charge = s.charge;
   s.holding = false;
   s.charge = 0;
+  const assisted = !fizzle && s.nextFull;
   const r = fizzle ? { band: "fizzle", energy: S.strike.fizzleEnergy, bolts: 1 } : chargeEnergy(s, charge, s.nextFull);
-  s.nextFull = false;
+  if (!fizzle) s.nextFull = false;     // a fizzle keeps an onboarding / one-more-strike SUPERCHARGE for the next press
   const n = s.city.buildings.length;
   const target = input.aim >= 0 && input.aim < n ? input.aim : nearestBuilding(s, input.aimX, input.aimZ, true);
   if (target < 0) return;
@@ -376,9 +379,9 @@ function release(s, input, time, fizzle) {
   s.strikeCount++;
   s.cascadeHops = 0;
   s.cascadeValue = 0;
-  s.lastRelease = { charge, band: r.band, energy: r.energy, bolts: r.bolts, target };
+  s.lastRelease = { charge, band: r.band, energy: r.energy, bolts: r.bolts, target, assisted };
   const b = s.city.buildings[target];
-  s.events.push({ type: "strike", n: s.strikeCount, target, band: r.band, energy: r.energy, bolts: r.bolts, charge, x: b.x, y: b.tipY, z: b.z, t: time });
+  s.events.push({ type: "strike", n: s.strikeCount, target, band: r.band, energy: r.energy, bolts: r.bolts, charge, assisted, x: b.x, y: b.tipY, z: b.z, t: time });
   // The impact lights the struck building; the bolts then hop on from there.
   if (!s.lit[target]) light(s, target, 0, 0, time, -1);
   const gen = r.bolts > 1 ? 1 : 0;

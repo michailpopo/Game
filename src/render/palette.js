@@ -138,6 +138,17 @@ export const BACKDROPS = {
     key: "#9fb2ff", keyIntensity: 1.35, rim: "#ff3fbf", rimIntensity: 0.8,
     env: ["#0a1040", "#4a0c50", "#05040f"], envPanels: ["#5fd9ff", "#ff58c8", "#c9d4ff"], envPanelIntensity: 0.3, envIntensity: 0.4,
   },
+  // Storm Grid night (2026-10 quality pass): a blacked-out city under a storm - deep navy overhead, a violet
+  // storm glow on the horizon, faint stars. Dark world, so the bolt and the lit windows are the light sources.
+  night: {
+    top: "#04061a", bottom: "#120e36", horizon: "#3a1a6e", horizonAt: 0.72, horizonWidth: 0.16,
+    glow: "#5a2ab8", glowAt: [0.3, 0.74], glowSize: 0.26, glow2: "#c02a8a", glow2At: [0.78, 0.73], glow2Size: 0.2,
+    vignette: 0.55, stars: 0.4,
+    fog: "#181338", fogNear: 110, fogFar: 420,
+    hemiSky: "#6a78d8", hemiGround: "#140e2c", hemi: 1.35,
+    key: "#b4c2ff", keyIntensity: 1.7, rim: "#ff5fc8", rimIntensity: 1.3,
+    env: ["#141a50", "#3a1460", "#05040f"], envPanels: ["#8fd8ff", "#ff7ad0", "#c9d4ff"], envPanelIntensity: 0.4, envIntensity: 0.55,
+  },
   // dusk: clean evening sky - deep blue overhead, warm peach horizon (Storm Grid toy city, WP-21)
   dusk: {
     top: "#23398f", bottom: "#5a4f9e", horizon: "#ffb48c", horizonAt: 0.72, horizonWidth: 0.13,

@@ -10,17 +10,21 @@
  * glowing fill line, a white flash on the hit; its roof, cap and rod ball light when the flood reaches the top.
  * BLOCK POWERED: the district pad turns warm in a wave from its centre and its buildings pulse in order.
  * FULL POWER: sweep() ripples a flash across the whole city.
- * Ground: a calm field to the horizon, the asphalt plate, rounded district pads, lane dashes, park trees in
- * empty lots, a tree ring (no shadows), a few toy cars; the storm front is a row of slate puffs behind the city.
+ * Ground: a dark night field to the horizon, the wet asphalt plate, rounded district pads, lane dashes, park trees in
+ * empty lots, a tree ring (no shadows), a few toy cars; the storm front is a deck of dark puffs behind the city that
+ * flickers with sheet lightning; rain falls over the whole city (one GPU-animated draw).
+ * Streetlights: dark posts around every block; BLOCK POWERED switches their lamps on in a wave (persistent glows).
  * Built once per city (disposed on rebuild); per frame only the instance attributes that changed are uploaded.
  */
 
 import {
   Color, ConeGeometry, CylinderGeometry, DynamicDrawUsage, Group, InstancedBufferAttribute, OctahedronGeometry,
-  InstancedMesh, Matrix4, Mesh, MeshStandardMaterial, PlaneGeometry, Quaternion, SphereGeometry, Vector3,
+  InstancedMesh, Matrix4, Mesh, MeshBasicMaterial, MeshStandardMaterial, PlaneGeometry, Quaternion, SphereGeometry, Vector3,
 } from "three";
 import { STORM } from "../config.js";
 import { createRng } from "../core/rng.js";
+import { FxSprites } from "../fx/particles.js";
+import { Rain } from "../fx/rain.js";
 import { chamferPrismGeometry, propGeometries, toyBlockMaterial, toyTrimMaterial } from "../render/city-kit.js";
 import { enhance } from "../render/materials.js";
 import { LOOK } from "./look.js";
@@ -51,10 +55,20 @@ export class CityMesh {
   #pulse;                       // per building: extra flash 0..1 (district wave, sweep)
   #lastLit;                     // per building: litAt seen last frame (-2 = unknown)
   #settled;                     // per building: nothing left to animate
+  #lamps = [];                  // per district: [{ x, z, delay, on }]
+  #lastTime = 0;
+  #sheetAt = 3;                 // next idle sheet-lightning flicker in the clouds (view time)
+  #sheetStart = -9;             // when the last one began
+  rain = null;
+  sheet = 0;                    // sheet-lightning brightness 0..1 this frame (the view flashes the sky with it)
+  onSheet = null;               // called when a sheet-lightning flicker starts (distant thunder)
 
   constructor(scene) {
     this.#scene = scene;
     scene.add(this.group);
+    // Streetlight lamps live in their own pool so the effects never steal them.
+    this.lampGlow = new FxSprites(scene, { max: 900 });
+    this.lampGlow.mesh.name = "street-lamps";
   }
 
   #own(r) { this.#owned.push(r); return r; }
@@ -63,6 +77,9 @@ export class CityMesh {
     for (const r of this.#owned) r.dispose?.();
     this.#owned = [];
     this.group.clear();
+    this.lampGlow?.clear();
+    this.#lamps = [];
+    this.rain = null;
     this.city = null;
   }
 
@@ -143,7 +160,9 @@ export class CityMesh {
     const aLitC = new InstancedBufferAttribute(new Float32Array(segs.length * 3), 3);
     bodyGeo.setAttribute("aState", aState);
     bodyGeo.setAttribute("aLitColor", aLitC);
-    const bodyMat = this.#own(toyBlockMaterial({ unlit: W.unlit, unlitWindow: W.unlitWin, unlitTop: W.trim }));
+    const bodyMat = this.#own(toyBlockMaterial({
+      unlit: W.unlit, unlitWindow: W.unlitWin, unlitTop: W.trim, window: theme.window ?? "#ffe2a0", windowGlow: LOOK.windowGlow, self: LOOK.litSelf, roughness: 0.62,
+    }));
     // Shadow casters: bodies always; caps, roofs, trees and cars only while the city is small, so a shadow-map
     // refresh frame stays inside profile M (60k triangles) even at 300 buildings.
     const small = n <= 120;
@@ -194,7 +213,8 @@ export class CityMesh {
     // lightning rods: pole + tip ball on the sim's tipY; gold rods are gold and bigger
     const poleMesh = new InstancedMesh(this.#own(new CylinderGeometry(0.14, 0.2, 1, 4, 1, true).translate(0, 0.5, 0)), this.#own(toyTrimMaterial({ roughness: 0.4 })), n);
     poleMesh.name = "rods";
-    const tipMesh = new InstancedMesh(this.#own(new OctahedronGeometry(0.62, 0)), this.#own(new MeshStandardMaterial({ color: 0xffffff, roughness: 0.3, emissive: 0xffffff, emissiveIntensity: 0.15 })), n);
+    // Rod balls are self-lit (MeshBasic): dim beacons on the dark city, bright once powered.
+    const tipMesh = new InstancedMesh(this.#own(new OctahedronGeometry(0.62, 0)), this.#own(new MeshBasicMaterial({ color: 0xffffff })), n);
     tipMesh.name = "rod-tips";
     rods.forEach(([x, y0, z, tipY, gold], i) => {
       const k = gold ? 1.6 : 1;
@@ -216,7 +236,7 @@ export class CityMesh {
     field.receiveShadow = true;
     field.name = "field";
     const avenue = plan?.avenue ?? 6;
-    const plate = new Mesh(this.#own(chamferPrismGeometry(0.02)), this.#own(new MeshStandardMaterial({ color: W.asphalt, roughness: 0.9 })));
+    const plate = new Mesh(this.#own(chamferPrismGeometry(0.02)), this.#own(new MeshStandardMaterial({ color: W.asphalt, roughness: 0.42, metalness: 0.1, envMapIntensity: 0.8 })));
     plate.scale.set(city.width + avenue * 2 + 6, 0.12, city.depth + avenue * 2 + 6);
     plate.position.y = -0.02;
     plate.receiveShadow = true;
@@ -294,6 +314,35 @@ export class CityMesh {
     propMesh(ring, "coneTree", false, "ring-pines");
     propMesh(cars, "car", false, "cars");
 
+    // ---------------------------------------------------------------- streetlights (dark posts; lamps on when the block is powered)
+    const posts = [];
+    for (const d of city.districts) {
+      const hw = d.w / 2 + 0.3, hd = d.d / 2 + 0.3;
+      const per = Math.max(2, Math.round((d.w + 1.6) / 9));
+      const list = [];
+      for (let k = 0; k < per; k++) {
+        const u = -hw + (2 * hw * k) / per;
+        list.push([d.x + u, d.z - hd], [d.x + hw, d.z + u], [d.x - u, d.z + hd], [d.x - hw, d.z - u]);
+      }
+      this.#lamps.push(list.map(([x, z]) => {
+        posts.push([x, z]);
+        return { x, z, on: false, delay: (Math.hypot(x - d.x, z - d.z) / (d.w * 0.7)) * 0.45 };
+      }));
+    }
+    const postMesh = new InstancedMesh(this.#own(new CylinderGeometry(0.09, 0.12, 1, 4, 1, true).translate(0, 0.5, 0)), this.#own(toyTrimMaterial({ roughness: 0.5 })), Math.max(1, posts.length));
+    postMesh.name = "street-posts";
+    posts.forEach(([x, z], i) => { postMesh.setMatrixAt(i, _m.compose(_p.set(x, BASE, z), ID, _s.set(1, 3.1, 1))); postMesh.setColorAt(i, _c.set(W.trim)); });
+    postMesh.count = posts.length;
+    this.group.add(postMesh);
+
+    // ---------------------------------------------------------------- rain over the whole city
+    let topY = 0;
+    for (const b of bs) topY = Math.max(topY, b.tipY);
+    const rainSize = size + avenue * 2 + 60;
+    this.rain = new Rain(this.group, { count: Math.round(Math.min(1500, 500 + rainSize * 5)), size: rainSize, height: topY + 34, color: LOOK.rain, seed: city.level * 7919 + 13 });
+    const rain = this.rain;
+    this.#own({ dispose: () => rain.dispose() });
+
     // ---------------------------------------------------------------- storm front (behind the city, top of frame)
     let top = 0;
     for (const b of bs) top = Math.max(top, b.tipY);
@@ -303,16 +352,19 @@ export class CityMesh {
     const cx = -Math.sin(yaw) * far, cz = -Math.cos(yaw) * far;
     this.cloudCenter = new Vector3(cx, this.cloudY, cz);
     const cloudMat = this.#own(enhance(new MeshStandardMaterial({ color: LOOK.cloud, roughness: 1, emissive: LOOK.cloudGlow, emissiveIntensity: 0, envMapIntensity: 0.3 }),
-      { rim: 0.4, rimPower: 2.4, rimColor: "#ffe0ec", rimTint: 0 }));
-    const puffs = 14;
+      { rim: 0.55, rimPower: 2.2, rimColor: "#b9a8ff", rimTint: 0 }));
+    const puffs = 22;
     const cloud = new InstancedMesh(this.#own(new SphereGeometry(1, 12, 8)), cloudMat, puffs);
     cloud.name = "storm-cloud";
-    const across = Math.max(40, size * 1.1);
+    const across = Math.max(56, size * 1.5);
     for (let i = 0; i < puffs; i++) {
-      const t = i / (puffs - 1) - 0.5;
-      const s = rng.range(5.5, 9.5) * (1 - Math.abs(t) * 0.6) * Math.max(1, size / 60);
-      const x = cx + Math.cos(yaw) * t * across + rng.range(-3, 3), z = cz - Math.sin(yaw) * t * across + rng.range(-3, 3);
-      cloud.setMatrixAt(i, _m.compose(_p.set(x, this.cloudY + rng.range(-2, 5) + (1 - Math.abs(t) * 2) * 4, z), ID, _s.set(s * 1.25, s * 0.8, s)));
+      // two staggered rows: a thick storm deck behind the skyline, highest over the middle
+      const row = i % 2, t = (i - row) / (puffs - 2) - 0.5 + row * 0.04;
+      const s = rng.range(6, 10.5) * (1 - Math.abs(t) * 0.5) * Math.max(1, size / 60);
+      const back = row ? 9 : 0;
+      const x = cx + Math.cos(yaw) * t * across - Math.sin(yaw) * back + rng.range(-3, 3);
+      const z = cz - Math.sin(yaw) * t * across - Math.cos(yaw) * back + rng.range(-3, 3);
+      cloud.setMatrixAt(i, _m.compose(_p.set(x, this.cloudY + rng.range(-2, 4) + (1 - Math.abs(t) * 2) * 4 + row * 5, z), ID, _s.set(s * 1.3, s * 0.75, s)));
     }
     this.cloudMat = cloudMat;
     this.cloudGroup = new Group();
@@ -422,9 +474,30 @@ export class CityMesh {
       this.pads.instanceColor.needsUpdate = true;
     }
     if (!anyWave) for (let d = 0; d < this.#wave.length; d++) if (sim.districtDone[d] && this.#wave[d] === -1) { this.pads.setColorAt(d, _c.set(W.padLit)); this.pads.instanceColor.needsUpdate = true; this.#wave[d] = -2; }
-    // the storm front flickers while the strike charges
+    // streetlights: a powered block's lamps switch on in the wave's order (all at once after a rebuild)
+    for (let d = 0; d < this.#lamps.length; d++) {
+      if (!sim.districtDone[d]) continue;
+      const t0 = this.#wave[d], age = t0 >= 0 ? time - t0 : Infinity;
+      for (const l of this.#lamps[d]) if (!l.on && age >= l.delay) { l.on = true; this.#lamp(l, age < 3); }
+    }
+    const dt = Math.max(0, Math.min(0.1, time - this.#lastTime));
+    this.#lastTime = time;
+    this.lampGlow.update(dt);
+    this.rain?.update(time);
+    // the storm front flickers while the strike charges, and on its own now and then (sheet lightning)
+    if (time >= this.#sheetAt) { this.#sheetStart = time; this.#sheetAt = time + 4 + Math.random() * 6; this.onSheet?.(); }
+    const sa = time - this.#sheetStart;
+    this.sheet = sa >= 0 && sa < 0.5 ? Math.max(0, 1 - sa / 0.12) * 0.7 + (sa > 0.18 ? Math.max(0, 1 - (sa - 0.18) / 0.3) : 0) : 0;
     const flick = holding ? Math.min(1, charge) * (0.55 + 0.45 * Math.sin(time * 37) * Math.sin(time * 23)) : 0;
-    this.cloudMat.emissiveIntensity = Math.max(0, flick) * 0.3;
+    this.cloudMat.emissiveIntensity = Math.max(0, flick) * 0.35 + this.sheet * 0.4;
+  }
+
+  /** A streetlight lamp on: the lamp glow and its light pool on the pavement (persistent), with a pop when fresh. */
+  #lamp(l, pop) {
+    const g = this.lampGlow;
+    g.glow(l.x, BASE + 3.3, l.z, { color: LOOK.street, size: 0.85, grow: 1, life: Infinity, intensity: 2.6 });
+    g.glow(l.x, BASE + 0.1, l.z, { color: LOOK.street, size: 3, grow: 1, life: Infinity, intensity: 0.42, normal: [0, 1, 0] });
+    if (pop) g.glow(l.x, BASE + 3.3, l.z, { color: "#ffffff", size: 1.6, grow: 1.8, life: 0.35, intensity: 2.5 });
   }
 
   dispose() { this.clear(); }

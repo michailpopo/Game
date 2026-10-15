@@ -24,12 +24,12 @@ import { buildSamples } from "./zzfx.js";
 /** ZzFX parameter arrays. Order: volume, randomness, frequency, attack, sustain, release, shape, shapeCurve, slide, deltaSlide, pitchJump, pitchJumpTime, repeatTime, noise, modulation, bitCrush, delay, sustainVolume, decay, tremolo, filter */
 export const SFX = {
   gateGood: [1, 0, 523, 0.01, 0.06, 0.2, 1, 1.6, 0, 0, 262, 0.06, 0, 0, 0, 0, 0, 0.7, 0.03],
-  gateBad: [0.9, 0, 196, 0.01, 0.08, 0.25, 2, 1.2, -3, 0, 0, 0, 0, 0.1, 0, 0, 0, 0.5, 0.05, 0, 900],
+  gateBad: [0.55, 0, 196, 0.01, 0.08, 0.25, 2, 1.2, -3, 0, 0, 0, 0, 0.1, 0, 0, 0, 0.5, 0.05, 0, 900],
   pop: [0.35, 0.15, 620, 0, 0.01, 0.05, 1, 2.2, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0.4],
-  hit: [1, 0.05, 110, 0.005, 0.04, 0.25, 4, 1.6, -1.5, 0, 0, 0, 0, 0.6, 0, 0.1, 0, 0.5, 0.08, 0, 1400],
+  hit: [0.6, 0.05, 110, 0.005, 0.04, 0.25, 4, 1.6, -1.5, 0, 0, 0, 0, 0.6, 0, 0.1, 0, 0.5, 0.08, 0, 1400],
   coin: [0.6, 0, 1318, 0, 0.02, 0.12, 1, 1.5, 0, 0, 659, 0.04, 0, 0, 0, 0, 0, 0.6],
   win: [0.9, 0, 523, 0.02, 0.22, 0.45, 1, 1.1, 0, 0, 262, 0.12, 0.12, 0, 0, 0, 0.04, 0.7, 0.08],
-  fail: [0.9, 0, 294, 0.02, 0.18, 0.5, 2, 1.4, -2.5, 0, 0, 0, 0, 0.1, 0, 0, 0, 0.6, 0.12, 0, 1100],
+  fail: [0.55, 0, 294, 0.02, 0.18, 0.5, 2, 1.4, -2.5, 0, 0, 0, 0, 0.1, 0, 0, 0, 0.6, 0.12, 0, 1100],
   click: [0.45, 0, 880, 0, 0.01, 0.04, 1, 1.5, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0.4],
   tier: [0.7, 0, 659, 0.005, 0.04, 0.14, 1, 1.4, 0, 0, 330, 0.03, 0, 0, 0, 0, 0, 0.6],
   clash: [0.4, 0.25, 150, 0, 0.02, 0.07, 4, 1.8, 0, 0, 0, 0, 0, 0.7, 0, 0, 0, 0.4, 0, 0, 2000],
@@ -40,6 +40,7 @@ export class AudioService {
   #platformMute = false; #adMute = false; #hiddenMute = false; #userMute = false;
   #buffers = new Map(); #lastPlay = new Map(); #active = new Map();
   #listeners = new Set();
+  #unlockListeners = [];
 
   constructor({ sounds = SFX, userMuted = false } = {}) {
     this.#defs = sounds;
@@ -57,6 +58,15 @@ export class AudioService {
   }
 
   onChange(fn) { this.#listeners.add(fn); return () => this.#listeners.delete(fn); }
+
+  /**
+   * Music / ambience layers: fn({ ctx, master }) runs once the AudioContext exists (now, if it already does).
+   * Connect to `master` so every mute source (platform > ad > hidden > player) applies to the layer too.
+   */
+  onUnlock(fn) {
+    if (this.#ctx) fn({ ctx: this.#ctx, master: this.#master });
+    else this.#unlockListeners.push(fn);
+  }
 
   bindPlatform(platform) {
     this.#platformMute = !!platform.settings?.muteAudio;
@@ -83,12 +93,21 @@ export class AudioService {
       if (!AC) return false;
       this.#ctx = new AC();
       this.#master = this.#ctx.createGain();
-      this.#master.connect(this.#ctx.destination);
+      // A gentle limiter: a thunder + a 6-voice crackle ladder + a chord can sum past 0 dBFS; this keeps the
+      // mix from clipping (audible distortion) without pumping the quiet parts.
+      const limiter = this.#ctx.createDynamicsCompressor();
+      limiter.threshold.value = -6;
+      limiter.knee.value = 6;
+      limiter.ratio.value = 8;
+      limiter.attack.value = 0.003;
+      limiter.release.value = 0.25;
+      this.#master.connect(limiter).connect(this.#ctx.destination);
       this.#sfx = this.#ctx.createGain();
       this.#sfx.gain.value = 0.9;
       this.#sfx.connect(this.#master);
       for (const [name, params] of Object.entries(this.#defs)) this.#build(name, params);
       this.#apply();
+      for (const fn of this.#unlockListeners.splice(0)) { try { fn({ ctx: this.#ctx, master: this.#master }); } catch (e) { console.warn("[audio] layer", e); } }
     }
     if (this.#ctx.state !== "running") this.#ctx.resume().catch(() => {});
     return true;

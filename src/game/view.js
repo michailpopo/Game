@@ -24,7 +24,7 @@
  * toward the active bolt fronts with a 15% dolly-in.
  */
 
-import { Color, MathUtils, Mesh, MeshBasicMaterial, RingGeometry, Vector3 } from "three";
+import { Color, MathUtils, Mesh, MeshBasicMaterial, PointLight, RingGeometry, Vector3 } from "three";
 import { STORM } from "../config.js";
 import { t } from "../core/i18n.js";
 import { AdaptiveQuality } from "../core/quality.js";
@@ -66,8 +66,8 @@ export class GameView {
     this.loop = loop;
     // The look (WP-21 settings): applyLook swaps stage.render/resize in place, so main.js keeps calling them.
     this.look = applyLook(stage, {
-      backdrop: backdropFor(THEMES[0]), toneMapping: "neutral", exposure: 1.08, shadowsStatic: true, shadowArea: 60,
-      keyDir: [-0.75, 0.62, 0.5], rimDir: [0.2, 0.6, -1], bloom: { strength: 0.6, radius: 0.25, threshold: 2.2 },
+      backdrop: backdropFor(THEMES[0]), toneMapping: "neutral", exposure: 1.18, shadowsStatic: true, shadowArea: 60,
+      keyDir: [-0.75, 0.62, 0.5], rimDir: [0.2, 0.6, -1], bloom: { strength: 0.6, radius: 0.3, threshold: 1.3 },
     });
     this.look.key.shadow.radius = 5;
     const quality = AdaptiveQuality.of(stage.renderer);
@@ -99,6 +99,7 @@ export class GameView {
     this.cameraOverride = null;
     this.safe = null;                  // setSafeArea(): screen space the UI leaves free for the city
     this.fxScale = 1;
+    this.coach = false;                // onboarding: say why a strike was weak / late (main.js sets it)
 
     const ringGeo = new RingGeometry(0.86, 1.1, 40);
     ringGeo.rotateX(-Math.PI / 2);
@@ -107,6 +108,23 @@ export class GameView {
     this.marker.renderOrder = 6;
     this.marker.visible = false;
     stage.scene.add(this.marker);
+
+    // Lightning light: every strike flashes the sky and the light rig (look.setFlash), and a point light in the
+    // bolt's colour rides the cascade front, so the roofs around the lightning light up as it passes.
+    this.flashes = [[-9, 0], [-9, 0], [-9, 0], [-9, 0]];   // [view time, amplitude] pulses (reused slots)
+    this.flashSlot = 0;
+    this.boltLight = new PointLight(0xffffff, 0, 90, 1.1);
+    this.boltLight.name = "bolt-light";
+    this.boltLight.position.set(0, 30, 0);
+    this.boltI = 0;                    // cascade light 0..1 (eased)
+    this.impactI = 0;                  // impact light 0..1 (decays)
+    stage.scene.add(this.boltLight);
+  }
+
+  /** A sky/rig flash pulse `delay` s from now. */
+  #pulse(amp, delay = 0) {
+    this.flashes[this.flashSlot] = [this.time + delay, amp];
+    this.flashSlot = (this.flashSlot + 1) % this.flashes.length;
   }
 
   setCameraOverride(o) { this.cameraOverride = o; }
@@ -218,7 +236,34 @@ export class GameView {
     this.#marker(sim);
     this.#chargeRing(sim);
     this.#chargeCue(sim);
+    this.#lights(sim, dt);
     this.fx.update(dt, this.stage.camera);
+  }
+
+  /** Sky flash (strikes + the clouds' sheet lightning) and the bolt light that follows the cascade. */
+  #lights(sim, dt) {
+    let k = 0;
+    for (const [t0, amp] of this.flashes) {
+      const age = this.time - t0;
+      if (age >= 0 && age < 0.35) { const q = 1 - age / 0.35; k += amp * q * q; }
+    }
+    k = Math.min(1.4, k + this.cityMesh.sheet * 0.3);
+    this.look.setFlash(k, this.boltHex);
+    this.cityMesh.rain?.setFlash(Math.min(1, k));
+    const L = this.boltLight;
+    const live = sim.bolts.length > 0;
+    this.boltI = lerp(this.boltI, live ? Math.min(1, 0.55 + sim.bolts.length * 0.15) : 0, 1 - Math.exp(-(live ? 12 : 4) * dt));
+    this.impactI *= Math.exp(-7 * dt);
+    if (live) {
+      let n = 0, x = 0, z = 0, y = 0;
+      for (const b of sim.bolts) { const bb = sim.city.buildings[b.at]; x += bb.x; z += bb.z; y += bb.tipY; n++; }
+      const kk = 1 - Math.exp(-14 * dt);
+      L.position.x = lerp(L.position.x, x / n, kk);
+      L.position.y = lerp(L.position.y, y / n + 6, kk);
+      L.position.z = lerp(L.position.z, z / n, kk);
+    }
+    L.color.copy(this.boltColor);
+    L.intensity = this.boltI * 260 + this.impactI * 900;
   }
 
   // ------------------------------------------------------------------ events -> juice
@@ -249,6 +294,10 @@ export class GameView {
             arc: 0, jag: 0.09, life: 0.55, intensity: 1.5, core: 3.2, haloSize: fizzle ? 1.4 : sup ? 3 : 2.4, sparks: fizzle ? 8 : 34, sparkSize: 0.2, ringDrop: 3, beads: 3,
           });
           if (sup) fx.bolt(_o3, _a, { color: glow, width: 1.8, forks: 1, jag: 0.14, life: 0.5, fromHalo: false, beads: 0 });
+          this.#pulse(fizzle ? 0.25 : sup ? 1.15 : 0.85);
+          if (!fizzle) this.#pulse(sup ? 0.6 : 0.4, 0.11);
+          this.impactI = fizzle ? 0.3 : sup ? 1.2 : 1;
+          this.boltLight.position.set(b.x, b.tipY + 6, b.z);
           this.shake.add(fizzle ? 0.08 : sup ? 0.18 : 0.13);
           this.shake.trauma = Math.min(0.32, this.shake.trauma);
           this.punch = fizzle ? 0 : 0.12;
@@ -261,6 +310,9 @@ export class GameView {
           const s = this.toScreen(b.x, b.tipY + 4, b.z, _scr);
           if (sup) this.#floatAt(s.x, s.y - 40, t("supercharge"), "gold");
           else if (fizzle) { this.#floatAt(s.x, s.y - 40, t("fizzle"), "bad"); this.audio.play("fizzle"); }
+          // Onboarding coach (first runs only): say why the strike was small.
+          else if (this.coach && (ev.band === "weak" || ev.band === "charged")) this.#floatAt(s.x, s.y - 40, t("coach_weak"), "bad");
+          else if (this.coach && ev.band === "hot") this.#floatAt(s.x, s.y - 40, t("coach_late"), "bad");
           break;
         }
         case "hop": {
@@ -364,7 +416,7 @@ export class GameView {
   /** ui.floatText kept inside the readable part of the screen (never under the HUD or off an edge). */
   #floatAt(x, y, text, kind) {
     const W = this.stage.size.width, H = this.stage.size.height;
-    this.ui.floatText(Math.min(W * 0.9, Math.max(W * 0.1, x)), Math.min(H * 0.86, Math.max(H * 0.2, y)), text, kind);
+    this.ui.floatText(Math.min(W * 0.9, Math.max(W * 0.1, x)), Math.min(H * 0.86, Math.max(H * 0.3, y)), text, kind);
   }
 
   /** Charge cues on the target: a gold pulse in the SUPERCHARGE band, red sparks when overcharged. */

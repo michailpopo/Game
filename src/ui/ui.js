@@ -34,6 +34,9 @@ const ICON = {
   finger: `<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M9 11V5.5a1.5 1.5 0 0 1 3 0V10l5 1.2c1 .3 1.6 1.2 1.5 2.2L18 18c-.2 1.7-1.6 3-3.3 3h-3.2c-1 0-1.9-.5-2.5-1.3L5.7 15.6a1.4 1.4 0 0 1 2.1-1.8L9 15z" fill="#fff"/></svg>`,
   keys: `<svg viewBox="0 0 24 24" aria-hidden="true"><rect x="2" y="8" width="20" height="9" rx="2" fill="none" stroke="#fff" stroke-width="2"/><path d="M6 12.5h12" stroke="#fff" stroke-width="2" stroke-linecap="round"/></svg>`,
   bolt: `<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M13 2 4 14h6l-1 8 9-12h-6z" fill="#fff"/></svg>`,
+  boltGold: `<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M13 2 4 14h6l-1 8 9-12h-6z" fill="#ffe066" stroke="#1a1240" stroke-width="1.6" stroke-linejoin="round"/></svg>`,
+  // pointing hand, fingertip at (7.5, 1.5) of 24
+  hand: `<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 11.5V3.2a1.6 1.6 0 0 1 3.2 0v6.3l6.4 1.3c1.3.3 2.1 1.5 1.9 2.8l-.8 5.2c-.3 1.9-1.9 3.2-3.8 3.2H10c-1.2 0-2.3-.6-3-1.6l-3.6-5a1.7 1.7 0 0 1 2.6-2.2z" fill="#fff" stroke="#1a1240" stroke-width="1.5" stroke-linejoin="round"/></svg>`,
   voltage: `<svg viewBox="0 0 48 48" aria-hidden="true"><circle cx="24" cy="24" r="17" fill="#4df3ff" opacity=".25"/><path d="M27 6 13 27h9l-2 15 15-22h-9z" fill="#fff"/></svg>`,
   fork: `<svg viewBox="0 0 48 48" aria-hidden="true"><path d="M24 4 18 20l6 3-4 21" fill="none" stroke="#fff" stroke-width="4" stroke-linejoin="round" stroke-linecap="round"/><path d="m24 23 10 8-3 13" fill="none" stroke="#bff8ff" stroke-width="3.5" stroke-linejoin="round" stroke-linecap="round"/></svg>`,
   capacitor: `<svg viewBox="0 0 48 48" aria-hidden="true"><rect x="12" y="10" width="24" height="32" rx="5" fill="none" stroke="#fff" stroke-width="4"/><rect x="19" y="5" width="10" height="6" rx="2" fill="#fff"/><rect x="17" y="24" width="14" height="13" rx="2" fill="#ffe066"/></svg>`,
@@ -50,10 +53,11 @@ const PLATE_COLORS = { 2: "#4df3ff", 3: "#7cff7a", 5: "#ffcc33", 10: "#ff3fa4" }
 export function createUI(root, { onSound, onPause, onResume, onBuy, onFree, onBoost, onBoostCoins, onGift, onShop, onShopClose, onSkin, onPreview, onUnlock, onCash, onTry }) {
   root.innerHTML = `
     <div class="hud">
-      <div class="hud-left"><div class="coins"><b>0</b><span class="coin">${ICON.coin}</span></div></div>
+      <div class="hud-left"><div class="coins"><b>0</b><span class="coin">${ICON.coin}</span></div><p class="city-chip stroke"></p></div>
       <div class="hud-center">
         <div class="score stroke glow-cyan" style="text-align:center"><b>0%</b><span class="powered-label" style="display:block;font-size:max(12px,0.36em);letter-spacing:0.16em;margin-top:0.1em">${t("powered")}</span></div>
-        <div class="meter" style="position:relative;width:9em;overflow:visible"><i></i></div>
+        <div class="meter" style="position:relative;width:11em;overflow:visible"><i></i></div>
+        <div class="meter-labels"></div>
         <div class="strike-pips" style="display:flex;gap:0.15em;margin-top:0.2em"></div>
       </div>
       <div class="hud-right">
@@ -67,6 +71,13 @@ export function createUI(root, { onSound, onPause, onResume, onBuy, onFree, onBo
         <circle class="charge-band" cx="30" cy="30" r="24" fill="none" stroke="#ffe066" stroke-width="8" pathLength="100" opacity="0.6"/>
         <circle class="charge-fill" cx="30" cy="30" r="24" fill="none" stroke="#fff" stroke-width="5" pathLength="100" stroke-linecap="round" stroke-dasharray="0 100"/>
       </svg>
+    </div>
+    <div class="tutor hidden" aria-hidden="true">
+      <svg class="tutor-ring" viewBox="0 0 60 60"><circle class="tr-track" cx="30" cy="30" r="24"/><circle class="tr-fill" cx="30" cy="30" r="24" pathLength="100"/></svg>
+      <span class="tutor-bolt">${ICON.boltGold}</span>
+      <span class="tutor-hand">${ICON.hand}</span>
+      <span class="tutor-key stroke"></span>
+      <p class="tutor-label stroke"><span class="hold"></span><span class="go"></span></p>
     </div>
     <div class="floats"></div>
     <div class="home">
@@ -129,10 +140,19 @@ export function createUI(root, { onSound, onPause, onResume, onBuy, onFree, onBo
   const charge = $(".charge");
   const chargeBand = $(".charge-band");
   const chargeFill = $(".charge-fill");
+  const tutor = $(".tutor");
+  const cityChip = $(".city-chip");
+  const meterLabels = $(".meter-labels");
+  tutor.querySelector(".hold").textContent = t("tutor_hold");
+  tutor.querySelector(".go").textContent = t("tutor_release");
+  tutor.querySelector(".tutor-key").textContent = t("tutor_space");
 
   // Plate thresholds on the % meter (x2 60%, x3 80%, x5 95%).
-  meter.insertAdjacentHTML("beforeend", [[0.6, 2], [0.8, 3], [0.95, 5]].map(([at, m]) =>
-    `<span class="meter-tick" style="position:absolute;left:${at * 100}%;top:-0.2em;bottom:-0.2em;width:0.14em;margin-left:-0.07em;border-radius:0.1em;background:${PLATE_COLORS[m]}"></span>`).join(""));
+  const TICKS = [[0.6, 2], [0.8, 3], [0.95, 5]];
+  meter.insertAdjacentHTML("beforeend", TICKS.map(([at, m]) =>
+    `<span class="meter-tick" data-mult="${m}" style="position:absolute;left:${at * 100}%;top:-0.2em;bottom:-0.2em;width:0.14em;margin-left:-0.07em;border-radius:0.1em;background:${PLATE_COLORS[m]}"></span>`).join(""));
+  meterLabels.innerHTML = TICKS.map(([at, m], i) =>
+    `<span class="${i === 0 ? "goal" : ""}" data-mult="${m}" style="left:${at * 100}%;color:${PLATE_COLORS[m]}">${i === 0 ? t("goal") : `×${m}`}</span>`).join("");
 
   soundBtn.addEventListener("click", () => onSound?.());
   pauseBtn.addEventListener("click", () => onPause?.());
@@ -249,6 +269,8 @@ export function createUI(root, { onSound, onPause, onResume, onBuy, onFree, onBo
    */
   function showResult({ kind, title, amount, buttons, note = "", timed = null, mode = "", plates = null, stats = null, crate = "" }) {
     modal.hidden = false;
+    worldCard.classList.add("hidden");   // a BLOCK POWERED card never peeks out from behind the dialog
+    worldLeft = 0;
     dialog.className = `dialog ${kind}`;
     dialog.querySelector(".dialog-mode").textContent = mode;
     dialog.querySelector("h2").textContent = title;
@@ -367,6 +389,12 @@ export function createUI(root, { onSound, onPause, onResume, onBuy, onFree, onBo
     pctShown = p;
     scoreEl.textContent = `${p}%`;
     meterFill.style.width = `${Math.max(0, Math.min(100, share * 100))}%`;
+    for (const el of meterLabels.children) {
+      const on = share >= TICKS.find(([, m]) => String(m) === el.dataset.mult)[0] - 1e-9;
+      if (on === el.classList.contains("on")) continue;
+      el.classList.toggle("on", on);
+      if (on && punch) el.animate([{ scale: 1 }, { scale: 1.8 }, { scale: 1 }], { duration: 420, easing: "ease-out" });
+    }
     if (punch) scoreBox.animate([{ scale: 1 }, { scale: 1.18 }, { scale: 1 }], { duration: 200, easing: "ease-out" });
   }
   let pipsLeft = -1, pipsMax = -1;
@@ -387,7 +415,8 @@ export function createUI(root, { onSound, onPause, onResume, onBuy, onFree, onBo
   });
   /** City panel (the template's .ranks box): title + up to 3 rows [icon, label, value]. */
   function setPanel(title, rows) {
-    ranksBox.style.display = portraitQuery.matches ? "none" : "";   // portrait: the pips + meter say it; the city needs the room
+    ranksBox.style.display = "none";   // quality pass: no stats box during play - the meter, the pips and the city chip say it
+    if (cityChip.textContent !== title) cityChip.textContent = title;
     if (ranksTitle.textContent !== title) ranksTitle.textContent = title;
     for (let i = 0; i < rankRows.length; i++) {
       const li = rankRows[i];
@@ -446,6 +475,19 @@ export function createUI(root, { onSound, onPause, onResume, onBuy, onFree, onBo
 
   let hintAnim = null;
 
+  // ---- onboarding hand: hold -> the ring fills -> gold -> let go -> bolt (a 2.6 s CSS loop) at a screen point
+  let tutorOn = false, tutorKeys = null;
+  function showTutor(o) {
+    if (!o) { if (tutorOn) { tutor.classList.add("hidden"); tutorOn = false; } return; }
+    if (!tutorOn) {
+      tutor.classList.remove("hidden");
+      tutorOn = true;
+      for (const a of tutor.getAnimations({ subtree: true })) a.currentTime = 0;   // every appearance starts at "hold"
+    }
+    if (tutorKeys !== o.keys) { tutorKeys = o.keys; tutor.classList.toggle("keys", !!o.keys); }
+    tutor.style.transform = `translate(${o.x.toFixed(1)}px, ${o.y.toFixed(1)}px)`;
+  }
+
   return {
     setCoins,
     coinsFly,
@@ -471,6 +513,7 @@ export function createUI(root, { onSound, onPause, onResume, onBuy, onFree, onBo
     setStrikes,
     setPanel,
     setCharge,
+    showTutor,
     showPill,
     showWorld,
     showPaused(on, { title = "", sub = "", keys = "" } = {}) {

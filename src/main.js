@@ -57,6 +57,7 @@ import {
 } from "./game/meta.js";
 import { boostDue, boostOffer, cashOffer, dailyGiftOffer, freeUpgradeOffer, reviveOffer, trySkinOffer } from "./game/offers.js";
 import { STORM_SFX } from "./game/sfx.js";
+import { StormMusic } from "./game/music.js";
 import { themeOf } from "./game/look.js";
 import { GameView } from "./game/view.js";
 import { createUI } from "./ui/ui.js";
@@ -107,7 +108,12 @@ async function boot() {
   let lastLit = 0;
   let aim = -1;                 // the targeted building
   let inputMode = "mouse";      // mouse | touch | keys
-  let sawSuper = false;         // onboarding: the player released in the gold band at least once
+  let sawSuper = false;         // onboarding: the player released in the gold band at least once (not counting the assist)
+  let lastPlate = 1;            // the jackpot step the meter has reached this run (goal / x3 / x5 pops)
+  let tutorAt = -1;             // litCount the onboarding hand's target was picked for
+  let tutorTarget = -1;
+  let quietFor = 0;             // seconds without a charge or bolts in the air (the hand waits for the cascade's numbers)
+  const tutorScr = { x: 0, y: 0, visible: false, keys: false };
   let panelKey = -1;
   let pillOn = false;
   const pointer = { id: null, down: false, x: 0, y: 0 };
@@ -123,6 +129,10 @@ async function boot() {
   const save = new SaveService({ key: `${GAME.slug}.save`, version: GAME.saveVersion, defaults: DEFAULT_SAVE, migrations: MIGRATIONS }).init(platform);
   const audio = new AudioService({ sounds: { ...SFX, ...STORM_SFX }, userMuted: save.data.userMuted }).bindPlatform(platform).installUnlockHandlers(window);
   const input = new Input(canvas, { bindings: { action: ["Space", "Enter"], pause: ["KeyP"] } }).attach();
+  // Music + rain (procedural): created on the first gesture with the AudioContext, through the master mute.
+  const music = new StormMusic();
+  audio.onUnlock(({ ctx, master }) => music.attach(ctx, master));
+  let musicLayer = "";
   const stage = createStage(canvas);
   const quality = new AdaptiveQuality(stage.renderer);
   const touchUI = () => inputMode === "touch" || matchMedia("(pointer: coarse)").matches || platform.systemInfo?.device?.type === "mobile";
@@ -142,6 +152,7 @@ async function boot() {
   // devices (a step costs well under 0.1 ms); below that the spiral guard slows the game instead.
   const loop = new GameLoop({ update, render, maxStepsPerFrame: 8 });
   const view = new GameView(stage, { audio, ui, loop });
+  view.cityMesh.onSheet = () => music.rumble(0.5 + Math.random() * 0.9, 0.35 + Math.random() * 0.3);
   /** The skin hook: the bolt colour (and the whole skin object, for the look pass) of the equipped or tried bolt. */
   const applySkin = () => { const k = activeSkin(save.data, trialSkin); view.recolor(k.glow, k); };
   applySkin();
@@ -151,9 +162,12 @@ async function boot() {
 
   function loadLevel(n) {
     level = n;
-    sim = createSim({ level: n, seed: `city-${n}`, up: upgradeLevels(save.data), extraStrikes: boosted ? OFFERS.boostStrikes : 0 });
+    // Onboarding: until city 1 is cleared once, its first strike is a SUPERCHARGE whatever the charge.
+    sim = createSim({ level: n, seed: `city-${n}`, up: upgradeLevels(save.data), extraStrikes: boosted ? OFFERS.boostStrikes : 0, assist: n === 1 && save.data.wins === 0 });
     runEnded = false;
     lastLit = 0;
+    lastPlate = 1;
+    tutorAt = -1;
     view.build(sim);
     aim = -1;
     ui.setPowered(0, false);
@@ -173,7 +187,7 @@ async function boot() {
     const keys = inputMode === "keys";
     ui.showHome(true, {
       title: t("title"), mode: cityMode(), main: t("hint_hold"),
-      sub: keys ? t("hint_sub_keys", { keys: input.movementLabel }) : t("hint_sub_pointer"), icon: touchUI() ? "finger" : keys ? "keys" : "mouse",
+      sub: keys ? t("hint_sub_keys", { keys: input.movementLabel }) : t("hint_goal", { p: Math.round(STORM.payout.passAt * 100) }), icon: touchUI() ? "finger" : keys ? "keys" : "mouse",
     });
     ui.showRoundHud(false);
     refreshReady();
@@ -283,6 +297,10 @@ async function boot() {
     view.aim.visible = live && !paused && aim >= 0 && (inputMode !== "touch" || sim.holding);
     view.update(sim, alpha, dt);
     hud();
+    tutorStep(dt);
+    const layer = sim.phase === "run" && !paused ? "run" : "calm";
+    if (layer !== musicLayer) { musicLayer = layer; music.setLayer(layer); }
+    music.update();
     ui.update(dt * view.fxScale);
     offerTick += dt;
     if (offerTick >= 0.5) { offerTick = 0; tickOffers(); }
@@ -310,10 +328,38 @@ async function boot() {
       const u = nearestBuilding(sim, b.x, b.z, true);
       if (u >= 0) aim = u;
     }
+    // Goal and jackpot steps reached mid-run: the meter label lights up with a pop (the true plate, never random).
+    const plate = plateFor(progress(sim)).mult;
+    if (plate > lastPlate && sim.phase === "run") {
+      lastPlate = plate;
+      const W = stage.size.width, H = stage.size.height;
+      ui.floatText(W / 2, Math.min(H * 0.32, 150), plate === 2 ? t("goal_reached") : t("plate_up", { m: plate }), "gold");
+      audio.play("ding", { pitch: plate === 2 ? 0.75 : plate === 3 ? 0.85 : 1 });
+    }
     // Onboarding: until the first SUPERCHARGE, a pill while charging.
-    if (sim.lastRelease?.band === "super") sawSuper = true;
+    if (sim.lastRelease?.band === "super" && !sim.lastRelease.assisted) sawSuper = true;
     const wantPill = sim.phase === "run" && sim.holding && !sawSuper && save.data.runs <= 3;
     if (wantPill !== pillOn) { pillOn = wantPill; ui.showPill(wantPill ? t("pill_band") : null, "bolt"); }
+  }
+
+  /**
+   * The onboarding hand (CrazyGames quality guideline: teach in play, visual first, skippable): over the best dark
+   * building it shows hold -> the ring turns gold -> let go, until the player lands a SUPERCHARGE of their own.
+   * It never blocks anything - any press on the city plays.
+   */
+  function tutorStep(dt) {
+    const coaching = (level === 1 && save.data.wins === 0) || (!sawSuper && save.data.runs <= 3);
+    view.coach = coaching;
+    const live = sim.phase === "ready" || sim.phase === "run";
+    const quiet = live && !sim.holding && sim.bolts.length === 0 && !pointer.down && sim.strikesLeft > 0 && canPlay() && !ui.shopOpen;
+    quietFor = quiet ? quietFor + dt : 0;
+    if (!coaching || quietFor < (sim.phase === "ready" ? 0.5 : 1.1)) { ui.showTutor(null); return; }
+    if (tutorAt !== sim.litCount || tutorTarget < 0) { tutorAt = sim.litCount; tutorTarget = densestUnlit(sim); }
+    const b = sim.city.buildings[tutorTarget];
+    if (!b) { ui.showTutor(null); return; }
+    const p = view.toScreen(b.x, b.tipY, b.z, tutorScr);
+    tutorScr.keys = inputMode === "keys";
+    ui.showTutor(p.visible ? tutorScr : null);
   }
 
   // ---------------------------------------------------------------- flow
@@ -885,6 +931,8 @@ async function boot() {
   loadLevel(qaLevel > 0 ? qaLevel : save.data.level);
   stage.resize();
   view.snapCamera(sim);
+  // Compile the first city's shaders while the boot screen is still up: no empty first frame (capped wait).
+  await Promise.race([stage.renderer.compileAsync(stage.scene, stage.camera).catch(() => {}), wait(2500)]);
   ui.setCoins(save.data.coins);
   ui.setSound(audio.state);
   loop.start();

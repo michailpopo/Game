@@ -509,7 +509,7 @@ varying vec3 vBkLit;
 `;
 const BLOCK_FRAGMENT_PARS = /* glsl */`
 uniform vec3 bkUnlit, bkUnlitWin, bkUnlitTop, bkWin;
-uniform float bkWinGlow, bkEdge, bkFlash, bkStorey, bkMargin, bkPane;
+uniform float bkWinGlow, bkEdge, bkFlash, bkStorey, bkMargin, bkPane, bkSelf;
 uniform vec2 bkBand;
 varying vec3 vBkLocal;
 varying vec3 vBkScale;
@@ -523,12 +523,13 @@ varying vec3 vBkLit;
  * rising fill line, window bands (or panes) per storey in real metres, a glowing fill line, a white flash.
  */
 export function toyBlockMaterial({ unlit = TOY.unlit, unlitWindow = TOY.unlitWindow, unlitTop = TOY.unlitTrim, window = TOY.window,
-  windowGlow = 1.05, edge = 2.4, flash = 0.9, storey = 3.2, band = [0.34, 0.72], margin = 0.9, pane = 1.8, roughness = 0.72 } = {}) {
+  windowGlow = 1.05, edge = 2.4, flash = 0.9, storey = 3.2, band = [0.34, 0.72], margin = 0.9, pane = 1.8, roughness = 0.72, self = 0 } = {}) {
   const m = new MeshStandardMaterial({ color: 0xffffff, roughness, metalness: 0, envMapIntensity: 0.6 });
   const u = {
     bkUnlit: { value: new Color(unlit) }, bkUnlitWin: { value: new Color(unlitWindow) }, bkUnlitTop: { value: new Color(unlitTop) },
     bkWin: { value: new Color(window) }, bkWinGlow: { value: windowGlow }, bkEdge: { value: edge }, bkFlash: { value: flash },
     bkStorey: { value: storey }, bkMargin: { value: margin }, bkPane: { value: pane }, bkBand: { value: new Vector2(band[0], band[1]) },
+    bkSelf: { value: self },
   };
   m.userData.block = u;
   m.onBeforeCompile = (shader) => {
@@ -577,6 +578,7 @@ export function toyBlockMaterial({ unlit = TOY.unlit, unlitWindow = TOY.unlitWin
       .replace("#include <roughnessmap_fragment>", "#include <roughnessmap_fragment>\nroughnessFactor = mix( roughnessFactor, 0.3, bkWinK );")
       .replace("#include <emissivemap_fragment>", `#include <emissivemap_fragment>
         totalEmissiveRadiance += bkWin * bkWinGlow * bkWinK * bkLitK;
+        totalEmissiveRadiance += vBkLit * bkSelf * bkLitK * ( 1.0 - bkWinK ) * ( 0.55 + 0.45 * bkTopF );
         float bkLine = ( 1.0 - smoothstep( 0.0, 0.45, abs( bkY - vBkState.x ) ) ) * step( 0.05, vBkState.x ) * ( 1.0 - bkTopF );
         totalEmissiveRadiance += vec3( 1.0, 0.95, 0.82 ) * bkEdge * bkLine * step( bkY, vBkState.x + 0.6 ) * step( vBkState.x, vBkState.y + vBkScale.y + 0.3 ) * step( 0.001, vBkState.x - vBkState.y );
         totalEmissiveRadiance += vec3( 1.0 ) * bkFlash * vBkState.z;`);

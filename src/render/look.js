@@ -31,6 +31,7 @@
  *    splits scene vs post
  *
  * API: look.setQuality(tier) · setBackdrop(nameOrPreset) · setFocus(x, y, z, radius) · refreshShadows()
+ *      look.setFlash(k 0..1, colour?) - a lightning flash: brighter sky and light rig for this frame
  *      look.info() -> { calls, triangles, sceneCalls, sceneTriangles, postCalls, bloom, shadows, dpr }
  *      look.key / rim / hemi (lights) · look.bloomPass (strength/radius/threshold) · look.ground
  * `stage.render()` and `stage.resize()` keep working - applyLook swaps them in place.
@@ -59,7 +60,7 @@ void main() {
 }`;
 
 const BACKDROP_FRAGMENT = /* glsl */`
-uniform vec3 uTop, uBottom, uHorizon, uGlow, uGlow2;
+uniform vec3 uTop, uBottom, uHorizon, uGlow, uGlow2, uFlash;
 uniform vec2 uGlowAt, uGlow2At;
 uniform float uGlowSize, uGlow2Size, uHorizonAt, uHorizonWidth, uVignette, uStars, uAspect;
 varying vec2 vUv;
@@ -82,6 +83,7 @@ void main() {
     float star = step( 1.0 - uStars * 0.12, h ) * smoothstep( 0.09, 0.0, r ) * ( 0.4 + 0.6 * bdHash( cell + 3.3 ) );
     c += vec3( 0.75, 0.8, 1.0 ) * star * smoothstep( uHorizonAt - 0.05, 1.0, uv.y ) * 0.6;
   }
+  c += uFlash * ( 0.35 + 0.65 * smoothstep( 0.2, 1.0, uv.y ) );
   vec2 q = ( uv - 0.5 ) * vec2( 1.0, 1.15 );
   c *= 1.0 - uVignette * smoothstep( 0.18, 0.62, dot( q, q ) * 1.6 );
   c += ( bdHash( gl_FragCoord.xy ) - 0.5 ) / 255.0;
@@ -95,7 +97,7 @@ function createBackdropMesh() {
   geo.setAttribute("position", new Float32BufferAttribute([-1, -1, 0, 3, -1, 0, -1, 3, 0], 3));
   const u = {
     uTop: { value: new Color() }, uBottom: { value: new Color() }, uHorizon: { value: new Color() },
-    uGlow: { value: new Color() }, uGlow2: { value: new Color() },
+    uGlow: { value: new Color() }, uGlow2: { value: new Color() }, uFlash: { value: new Color(0, 0, 0) },
     uGlowAt: { value: new Vector2(0.5, 0.5) }, uGlow2At: { value: new Vector2(0.5, 0.5) },
     uGlowSize: { value: 0.5 }, uGlow2Size: { value: 0.5 }, uHorizonAt: { value: 0.5 }, uHorizonWidth: { value: 0.2 },
     uVignette: { value: 0.4 }, uStars: { value: 0 }, uAspect: { value: 16 / 9 },
@@ -222,6 +224,19 @@ export function applyLook(stage, opts = {}) {
   }
 
   // --- backdrop palette, fog, rig colours, environment
+  // Lightning flash: the sky brightens and the rig lights up for a moment (setFlash(k) every frame, k 0..1).
+  const flashBase = { hemi: 1, key: 1, rim: 1 };
+  let flashK = 0;
+  const flashColor = new Color("#c8d8ff");
+  function setFlash(k, color) {
+    flashK = Math.max(0, k);
+    if (color && color !== flashColor) flashColor.set(color);
+    hemi.intensity = flashBase.hemi * (1 + 1.8 * flashK);
+    key.intensity = flashBase.key * (1 + 1.6 * flashK);
+    rim.intensity = flashBase.rim * (1 + 1.2 * flashK);
+    backdrop.material.uniforms.uFlash.value.copy(flashColor).multiplyScalar(0.28 * flashK);
+  }
+
   let envTarget = null;
   const pmrem = new PMREMGenerator(renderer);
   let current = null;
@@ -242,6 +257,8 @@ export function applyLook(stage, opts = {}) {
     hemi.color.set(b.hemiSky); hemi.groundColor.set(b.hemiGround); hemi.intensity = b.hemi;
     key.color.set(b.key); key.intensity = b.keyIntensity;
     rim.color.set(b.rim); rim.intensity = b.rimIntensity;
+    flashBase.hemi = b.hemi; flashBase.key = b.keyIntensity; flashBase.rim = b.rimIntensity;
+    setFlash(flashK, flashColor);
     // environment
     const envScene = o.env === "room" ? new RoomEnvironment() : buildEnvScene(b);
     const next = pmrem.fromScene(envScene, o.env === "room" ? 0.04 : 0.02);
@@ -388,7 +405,7 @@ export function applyLook(stage, opts = {}) {
     get backdropPreset() { return current; },
     get tier() { return tier; },
     key, rim, hemi, ground, backdrop,
-    setQuality, setBackdrop, setFocus, info, dispose, render, resize,
+    setQuality, setBackdrop, setFocus, setFlash, info, dispose, render, resize,
     /** Static shadows: re-render the shadow map on the next frame (after moving casters). */
     refreshShadows() { renderer.shadowMap.needsUpdate = true; },
   };

@@ -80,7 +80,9 @@ export const STORM = {
     fillSec: 1.2,               // 0 -> 100% charge
     band: [0.8, 0.95],          // SUPERCHARGE band; each Capacitor level widens it downward
     capacitorStep: 0.03,
-    firstCity: { fillSec: 1.6, bandLo: 0.6 },   // city 1: slower fill, wider band (the first strike must land)
+    // City 1 (the tutorial city): slower fill, wider band, longer hops (fewer dead ends) - the first strike must
+    // land big. With the onboarding assist (sim.js createSim) the first strike lights ~75% of city 1 (median).
+    firstCity: { fillSec: 1.6, bandLo: 0.6, range: 22 },
     weakBelow: 0.4,             // WEAK: 0.5 x E0
     weakShare: 0.5,             // CHARGED (weakBelow .. band): E0 x (0.5 + 1.25 x (c - 0.4)), up to E0
     superShare: 1.3,            // SUPERCHARGE: superBolts bolts leave the impact, each floor(1.3 x E0)

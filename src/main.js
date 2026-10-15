@@ -332,8 +332,8 @@ async function boot() {
     const plate = plateFor(progress(sim)).mult;
     if (plate > lastPlate && sim.phase === "run") {
       lastPlate = plate;
-      const W = stage.size.width, H = stage.size.height;
-      ui.floatText(W / 2, Math.min(H * 0.32, 150), plate === 2 ? t("goal_reached") : t("plate_up", { m: plate }), "gold");
+      const at = STORM.payout.plates.find(([, m]) => m === plate)?.[0] ?? STORM.payout.passAt;
+      ui.showWorld(t("pct_powered", { p: Math.round(at * 100) }), plate === 2 ? t("goal_reached") : t("plate_up", { m: plate }));
       audio.play("ding", { pitch: plate === 2 ? 0.75 : plate === 3 ? 0.85 : 1 });
     }
     // Onboarding: until the first SUPERCHARGE, a pill while charging.
@@ -880,15 +880,24 @@ async function boot() {
       title.className = "cover-title stroke";
       title.textContent = t("title");
       uiRoot.appendChild(title);
-      // Half the city powered, then freeze mid-cascade (a forked bolt in the air).
+      // Half the city powered, then freeze mid-cascade (a forked bolt in the air). The view plays along step by step
+      // (effects, lit windows, streetlights, camera) without drawing, then the effects freeze on that moment.
       const stopAt = Number(qs.get("cover_share") || 0.5);
+      stage.resize();
+      view.snapCamera(sim);
       for (let i = 0; i < 60 * 40 && sim.phase === "run"; i++) {
         autopilot(sim, stepIn); step(sim, 1 / 60, stepIn);
+        aim = stepIn.aim;
+        view.update(sim, 1, 1 / 60);
         if (progress(sim) >= stopAt && sim.bolts.length >= 2) break;
       }
+      for (let i = 0; i < 6; i++) view.update(sim, 1, 1 / 60);   // the newest bolts draw in
+      view.fxScale = 0;
+      view.aim.visible = false;
       loop.setSimPaused(true);
       loop.start();
-      await wait(1200);
+      // Ready after a few real frames (a software renderer at 2x DPR can take seconds per frame).
+      await new Promise((r) => { let n = 0; const f = () => (++n >= 4 ? r() : requestAnimationFrame(f)); requestAnimationFrame(f); });
       window.__GS_COVER_READY__ = true;
       return;
     }
@@ -931,8 +940,10 @@ async function boot() {
   loadLevel(qaLevel > 0 ? qaLevel : save.data.level);
   stage.resize();
   view.snapCamera(sim);
-  // Compile the first city's shaders while the boot screen is still up: no empty first frame (capped wait).
-  await Promise.race([stage.renderer.compileAsync(stage.scene, stage.camera).catch(() => {}), wait(2500)]);
+  // Compile the first city's shaders while the boot screen still covers it, so the first visible frame is never an
+  // empty sky. Synchronous on purpose: renderer.compileAsync without KHR_parallel_shader_compile (e.g. SwiftShader,
+  // some Safari builds) makes three r186 poll the GPU every 10 ms forever and starves the game.
+  try { stage.renderer.compile(stage.scene, stage.camera); } catch (e) { console.warn("[boot] shader warm-up failed", e); }
   ui.setCoins(save.data.coins);
   ui.setSound(audio.state);
   loop.start();

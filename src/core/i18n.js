@@ -26,6 +26,7 @@ const STRINGS = {
     coach_weak: "Hold longer!",
     coach_late: "Let go in the GOLD!",
     goal_reached: "CITY CLEARED!",
+    pct_powered: "{p}% POWERED",
     plate_up: "JACKPOT ×{m}!",
     goal: "GOAL",
     powered: "POWERED",

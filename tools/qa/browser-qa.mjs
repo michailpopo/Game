@@ -69,8 +69,13 @@ const GPU_ARGS = process.platform === "win32"
   : ["--use-gl=angle", "--use-angle=swiftshader", "--enable-unsafe-swiftshader", "--ignore-gpu-blocklist"];
 const browser = await chromium.launch({ executablePath: process.env.PW_CHROMIUM_PATH || undefined, headless: !flag("headed"), args: GPU_ARGS });
 
+// Every context a scenario opens: closed when the scenario ends, also when it crashes. A crashed scenario used to
+// leave its page rendering in the background, and on a software-GL machine that starved every later scenario
+// (the "cascade" of boot timeouts at the 2026-09-28 handoff).
+const openContexts = new Set();
 async function openGame(query = "", { viewport = { width: 1280, height: 720 }, blockSdk = false, touch = false, context = null } = {}) {
   const ctx = context || await browser.newContext({ viewport, deviceScaleFactor: 1, hasTouch: touch, isMobile: touch });
+  openContexts.add(ctx);
   await ctx.route(/sdk\.crazygames\.com\/crazygames-sdk-v3\.js/, (route) =>
     blockSdk ? route.abort() : route.fulfill({ path: MOCK, contentType: "text/javascript" }));
   const page = await ctx.newPage();
@@ -86,7 +91,8 @@ async function openGame(query = "", { viewport = { width: 1280, height: 720 }, b
   const url = `${baseUrl}${baseUrl.includes("?") ? "&" : "?"}qa=1${query ? `&${query}` : ""}`;
   const t0 = Date.now();
   await page.goto(url, { waitUntil: "domcontentloaded" });
-  await page.waitForFunction(() => window.__GS_QA__ && document.getElementById("boot")?.classList.contains("done"), null, { timeout: 30000 });
+  // 60 s: software GL (cloud containers) compiles every shader on the CPU; real GPUs boot in a few seconds.
+  await page.waitForFunction(() => window.__GS_QA__ && document.getElementById("boot")?.classList.contains("done"), null, { timeout: 60000 });
   return { ctx, page, errors, bootMs: Date.now() - t0 };
 }
 
@@ -96,7 +102,7 @@ const mockLog = (page) => page.evaluate(() => (window.__CG_MOCK_LOG__ || []).map
 async function startRun(page) {
   const vp = page.viewportSize();
   await page.mouse.click(vp.width / 2, vp.height * 0.7);
-  await page.waitForFunction(() => window.__GS_QA__.state.phase !== "ready", null, { timeout: 5000 });
+  await page.waitForFunction(() => window.__GS_QA__.state.phase !== "ready", null, { timeout: 20000 });
 }
 
 async function reachResult(page, kind = "win") {
@@ -110,6 +116,7 @@ async function scenario(id, fn) {
   if (opt("only") && !opt("only").split(",").includes(id)) return;
   try { await fn(); }
   catch (e) { record({ id, status: "FAIL", requirements: [], summary: `scenario crashed: ${e.message.split("\n")[0]}` }); }
+  finally { for (const c of openContexts) await c.close().catch(() => {}); openContexts.clear(); }
 }
 
 // ------------------------------------------------------------------ scenarios
@@ -262,7 +269,7 @@ await scenario("ads-basic-launch", async () => {
     note = await page.textContent(".dialog .note");
   }
   await page.click('button[data-id="claim"]');
-  await page.waitForFunction(() => window.__GS_QA__.state.phase === "ready" && !window.__GS_QA__.state.pause.length, null, { timeout: 10000 });
+  await page.waitForFunction(() => window.__GS_QA__.state.phase === "ready" && !window.__GS_QA__.state.pause.length, null, { timeout: 30000 });
   await startRun(page);
   const s = await state(page);
   const ok = !grantedOnError && (offerHidden || !offer) && s.phase === "run";
@@ -325,7 +332,7 @@ await scenario("adblock", async () => {
   const note = await page.textContent(".dialog .note");
   await page.screenshot({ path: resolve(SHOTS, "adblock-result.png") });
   await page.click('button[data-id="claim"]');
-  await page.waitForFunction(() => window.__GS_QA__.state.phase === "ready", null, { timeout: 10000 });
+  await page.waitForFunction(() => window.__GS_QA__.state.phase === "ready", null, { timeout: 30000 });
   await startRun(page);
   const s = await state(page);
   allErrors.push(...errors);
@@ -395,17 +402,17 @@ await scenario("tab-hidden", async () => {
 await scenario("persistence", async () => {
   const { ctx, page, errors } = await openGame("");
   await reachResult(page, "win");
-  await page.click('button[data-id="claim"]');
-  await page.waitForFunction(() => window.__GS_QA__.state.phase === "ready", null, { timeout: 10000 });
+  await page.click('button[data-id="claim"]', { timeout: 60000 });   // software GL: the dialog renders at 1-2 fps
+  await page.waitForFunction(() => window.__GS_QA__.state.phase === "ready", null, { timeout: 30000 });
   const before = await state(page);
   await page.reload();
-  await page.waitForFunction(() => window.__GS_QA__ && document.getElementById("boot")?.classList.contains("done"));
+  await page.waitForFunction(() => window.__GS_QA__ && document.getElementById("boot")?.classList.contains("done"), null, { timeout: 60000 });
   const after = await state(page);
   const ok = after.coins === before.coins && after.level === before.level && after.level > 1;
   const { page: p2, ctx: ctx2 } = await openGame("mockDataDisabled=true");
   await reachResult(p2, "win");
-  await p2.click('button[data-id="claim"]');
-  await p2.waitForFunction(() => window.__GS_QA__.state.phase === "ready", null, { timeout: 10000 });
+  await p2.click('button[data-id="claim"]', { timeout: 60000 });
+  await p2.waitForFunction(() => window.__GS_QA__.state.phase === "ready", null, { timeout: 30000 });
   const fb = await state(p2);
   allErrors.push(...errors);
   record({ id: "persistence", requirements: ["CG-DATA-001", "CG-DATA-002"], status: ok && fb.save.provider === "localStorage" ? "PASS" : "FAIL",
@@ -542,7 +549,7 @@ await scenario("ad-ui", async () => {
   await sleep(450);                         // screenshot after the entrance animation
   await page.screenshot({ path: resolve(SHOTS, "ad-ui-win.png") });
   await page.click('button[data-id="claim"]');
-  await page.waitForFunction(() => window.__GS_QA__.state.phase === "ready" && !window.__GS_QA__.state.pause.length, null, { timeout: 10000 });
+  await page.waitForFunction(() => window.__GS_QA__.state.phase === "ready" && !window.__GS_QA__.state.pause.length, null, { timeout: 30000 });
   await startRun(page);
   await sleep(300);
   // The revive-type offer needs a near-miss: __GS_QA__.reviveAt (Storm Grid: 85-99% powered).
@@ -586,7 +593,7 @@ await scenario("revive-offer", async () => {
     const btn = await page.waitForSelector('.modal:not([hidden]) button[data-id="retry"], .modal:not([hidden]) button[data-id="claim"]', { timeout: 8000 }).catch(() => null);
     if (!btn) { problems.push(`no city result after ${label}`); return; }
     await btn.click();
-    await page.waitForFunction(() => window.__GS_QA__.state.phase === "ready" && !window.__GS_QA__.state.pause.length, null, { timeout: 10000 })
+    await page.waitForFunction(() => window.__GS_QA__.state.phase === "ready" && !window.__GS_QA__.state.pause.length, null, { timeout: 30000 })
       .catch(() => problems.push(`no next city intro after ${label}`));
     await startRun(page);
   };

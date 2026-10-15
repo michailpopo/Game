@@ -2,7 +2,7 @@
 /**
  * Render the three mandatory CrazyGames cover images from the game's ?cover= mode.
  *
- *   npm run build && node tools/launch/capture-covers.mjs --serve
+ *   npm run build && node tools/launch/capture-covers.mjs --serve [--scale 1] [--level 8]
  *
  * Spec (docs.crazygames.com/requirements/game-covers, read 2026-09-11):
  *   landscape 16:9 1920x1080 | portrait 2:3 800x1200 | square 1:1 800x800
@@ -42,11 +42,13 @@ const browser = await chromium.launch({ executablePath: process.env.PW_CHROMIUM_
 const extra = [opt("level") && `cover_level=${opt("level")}`, opt("count") && `cover_count=${opt("count")}`].filter(Boolean).join("&");
 
 for (const [kind, w, h] of COVERS) {
-  const ctx = await browser.newContext({ viewport: { width: w, height: h }, deviceScaleFactor: 2, locale: "en-US" });
+  // --scale 1 renders at the final size (software GL in cloud containers cannot draw 3840x2160 in time).
+  const scale = Number(opt("scale", "2")) || 2;
+  const ctx = await browser.newContext({ viewport: { width: w, height: h }, deviceScaleFactor: scale, locale: "en-US" });
   await ctx.route(/sdk\.crazygames\.com/, (r) => r.abort());
   const page = await ctx.newPage();
-  await page.goto(`${base}?cover=${kind}&dpr=2${extra ? `&${extra}` : ""}`);
-  await page.waitForFunction(() => window.__GS_COVER_READY__ === true, null, { timeout: 30000 });
+  await page.goto(`${base}?cover=${kind}&dpr=${scale}${extra ? `&${extra}` : ""}`);
+  await page.waitForFunction(() => window.__GS_COVER_READY__ === true, null, { timeout: 240000 });   // software GL at 2x DPR is slow
   const raw = resolve(outDir, `.${kind}@2x.png`);
   const final = resolve(outDir, `${kind}-${w}x${h}.png`);
   await page.screenshot({ path: raw });

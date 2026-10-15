@@ -59,7 +59,10 @@ export class GameLoop {
     if (!this.#running) return;
     this.#raf = requestAnimationFrame(this.#frame);
 
-    const frameMs = Math.min(now - this.#last, 250);
+    // Clamped at 0: after a long main-thread block (a slow device compiling shaders) the first rAF timestamp can be
+    // OLDER than start()'s performance.now(); a negative frame time froze the simulation for seconds and fed a
+    // negative fps to the quality governor (found 2026-10).
+    const frameMs = Math.max(0, Math.min(now - this.#last, 250));
     this.#last = now;
     this.#stats.frames++;
     this.#emaFrameMs += (frameMs - this.#emaFrameMs) * 0.05;

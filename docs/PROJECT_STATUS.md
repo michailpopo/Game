@@ -1,12 +1,14 @@
 # Project status - Storm Grid
 
-Updated: 2026-09-28 · Project folder: /home/user/Game (repo michailpopo/Game, branch claude/festive-darwin-7ukgnb)
+Updated: 2026-10-15 · Project folder: /home/user/Game (repo michailpopo/Game, branch claude/game-quality-standards-809ss0)
 
 ## Where we are
-- **Phase:** 3 Build - Storm Grid (3D). Handoff to a new chat on 2026-09-28: read HANDOFF.md first.
-- **Current objective:** an original, dopamine-hitting game that looks premium, upload-ready this session.
-- **Next action (one concrete step):** finish + verify WP-31 (toy city, bolts, juice, sounds in the real game) and WP-32 (shop, offers) - both stopped near the end and unverified; then owner playtest, full QA + crazygames-qa audit, launch package (HANDOFF.md section 4).
-- **Waiting on the user:** nothing until the next playtest build; then: play it and audition the sounds.
+- **Phase:** re-submission after the CrazyGames rejection of 13.10.2026 ("overall quality does not yet meet the
+  expectations of our platform"). Quality pass WP-40 done 2026-10-15: `docs/QUALITY_PASS.md`.
+- **Current objective:** a build the owner can re-submit with confidence (quality guidelines, docs.crazygames.com/requirements/quality).
+- **Next action (one concrete step):** owner playtest + audition of the new music/ambience; then covers from the new look
+  (`npm run launch:covers`), the crazygames-qa audit, and the owner re-submits (HANDOFF.md section 4).
+- **Waiting on the user:** play the new build (PC + phone) and listen to the music, rain and thunder.
 
 ## Gates
 | Gate | Status | Date | Evidence |
@@ -35,22 +37,28 @@ npm run qa           # all automated checks + COMPLIANCE_REPORT.md
 ## Latest measurements
 | Metric | Value | Date | How |
 |---|---|---|---|
-| Bytes to first gameplayStart | 0.18 MB (template demo) | 2026-09-26 | browser-qa boot |
+| Bytes to first gameplayStart | 0.23 MB (Storm Grid, quality pass) | 2026-10-15 | browser-qa boot |
 | Total dist size / files | ~0.8 MB (Storm Grid build) | 2026-09-28 | du -sh dist |
 | p95 frame time @4x CPU throttle | | | browser-qa performance |
-| Draw calls / triangles in play | | | `__GS_QA__.renderInfo()` |
+| Draw calls / triangles in play | max 34 draws / 12,269 tris (budget 60 / 60,000) | 2026-10-15 | browser-qa poly-budget |
+| Audio peaks / music bed | every sound <= -0.5 dBFS; music 10.8 dB under the median effect | 2026-10-15 | tools/qa/audio-levels.mjs |
+| City 1 pass rate, naive players | 100% for tappers, 1-s holders, random releases (was 58% for tappers) | 2026-10-15 | tools/balance/naive-players.mjs |
 | Compliance verdict | NOT VERIFIED (template demo: 16 PASS, 46 unverified) | 2026-09-26 | report.mjs |
 | Docs freshness | UNCHANGED vs register 2026.09.11 | 2026-09-26 | check-docs-freshness.mjs |
 
 ## Top 3 problems (reorder after every playtest)
-1. WP-31/WP-32 unverified; last screenshots show a weak bolt / pale lit colours in the game and the shop over the old dark city (HANDOFF.md section 3).
-2. No owner playtest of Storm Grid yet; sounds not auditioned.
-3. Economy numbers are model numbers (Monte Carlo) until a human playtest.
+1. Rejected once for overall quality; the quality pass is not yet seen by a human (owner playtest needed).
+2. Music, rain and thunder are procedural and unheard by Claude: the owner must audition them.
+3. Cities 2-3 are still hard for players who only tap (0% pass in the naive-player model); the coach floats teach
+   "Hold longer!" - watch this in the playtest. Economy numbers are model numbers until real players.
 
 ## Known bugs
 | Id | Severity (P0-P3) | Description | Status |
 |---|---|---|---|
 | B1 | P2 | Template demo: save not flushed on tab hide | fixed in WP-10 (main.js marks the save dirty on hide) |
+| B2 | P1 | Negative frame time after a long main-thread block froze the simulation (core/loop.js) | fixed 2026-10-15 (clamped) |
+| B3 | P1 | renderer.compileAsync never resolves without KHR_parallel_shader_compile and polls the GPU every 10 ms | fixed 2026-10-15 (synchronous compile at boot) |
+| B4 | P2 | Strike thunder, fail, gateBad, hit clipped above 0 dBFS | fixed 2026-10-15 (levels + master limiter) |
 
 ## Decisions log
 | Date | Decision | Why | Alternatives rejected |
@@ -67,3 +75,6 @@ npm run qa           # all automated checks + COMPLIANCE_REPORT.md
 | 2026-09-26 | Look kit WP-20 done: Neutral tone mapping (ACES/AgX washed colours out), bloom only on high/ultra tiers | side-by-side captures in qa/wp20/ | ACES, AgX |
 | 2026-09-27 | Keep the UI; restyle the city from hit-game references, keep it simple | owner: "good in general, the ui looks great but the city is still looking too ai generated, grab some visual inspo from games with a lot of likes that are made in html5, do not overcomplicate" | neon-cyberpunk city |
 | 2026-09-28 | Stopped both specialists and wrote HANDOFF.md | owner wants to continue in a new chat to save context tokens; the account hit its usage limit twice | keep agents running here |
+| 2026-10-15 | Night-storm look instead of the daytime toy field | CrazyGames rejected the build for overall quality; the store cover (night neon city) did not match the game; the bolt barely showed in daylight | keeping the daytime toy city |
+| 2026-10-15 | City 1 = tutorial city: first strike guaranteed SUPERCHARGE, 22 m hops | naive-player model: quick clickers failed city 1 42% of the time | a separate tutorial screen (the guidelines want onboarding in gameplay) |
+| 2026-10-15 | Procedural music + rain, calm/run layers | quality guideline: "music complements the visual experience"; zero files, no licence risk | licensed CC0 track (bigger download, licence bookkeeping) |

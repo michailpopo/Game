@@ -271,6 +271,7 @@ export function createUI(root, { onSound, onPause, onResume, onBuy, onFree, onBo
     modal.hidden = false;
     worldCard.classList.add("hidden");   // a BLOCK POWERED card never peeks out from behind the dialog
     worldLeft = 0;
+    worldQueue.length = 0;
     dialog.className = `dialog ${kind}`;
     dialog.querySelector(".dialog-mode").textContent = mode;
     dialog.querySelector("h2").textContent = title;
@@ -291,6 +292,7 @@ export function createUI(root, { onSound, onPause, onResume, onBuy, onFree, onBo
     // Timed offer: the ring counts down and, at 0, REMOVES the offer. It never accepts it.
     countdown = timed && row.querySelector(`[data-id="${timed.id}"]`) ? { left: timed.seconds, total: timed.seconds, id: timed.id, onExpire: timed.onExpire } : null;
     ring.hidden = !countdown;
+    countdownAt = performance.now();
     drawRing();
     dialog.getAnimations().forEach((a) => a.cancel());
     dialog.animate([{ transform: "scale(.6)", opacity: 0 }, { transform: "scale(1.04)", opacity: 1, offset: 0.7 }, { transform: "scale(1)", opacity: 1 }], { duration: 380, easing: "ease-out" });
@@ -324,9 +326,15 @@ export function createUI(root, { onSound, onPause, onResume, onBuy, onFree, onBo
     ring.querySelector("b").textContent = String(Math.max(0, Math.ceil(countdown.left)));
     ring.querySelector(".fill").style.strokeDashoffset = String(100 * (1 - countdown.left / countdown.total));
   }
-  function tickCountdown(dt) {
+  // Real seconds (not the game's capped frame time): on a very slow device a "5 s" offer must still last 5 s.
+  // Capped at 0.5 s per frame so a hidden tab never expires it in one jump; held while an ad is in flight.
+  let countdownAt = 0;
+  function tickCountdown() {
+    const now = performance.now();
+    const wall = Math.min(0.5, Math.max(0, (now - countdownAt) / 1000));
+    countdownAt = now;
     if (!countdown || modal.hidden || dialog.classList.contains("locked")) return;   // paused while an ad is in flight
-    countdown.left -= dt;
+    countdown.left -= wall;
     if (countdown.left > 0) { drawRing(); return; }
     const { id, onExpire } = countdown;
     countdown = null;
@@ -443,7 +451,9 @@ export function createUI(root, { onSound, onPause, onResume, onBuy, onFree, onBo
   }
 
   let worldLeft = 0;   // seconds the card stays up (ticks in update(), so a paused game holds it)
+  const worldQueue = [];   // cards that arrived while one was up (BLOCK POWERED and CITY CLEARED on the same hop)
   function showWorld(small, big) {
+    if (worldLeft > 0.5) { if (worldQueue.length < 3) worldQueue.push([small, big]); return; }
     worldCard.querySelector(".small").textContent = small;
     worldCard.querySelector(".big").textContent = big;
     worldCard.classList.remove("hidden");
@@ -570,8 +580,11 @@ export function createUI(root, { onSound, onPause, onResume, onBuy, onFree, onBo
     adOverlay: { show() { adBlock.hidden = false; }, hide() { adBlock.hidden = true; } },
     /** Per-frame: smooth coin counter, offer countdown. */
     update(dt) {
-      tickCountdown(dt);
-      if (worldLeft > 0) { worldLeft -= dt; if (worldLeft <= 0) worldCard.classList.add("hidden"); }
+      tickCountdown();
+      if (worldLeft > 0) {
+        worldLeft -= dt;
+        if (worldLeft <= 0) { worldCard.classList.add("hidden"); if (worldQueue.length) { showWorld(...worldQueue.shift()); worldLeft = 1.3; } }
+      }
       if (coinsShown !== coinsTarget) {
         const step = Math.max(1, Math.round(Math.abs(coinsTarget - coinsShown) * Math.min(1, dt * 6)));
         coinsShown += Math.sign(coinsTarget - coinsShown) * step;
